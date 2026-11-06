@@ -1,0 +1,10 @@
+# Tareas en segundo plano (fase 5): Symfony Scheduler genera los mensajes en el
+# propio worker (`messenger:consume scheduler_tareas`, App\Tareas\ProgramaTareas)
+# y se atienden ahí mismo; no hay colas externas. El worker es un proceso de
+# larga duración: la conexión a Oracle se verifica antes de cada mensaje.
+framework:
+    messenger:
+        buses:
+            messenger.bus.default:
+                middleware:
+                    - App\Tareas\ConexionVivaMiddleware

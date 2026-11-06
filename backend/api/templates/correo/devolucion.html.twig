@@ -1,0 +1,13 @@
+{{ style }}
+<div class="card">
+  <h1>Activo devuelto <span class="tag">{{ codigo }}</span></h1>
+  <p>Se ha registrado la devolución del siguiente activo:</p>
+  <table>
+    <tr><td class="k">Código interno</td><td class="v">{{ codigo }}</td></tr>
+    <tr><td class="k">Devuelto por</td><td class="v">{{ persona_nombre }}</td></tr>
+    <tr><td class="k">Fecha</td><td class="v">{{ fecha }}</td></tr>
+    <tr><td class="k">Estado actual</td><td class="v">En Bodega</td></tr>
+  </table>
+  {{ operator_block }}
+  <div class="footer">Sistema Inventario Lombardi · notificación automática</div>
+</div>

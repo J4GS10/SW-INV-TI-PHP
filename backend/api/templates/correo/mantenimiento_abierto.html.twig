@@ -1,0 +1,14 @@
+{{ style }}
+<div class="card">
+  <h1>Ticket de mantenimiento abierto <span class="tag">{{ codigo }}</span></h1>
+  <p>Se ha abierto un ticket de mantenimiento:</p>
+  <table>
+    <tr><td class="k">Activo</td><td class="v">{{ codigo }}</td></tr>
+    <tr><td class="k">Tipo</td><td class="v">{{ tipo }}</td></tr>
+    <tr><td class="k">Solicita</td><td class="v">{{ persona_nombre }}</td></tr>
+    <tr><td class="k">Descripción</td><td class="v">{{ descripcion }}</td></tr>
+    <tr><td class="k">Fecha</td><td class="v">{{ fecha }}</td></tr>
+  </table>
+  {{ operator_block }}
+  <div class="footer">Sistema Inventario Lombardi · notificación automática</div>
+</div>

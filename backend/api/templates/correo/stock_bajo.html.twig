@@ -1,0 +1,14 @@
+{{ style }}
+<div class="card">
+  <h1>Stock bajo <span class="tag">{{ codigo }}</span></h1>
+  <p>El siguiente consumible alcanzó o cayó por debajo de su stock mínimo y
+     conviene reabastecerlo:</p>
+  <table>
+    <tr><td class="k">Consumible</td><td class="v">{{ codigo }}</td></tr>
+    <tr><td class="k">Stock actual</td><td class="v">{{ stock_actual }} {{ unidad }}</td></tr>
+    <tr><td class="k">Stock mínimo</td><td class="v">{{ stock_minimo }} {{ unidad }}</td></tr>
+    {% if categoria %}<tr><td class="k">Categoría</td><td class="v">{{ categoria }}</td></tr>{% endif %}
+  </table>
+  {{ operator_block }}
+  <div class="footer">Sistema Inventario Lombardi · alerta automática de inventario</div>
+</div>

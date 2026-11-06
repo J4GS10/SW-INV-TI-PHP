@@ -1,0 +1,17 @@
+{{ style }}
+<div class="card">
+  <h1>Garantías por vencer</h1>
+  <p>Hay <strong>{{ total }}</strong> activo(s) con garantía vencida o por vencer
+     en los próximos {{ dias }} días:</p>
+  <table>
+    <tr><td class="k" style="font-weight:600;color:#374151;">Activo</td>
+        <td class="k" style="font-weight:600;color:#374151;">Fin garantía</td>
+        <td class="k" style="font-weight:600;color:#374151;">Estado</td></tr>
+    {% for it in items %}
+    <tr><td class="v">{{ it.codigo }}</td>
+        <td class="v">{{ it.fin }}</td>
+        <td class="v">{{ it.estado }}{% if it.dias is not null %} ({{ it.dias }}d){% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  <div class="footer">Sistema Inventario Lombardi · alerta automática de garantías</div>
+</div>

@@ -1,0 +1,23 @@
+{{ style }}
+<div class="card">
+  <h1>{% if motivo_aviso == 'cierre_con_faltante' %}Orden cerrada con faltante{% else %}Recepción con diferencias{% endif %}
+    <span class="tag">{{ numero }}</span></h1>
+  <p>{% if motivo_aviso == 'cierre_con_faltante' %}La orden de compra se cerró aceptando que lo pendiente no llegará.
+     Revise si corresponde una nota de crédito o un nuevo pedido.{% else %}Se registró una entrega de la orden de
+     compra con diferencias respecto de lo pedido. Le compartimos el detalle para su revisión.{% endif %}</p>
+  {% if diferencias %}
+  <h2>Diferencias aceptadas</h2>
+  <table>
+    {% for d in diferencias %}<tr><td class="k">{{ d.tipo }}</td><td class="v">{{ d.detalle }}<br><i>{{ d.motivo }}</i></td></tr>{% endfor %}
+  </table>
+  {% endif %}
+  {% if faltantes %}
+  <h2>Pendiente de recibir</h2>
+  <table>
+    {% for f in faltantes %}<tr><td class="k">{{ f.descripcion }}</td><td class="v">{{ f.pendiente }}</td></tr>{% endfor %}
+  </table>
+  {% endif %}
+  {% if motivo %}<p><b>Motivo:</b> {{ motivo }}</p>{% endif %}
+  {{ operator_block }}
+  <div class="footer">Sistema Inventario Lombardi · control de recepción de compras</div>
+</div>

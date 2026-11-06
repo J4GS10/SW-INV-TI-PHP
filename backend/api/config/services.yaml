@@ -1,0 +1,66 @@
+# Objetos de valor, excepciones y atributos no son servicios.
+parameters:
+    excluir_de_servicios: &excluir
+        - '../src/Kernel.php'
+        - '../src/Security/Mfa/MfaCannotBeDisabled.php'
+        - '../src/GoodsReceipt/Domain/'
+        - '../src/Dominio/'
+        - '../src/Correo/ConfigCorreo.php'
+        - '../src/Correo/ErrorEnvioCorreo.php'
+        - '../src/Http/ErrorApi.php'
+        - '../src/Http/ErrorValidacion.php'
+        - '../src/Http/Limite.php'
+        - '../src/Http/Entrada.php'
+        - '../src/Seguridad/Autenticado.php'
+        - '../src/Seguridad/Fernet.php'
+        - '../src/Seguridad/TokenFernetInvalido.php'
+        - '../src/Crud/Campo.php'
+        - '../src/Crud/Entidad.php'
+        # Valores, enums y excepciones de la fase 4; los almacenes los crea App\Adjuntos\Almacenes.
+        - '../src/Adjuntos/{AlmacenLocal,AlmacenS3,AlmacenFlysystem,AlmacenNoDisponible,ObjetoGuardado,Dueno,TipoDueno,Subida,TiposArchivo}.php'
+        - '../src/Documentos/{Idioma,Logo,DiaCalendario,LibroExcel,ArchivoCsv,CeldaSegura,Descarga,Pdf,Traducciones,JsonLegible}.php'
+        - '../src/Documentos/Actas/{DatosActa,TipoActa,FormatoActa,TextosComunes}.php'
+        - '../src/Importacion/{FilaImportacion,Texto}.php'
+        # Fase 5: valores, enums, excepciones y clientes que crean sus fábricas.
+        - '../src/Correo/CorreoEnCola.php'
+        - '../src/Integracion/{ConfigAd,ConfigIntegracion,ModoIntegracion}.php'
+        - '../src/Directorio/{ConexionLdap,DirectorioLdap,CatalogosPersona,ErrorDirectorio,ErrorAutenticacionDirectorio,GrupoDirectorio,UsuarioDirectorio,NombrePersona,ResultadoSincronizacion}.php'
+        - '../src/Notificaciones/{Destinatario,EventoNotificacion,ReglaNotificacion}.php'
+        - '../src/Tareas/EjecutarTarea.php'
+        # Fase 6: valores del migrador de esquema.
+        - '../src/Esquema/{ScriptSql,FuentePlsql,ObjetoPlsql,PoliticaVpd,PoliticasVpd,DefinicionSeguridad}.php'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude: *excluir
+
+    App\Config\Ajustes:
+        factory: ['App\Config\Ajustes', 'desdeEntorno']
+
+    App\Http\Limitador:
+        arguments:
+            $directorioCache: '%kernel.cache_dir%/limites'
+
+# En pruebas, los servicios de la aplicación son accesibles desde el contenedor.
+when@test:
+    services:
+        _defaults:
+            autowire: true
+            autoconfigure: true
+            public: true
+
+        App\:
+            resource: '../src/'
+            exclude: *excluir
+
+        App\Config\Ajustes:
+            factory: ['App\Config\Ajustes', 'desdeEntorno']
+
+        App\Http\Limitador:
+            arguments:
+                $directorioCache: '%kernel.cache_dir%/limites'

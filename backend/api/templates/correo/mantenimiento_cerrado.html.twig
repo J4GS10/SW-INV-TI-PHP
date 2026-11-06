@@ -1,0 +1,13 @@
+{{ style }}
+<div class="card">
+  <h1>Mantenimiento cerrado <span class="tag">{{ codigo }}</span></h1>
+  <p>El ticket de mantenimiento ha sido cerrado:</p>
+  <table>
+    <tr><td class="k">Activo</td><td class="v">{{ codigo }}</td></tr>
+    <tr><td class="k">Costo total</td><td class="v">{{ costo }}</td></tr>
+    <tr><td class="k">Fecha cierre</td><td class="v">{{ fecha }}</td></tr>
+    <tr><td class="k">Estado actual</td><td class="v">{{ estado_final }}</td></tr>
+  </table>
+  {{ operator_block }}
+  <div class="footer">Sistema Inventario Lombardi · notificación automática</div>
+</div>

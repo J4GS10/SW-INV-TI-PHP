@@ -1,0 +1,17 @@
+{{ style }}
+<div class="card">
+  <h1>Nuevo inicio de sesión en su cuenta</h1>
+  <p>Hola {{ persona_nombre }},</p>
+  <p>Detectamos un inicio de sesión en su cuenta <b>{{ username }}</b> desde un
+     dispositivo que no habíamos visto antes.</p>
+  <table>
+    <tr><td class="k">Dispositivo</td><td class="v">{{ dispositivo }}</td></tr>
+    <tr><td class="k">Fecha</td><td class="v">{{ fecha }}</td></tr>
+    {% if ip %}<tr><td class="k">Origen (IP)</td><td class="v">{{ ip }}</td></tr>{% endif %}
+  </table>
+  <p style="margin-top:16px;padding:12px;background:#fef2f2;border-left:3px solid #ef4444;
+     font-size:13px;color:#7f1d1d;">
+     <b>¿No fue usted?</b> Cierre esa sesión desde «Seguridad de la cuenta», cambie su
+     contraseña de inmediato y comuníquese con el equipo de TI.</p>
+  <div class="footer">Sistema Inventario Lombardi · seguridad de la cuenta</div>
+</div>

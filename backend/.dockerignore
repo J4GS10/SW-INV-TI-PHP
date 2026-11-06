@@ -1,0 +1,10 @@
+.git
+api/vendor
+api/var
+api/.env.local
+api/.env.*.local
+api/.phpunit.cache
+api/tests
+db
+docs
+herramientas

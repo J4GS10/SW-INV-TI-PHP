@@ -1,0 +1,12 @@
+# API sin estado: autenticación por JWT Bearer (sin sesión PHP ni cookies de sesión).
+framework:
+    secret: '%env(APP_SECRET)%'
+    session: false
+    http_method_override: false
+    handle_all_throwables: true
+    php_errors:
+        log: true
+
+when@test:
+    framework:
+        test: true

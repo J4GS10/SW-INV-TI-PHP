@@ -1,0 +1,18 @@
+{{ style }}
+<div class="card">
+  <h1>Salida de empleado <span class="tag">{{ persona_nombre }}</span></h1>
+  <p>Se ha procesado la salida del empleado:</p>
+  <table>
+    <tr><td class="k">Empleado</td><td class="v">{{ persona_nombre }}</td></tr>
+    <tr><td class="k">Email</td><td class="v">{{ persona_email }}</td></tr>
+    <tr><td class="k">Activos devueltos</td><td class="v">{{ num_activos }}</td></tr>
+    <tr><td class="k">Usuario desactivado</td><td class="v">{{ usuario_desactivado }}</td></tr>
+    <tr><td class="k">Fecha</td><td class="v">{{ fecha }}</td></tr>
+  </table>
+  {% if activos_lista %}
+  <p style="margin-top:12px;font-size:13px;"><strong>Activos liberados:</strong></p>
+  <ul style="font-size:13px;color:#374151;">{% for a in activos_lista %}<li>{{ a }}</li>{% endfor %}</ul>
+  {% endif %}
+  {{ operator_block }}
+  <div class="footer">Sistema Inventario Lombardi · notificación automática</div>
+</div>

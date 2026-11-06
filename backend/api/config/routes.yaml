@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../vendor/symfony/routing/Loader/schema/routing.schema.json
+
+# This file is the entry point to configure the routes of your app.
+# Methods with the #[Route] attribute are automatically imported.
+# See also https://symfony.com/doc/current/routing.html
+
+# To list all registered routes, run the following command:
+#   bin/console debug:router
+
+controllers:
+    resource: routing.controllers
+
+# La exportación de la bitácora también se publica en /gov: el administrador de
+# seguridad no tiene rol de inventario. Mismo controlador, mismos roles y límite.
+gov_auditoria_csv:
+    path: /api/v1/gov/auditoria.csv
+    controller: App\Controller\ExportController::auditoria
+    methods: [GET]

@@ -1,0 +1,6 @@
+{% if operator_name and operator_name != 'Sistema' %}
+<div class="operator">
+  <b>Ejecutado por:</b> {{ operator_name }}{% if operator_role %} <em>({{ operator_role }})</em>{% endif %}
+  {% if reply_to %}<br><b>Contacto:</b> <a href="mailto:{{ reply_to }}">{{ reply_to }}</a>{% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,484 @@
+# =========================================================================
+# Stack de PRODUCCIÓN de Inventario TI con el backend PHP (todo libre de costo):
+#   Oracle Database 21c XE + Redis + MinIO + migrador (PHP) + API y worker PHP
+#   (FrankenPHP) + Frontend (Nginx) + Caddy (TLS) + respaldos (Data Pump / mc)
+#   y réplica (rclone).
+#
+# Reemplaza al stack del repositorio anterior con los MISMOS volúmenes y datos
+# (proyecto compose `inventario`: inventario_oracle_data, inventario_minio_data,
+# inventario_adjuntos_data, inventario_caddy_*). No se migran datos.
+# Usar siempre herramientas/desplegar.sh (fija proyecto, .env y rutas).
+#
+# Red: solo Caddy publica puertos (80/443). Dos redes:
+#   internal (internal: true, sin salida a Internet): Oracle, Redis, MinIO,
+#            migrador, respaldos, API y worker.
+#   salida   Caddy, frontend, API y worker: Let's Encrypt, SMTP, AD y SSO.
+# La API nunca recibe tráfico que no pase por Caddy.
+#
+# Usuarios de base de datos (oracle/init/01_usuarios.sh, al crear la base):
+#   ORACLE_SCHEMA_OWNER (INVENTARIO)  dueño: migrador y respaldos.
+#   ORACLE_APP_USER (INVENTARIO_APP)  API y worker: solo DML concedido, sin DDL;
+#                                     no puede alterar las políticas VPD ni los
+#                                     disparadores de inmutabilidad.
+#
+# Secretos: deploy/.env (stack) y deploy/.env.php (APP_SECRET, FRANKENPHP_WORKERS),
+# no versionados. Logs: json-file con rotación (LOG_MAX_SIZE × LOG_MAX_FILE).
+# =========================================================================
+
+name: inventario
+
+x-logs: &logs
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-10m}
+    max-file: "${LOG_MAX_FILE:-5}"
+    compress: "true"
+
+x-endurecido: &endurecido
+  networks: [internal]
+  security_opt: ["no-new-privileges:true"]
+  logging: *logs
+
+x-oracle-conexion: &oracle_conexion
+  ORACLE_HOST: oracle
+  ORACLE_PORT: 1521
+  ORACLE_SERVICE_NAME: XEPDB1
+
+# Configuración común de la API, el worker y el migrador (mismos nombres que el
+# backend anterior: tokens, hashes, cifrado y claves de Redis son compatibles).
+x-entorno-php: &entorno_php
+  <<: *oracle_conexion
+  APP_ENV: prod
+  APP_DEBUG: "0"
+  APP_SECRET: ${APP_SECRET:?definir APP_SECRET en deploy/.env.php}
+  FRANKENPHP_WORKERS: ${FRANKENPHP_WORKERS:-4}
+  PROJECT_NAME: ${PROJECT_NAME:-Sistema Inventario TI}
+  ENVIRONMENT: production
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  ORACLE_USER: ${ORACLE_APP_USER:-INVENTARIO_APP}
+  ORACLE_PASSWORD: ${ORACLE_APP_PASSWORD}
+  ORACLE_SCHEMA_OWNER: ${ORACLE_SCHEMA_OWNER:-INVENTARIO}
+  DB_RLS_ENABLED: "true"
+  SECRET_KEY: ${SECRET_KEY:?definir SECRET_KEY}
+  HMAC_KEYS: ${HMAC_KEYS:?definir HMAC_KEYS}
+  FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?definir FIELD_ENCRYPTION_KEY}
+  ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+  REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+  ACCOUNT_LOCKOUT_THRESHOLD: ${ACCOUNT_LOCKOUT_THRESHOLD:-5}
+  ACCOUNT_LOCKOUT_MINUTES: ${ACCOUNT_LOCKOUT_MINUTES:-15}
+  ACCOUNT_LOCKOUT_MAX_MINUTES: ${ACCOUNT_LOCKOUT_MAX_MINUTES:-1440}
+  ACCOUNT_LOCKOUT_RESET_HOURS: ${ACCOUNT_LOCKOUT_RESET_HOURS:-24}
+  ACCOUNT_LOCKOUT_GLOBAL_FACTOR: ${ACCOUNT_LOCKOUT_GLOBAL_FACTOR:-4}
+  PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-10}
+  PASSWORD_HISTORY_COUNT: ${PASSWORD_HISTORY_COUNT:-3}
+  BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-["https://localhost"]}
+  FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-https://localhost}
+  RATE_LIMIT_LOGIN: ${RATE_LIMIT_LOGIN:-5/minute}
+  RATE_LIMIT_REFRESH: ${RATE_LIMIT_REFRESH:-30/minute}
+  RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-100/minute}
+  PAGINATION_MAX_LIMIT: ${PAGINATION_MAX_LIMIT:-200}
+  REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+  # Alertas de operación: el worker lee la carpeta de respaldos (solo lectura).
+  # Mientras se prueba, el administrador del sistema puede apagar el MFA obligatorio. Para el uso real: false.
+  MFA_CAN_BE_DISABLED: ${MFA_CAN_BE_DISABLED:-false}
+  BACKUP_ALERT_DIR: /backups/oracle
+  BACKUP_REPLICA_CONFIGURED: ${BACKUP_REPLICA_DIR:+1}${BACKUP_REPLICA_REMOTE:+1}
+  AUTH_CACHE_TTL_SECONDS: ${AUTH_CACHE_TTL_SECONDS:-30}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_TLS: ${SMTP_TLS:-true}
+  SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+  SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-10}
+  SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@lombardi.local}
+  SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Sistema Inventario Lombardi}
+  NOTIFY_ADMIN_EMAILS: ${NOTIFY_ADMIN_EMAILS:-}
+  EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
+  SESSION_IDLE_TIMEOUT_MINUTES: ${SESSION_IDLE_TIMEOUT_MINUTES:-120}
+  SESSION_ABSOLUTE_MAX_HOURS: ${SESSION_ABSOLUTE_MAX_HOURS:-12}
+  REFRESH_REUSE_GRACE_SECONDS: ${REFRESH_REUSE_GRACE_SECONDS:-30}
+  REFRESH_COOKIE_PERSISTENT: ${REFRESH_COOKIE_PERSISTENT:-false}
+  SSO_ENABLED: ${SSO_ENABLED:-false}
+  SSO_MFA_LOCAL: ${SSO_MFA_LOCAL:-true}
+  SSO_ALLOWED_EMAIL_DOMAINS: ${SSO_ALLOWED_EMAIL_DOMAINS:-}
+  SSO_MICROSOFT_TENANT: ${SSO_MICROSOFT_TENANT:-organizations}
+  SSO_MICROSOFT_ALLOWED_TENANT_IDS: ${SSO_MICROSOFT_ALLOWED_TENANT_IDS:-}
+  SSO_MICROSOFT_CLIENT_ID: ${SSO_MICROSOFT_CLIENT_ID:-}
+  SSO_MICROSOFT_CLIENT_SECRET: ${SSO_MICROSOFT_CLIENT_SECRET:-}
+  SSO_MICROSOFT_REDIRECT_URI: ${SSO_MICROSOFT_REDIRECT_URI:-}
+  SSO_GOOGLE_CLIENT_ID: ${SSO_GOOGLE_CLIENT_ID:-}
+  SSO_GOOGLE_CLIENT_SECRET: ${SSO_GOOGLE_CLIENT_SECRET:-}
+  SSO_GOOGLE_REDIRECT_URI: ${SSO_GOOGLE_REDIRECT_URI:-}
+  ORG_TIMEZONE: ${ORG_TIMEZONE:-America/Guatemala}
+  # Adjuntos: MinIO con un usuario de servicio limitado al bucket; los adjuntos
+  # antiguos del volumen local se siguen leyendo.
+  STORAGE_BACKEND: s3
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_ACCESS_KEY: ${MINIO_APP_USER:?definir MINIO_APP_USER}
+  S3_SECRET_KEY: ${MINIO_APP_PASSWORD:?definir MINIO_APP_PASSWORD}
+  S3_BUCKET: ${S3_BUCKET:-lombardi-adjuntos}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  STORAGE_TIMEOUT_SECONDS: ${STORAGE_TIMEOUT_SECONDS:-5}
+  UPLOAD_DIR: /app/uploads
+  MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-10}
+  OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS:-7}
+  OUTBOX_POLL_SECONDS: ${OUTBOX_POLL_SECONDS:-15}
+  OUTBOX_RETENTION_DAYS: ${OUTBOX_RETENTION_DAYS:-30}
+  # Active Directory: respaldo por entorno si la interfaz no guardó la cuenta de servicio.
+  AD_ENABLED: ${AD_ENABLED:-false}
+  AD_SERVER: ${AD_SERVER:-}
+  AD_START_TLS: ${AD_START_TLS:-false}
+  AD_VERIFY_CERT: ${AD_VERIFY_CERT:-true}
+  AD_CA_CERT_FILE: ${AD_CA_CERT_FILE:-}
+  AD_BIND_USER: ${AD_BIND_USER:-}
+  AD_BIND_PASSWORD: ${AD_BIND_PASSWORD:-}
+  AD_BASE_DN: ${AD_BASE_DN:-}
+  AD_GROUP_BASE_DN: ${AD_GROUP_BASE_DN:-}
+  AD_ADMIN_GROUP: ${AD_ADMIN_GROUP:-}
+  AD_SYNC_INTERVAL_MINUTES: ${AD_SYNC_INTERVAL_MINUTES:-0}
+  AD_SYNC_DEACTIVATE: ${AD_SYNC_DEACTIVATE:-true}
+
+services:
+  oracle:
+    image: gvenzl/oracle-xe:21-slim-faststart
+    restart: unless-stopped
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_SYS_PASSWORD:?definir ORACLE_SYS_PASSWORD}
+      ORACLE_SCHEMA_OWNER: ${ORACLE_SCHEMA_OWNER:-INVENTARIO}
+      ORACLE_OWNER_PASSWORD: ${ORACLE_OWNER_PASSWORD:?definir ORACLE_OWNER_PASSWORD}
+      ORACLE_APP_USER: ${ORACLE_APP_USER:-INVENTARIO_APP}
+      ORACLE_APP_PASSWORD: ${ORACLE_APP_PASSWORD:?definir ORACLE_APP_PASSWORD}
+    # Vigilante: si la instancia muere dentro del contenedor, sale con error y
+    # `restart: unless-stopped` la levanta (oracle/vigilante.sh).
+    entrypoint: ["/bin/bash", "/opt/oracle/vigilante.sh"]
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+      - ./oracle/vigilante.sh:/opt/oracle/vigilante.sh:ro
+      - ./oracle/init:/container-entrypoint-initdb.d:ro
+      - ${BACKUP_DIR:?definir BACKUP_DIR (ruta absoluta)}/oracle:/opt/oracle/respaldos
+    <<: *endurecido
+    shm_size: 1g
+    mem_limit: 3g
+    cpus: 2.0
+    healthcheck:
+      # Sana = base abierta Y usuarios/directorio creados (oracle/init/01_usuarios.sh).
+      test: ["CMD-SHELL", "healthcheck.sh && test -f /opt/oracle/oradata/.inventario_init_ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 180s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - "redis-server"
+      - "--save"
+      - ""
+      - "--appendonly"
+      - "no"
+      - "--maxmemory"
+      - "128mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:?definir REDIS_PASSWORD}"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    <<: *endurecido
+    # El entrypoint pasa de root al usuario redis (su-exec): solo esas capacidades.
+    cap_drop: [ALL]
+    cap_add: [SETUID, SETGID, CHOWN]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD --no-auth-warning ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    # Fork comunitario de MinIO (AGPLv3): las imágenes minio/minio ya no se publican.
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372  # RELEASE.2026-08-04T00-00-00Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?definir MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?definir MINIO_ROOT_PASSWORD}
+      # Clave maestra para el cifrado en reposo (SSE-S3) de los adjuntos.
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY:?definir MINIO_KMS_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    <<: *endurecido
+    # Corre como root sobre su volumen (propiedad de root): no necesita ninguna capacidad.
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio_init:
+    image: pgsty/mc@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd  # RELEASE.2026-09-16T00-00-00Z
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_APP_USER: ${MINIO_APP_USER:?definir MINIO_APP_USER}
+      MINIO_APP_PASSWORD: ${MINIO_APP_PASSWORD:?definir MINIO_APP_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET:-lombardi-adjuntos}
+      MINIO_VERSIONS_RETENTION_DAYS: ${MINIO_VERSIONS_RETENTION_DAYS:-90}
+    # Bucket privado, versionado (un borrado no elimina el binario: queda la
+    # versión anterior durante MINIO_VERSIONS_RETENTION_DAYS), cifrado en
+    # reposo y un usuario de servicio limitado a ese bucket para la API.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set lombardi http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing "lombardi/$$S3_BUCKET"
+        mc version enable "lombardi/$$S3_BUCKET"
+        # La imagen de mc no trae grep: se busca la regla con `case`.
+        reglas="$$(mc ilm rule ls --json "lombardi/$$S3_BUCKET" 2>/dev/null || true)"
+        case "$$reglas" in
+          *NoncurrentVersionExpiration*) ;;
+          *) mc ilm rule add --noncurrent-expire-days "$$MINIO_VERSIONS_RETENTION_DAYS" "lombardi/$$S3_BUCKET" ;;
+        esac
+        mc encrypt set sse-s3 "lombardi/$$S3_BUCKET"
+        cat > /tmp/politica.json <<POLITICA
+        {"Version":"2012-10-17","Statement":[
+          {"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::$$S3_BUCKET"]},
+          {"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$$S3_BUCKET/*"]}
+        ]}
+        POLITICA
+        mc admin policy create lombardi inventario-adjuntos /tmp/politica.json
+        mc admin user add lombardi "$$MINIO_APP_USER" "$$MINIO_APP_PASSWORD"
+        mc admin policy attach lombardi inventario-adjuntos --user "$$MINIO_APP_USER" 2>/dev/null || true
+        echo "MinIO listo: bucket privado, versionado, cifrado y usuario de servicio."
+    depends_on:
+      minio: { condition: service_healthy }
+    <<: *endurecido
+
+  # Migrador de un solo uso, conectado como DUEÑO del esquema (fail-closed):
+  # migraciones de Doctrine, capa de seguridad (VPD, disparadores, kardex),
+  # permisos del usuario de ejecución, cuenta raíz, catálogo mínimo y huellas.
+  # Sobre una base al día no cambia nada.
+  migrador:
+    image: inventario-php:latest
+    restart: "no"
+    command: ["php", "bin/console", "app:esquema:actualizar", "--no-interaction", "--no-ansi"]
+    environment:
+      <<: *entorno_php
+      ORACLE_USER: ${ORACLE_SCHEMA_OWNER:-INVENTARIO}
+      ORACLE_PASSWORD: ${ORACLE_OWNER_PASSWORD}
+      ORACLE_SCHEMA_OWNER: ${ORACLE_SCHEMA_OWNER:-INVENTARIO}
+      ORACLE_APP_USER: ${ORACLE_APP_USER:-INVENTARIO_APP}
+      SUPER_ADMIN_USERNAME: ${SUPER_ADMIN_USERNAME:-sa}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@example.com}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
+      COMPANY_NAME: ${COMPANY_NAME:-Mi Empresa TI}
+    depends_on:
+      oracle: { condition: service_healthy }
+    <<: *endurecido
+    cap_drop: [ALL]
+    mem_limit: 512m
+
+  api_php:
+    image: inventario-php:latest
+    restart: unless-stopped
+    environment: *entorno_php
+    volumes:
+      - adjuntos_data:/app/uploads
+    depends_on:
+      migrador: { condition: service_completed_successfully }
+      minio_init: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    <<: *endurecido
+    # internal: Oracle, Redis y MinIO. salida: Caddy, SMTP/Graph y proveedores SSO.
+    networks: [internal, salida]
+    cap_drop: [ALL]
+    mem_limit: 1g
+    cpus: 2.0
+    pids_limit: 512
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Tareas en segundo plano (Symfony Scheduler + Messenger): cola de correos,
+  # purga y mantenimiento de seguridad, sincronización con AD. Varias réplicas
+  # son seguras (cerrojos lock:job:* en Redis y reclamo de la cola con SKIP LOCKED).
+  worker_php:
+    image: inventario-php:latest
+    restart: unless-stopped
+    command: ["php", "bin/console", "messenger:consume", "scheduler_tareas", "--no-interaction", "--memory-limit=256M"]
+    environment: *entorno_php
+    depends_on:
+      api_php: { condition: service_healthy }
+    <<: *endurecido
+    volumes:
+      - ${BACKUP_DIR}/oracle:/backups/oracle:ro
+    # internal: Oracle y Redis. salida: SMTP/Graph y Active Directory.
+    networks: [internal, salida]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    # Con SIGTERM termina la tarea en curso.
+    stop_grace_period: 60s
+    healthcheck:
+      # Latido que el worker marca tras cada tarea (la cola corre cada OUTBOX_POLL_SECONDS).
+      test: ["CMD-SHELL", "find /app/var/latido_worker -mmin -2 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # Interfaz (React servida por Nginx). Su imagen se construye desde el repositorio
+  # del frontend (FRONTEND_CONTEXT); la API no pasa por él: Caddy la envía directo a api_php.
+  frontend:
+    image: inventario-frontend:latest
+    build:
+      context: ${FRONTEND_CONTEXT:-../../frontend}
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+        VITE_SESSION_IDLE_TIMEOUT_MINUTES: ${SESSION_IDLE_TIMEOUT_MINUTES:-120}
+    restart: unless-stopped
+    <<: *endurecido
+    networks: [salida]
+    # Maestro de Nginx como root (puerto 80) que baja a `nginx` en los workers: solo esas capacidades.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, NET_BIND_SERVICE]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider --tries=1 http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      TLS_DEFAULT_SNI: ${TLS_DEFAULT_SNI:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend: { condition: service_healthy }
+      api_php: { condition: service_healthy }
+    <<: *endurecido
+    networks: [salida]
+    # Solo abre 80/443; certificados y estado en sus volúmenes.
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 256
+
+  # Respaldos automáticos en BACKUP_DIR; backup_replica los copia fuera del servidor.
+  # Data Pump: el cliente expdp de la misma imagen; el servidor escribe el archivo
+  # en el directorio RESPALDO (BACKUP_DIR/oracle).
+  backup_db:
+    image: gvenzl/oracle-xe:21-slim-faststart
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/backup/respaldo_db.sh"]
+    environment:
+      <<: *oracle_conexion
+      ORACLE_SCHEMA_OWNER: ${ORACLE_SCHEMA_OWNER:-INVENTARIO}
+      ORACLE_OWNER_PASSWORD: ${ORACLE_OWNER_PASSWORD}
+      BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
+      BACKUP_RETENTION_HOURS: ${BACKUP_RETENTION_HOURS:-48}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backup:/backup:ro
+      - ${BACKUP_DIR}/oracle:/opt/oracle/respaldos
+    depends_on:
+      migrador: { condition: service_completed_successfully }
+    healthcheck:
+      # Enfermo si el último respaldo correcto tiene más de dos intervalos.
+      test: ["CMD", "/bin/bash", "/backup/respaldo_db.sh", "--salud"]
+      interval: 5m
+      timeout: 10s
+      start_period: 15m
+    <<: *endurecido
+    mem_limit: 512m
+
+  backup_minio:
+    image: pgsty/mc@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd  # RELEASE.2026-09-16T00-00-00Z
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/backup/respaldo_minio.sh"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET:-lombardi-adjuntos}
+      BACKUP_MINIO_CONTINUO: ${BACKUP_MINIO_CONTINUO:-1}
+      BACKUP_INTERVAL_MINUTES: ${BACKUP_INTERVAL_MINUTES:-60}
+    volumes:
+      - ./backup:/backup:ro
+      - ${BACKUP_DIR}:/backups
+    depends_on:
+      minio_init: { condition: service_completed_successfully }
+    <<: *endurecido
+    mem_limit: 256m
+
+  # Réplica de BACKUP_DIR fuera del servidor (otro disco, NAS, otro equipo o un
+  # remoto rclone). Se activa con COMPOSE_PROFILES=replica en deploy/.env.
+  backup_replica:
+    image: rclone/rclone:1.68.2
+    profiles: ["replica"]
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/config/replicar.sh"]
+    environment:
+      BACKUP_REPLICA_REMOTE: ${BACKUP_REPLICA_REMOTE:-}
+      BACKUP_REPLICA_INTERVAL_SECONDS: ${BACKUP_REPLICA_INTERVAL_SECONDS:-60}
+      BACKUP_REPLICA_RETENTION_DAYS: ${BACKUP_REPLICA_RETENTION_DAYS:-30}
+    volumes:
+      - ./backup:/config:ro
+      - ${BACKUP_DIR}:/origen:ro
+      - ${BACKUP_REPLICA_DIR:-./replica}:/replica
+    healthcheck:
+      test: ["CMD-SHELL", "test $$(( $$(date -u +%s) - $$(cat /tmp/ultimo_ok 2>/dev/null || echo 0) )) -lt 900"]
+      interval: 2m
+      timeout: 5s
+      start_period: 5m
+    # Sin la red interna: solo necesita el disco y, si hay remoto, salida a la red.
+    security_opt: ["no-new-privileges:true"]
+    logging: *logs
+    mem_limit: 256m
+
+networks:
+  internal:
+    driver: bridge
+    internal: true
+  salida:
+    driver: bridge
+
+# Los mismos volúmenes del stack anterior (nombres explícitos: nunca se crea uno
+# vacío por error si cambia el nombre del proyecto).
+volumes:
+  oracle_data:
+    name: inventario_oracle_data
+  caddy_data:
+    name: inventario_caddy_data
+  caddy_config:
+    name: inventario_caddy_config
+  adjuntos_data:
+    name: inventario_adjuntos_data
+  minio_data:
+    name: inventario_minio_data

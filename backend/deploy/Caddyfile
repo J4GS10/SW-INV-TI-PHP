@@ -1,0 +1,70 @@
+# =========================================================================
+# Caddy del stack de producción: TLS automático (Let's Encrypt, o certificado
+# autofirmado con DOMAIN=localhost), cabeceras de seguridad y enrutamiento:
+#
+#   /metrics, /health/full      403 (operativos: solo por la red interna)
+#   /api/* y /health            API PHP (api_php:8000): toda la API
+#   todo lo demás               frontend (Nginx: la aplicación React)
+#
+# Ninguna petición a la API pasa por Nginx: su proxy /api al backend anterior
+# queda sin uso (y sin destino una vez apagado).
+# =========================================================================
+
+{
+    email {$ACME_EMAIL:admin@example.com}
+    # Quien entra por IP no envía SNI: este nombre elige su certificado.
+    default_sni {$TLS_DEFAULT_SNI:localhost}
+    log {
+        output stderr
+        format json
+        level INFO
+    }
+}
+
+{$DOMAIN:localhost} {
+    encode zstd gzip
+
+    # Registro de accesos (JSON en stdout; la rotación la hace Docker).
+    log {
+        output stdout
+        format json
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # camera=(self): el escáner QR/código de barras usa la cámara.
+        Permissions-Policy "geolocation=(), microphone=(), camera=(self), payment=(), usb=(), interest-cohort=(), browsing-topics=(), fullscreen=(self), accelerometer=(), gyroscope=(), magnetometer=()"
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Resource-Policy "same-origin"
+        -Server
+        -X-Powered-By
+    }
+
+    # No exponer endpoints operativos por el edge público.
+    @internal_only path /metrics /health/full
+    handle @internal_only {
+        respond "Forbidden" 403
+    }
+
+    @api path /api /api/* /health
+    handle @api {
+        reverse_proxy api_php:8000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up Host {host}
+        }
+    }
+
+    handle {
+        reverse_proxy frontend:80 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up Host {host}
+        }
+    }
+}

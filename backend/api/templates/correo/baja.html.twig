@@ -1,0 +1,13 @@
+{{ style }}
+<div class="card">
+  <h1>Activo dado de baja <span class="tag">{{ codigo }}</span></h1>
+  <p>El siguiente activo ha sido dado de baja del inventario:</p>
+  <table>
+    <tr><td class="k">Código interno</td><td class="v">{{ codigo }}</td></tr>
+    <tr><td class="k">Serie</td><td class="v">{{ serie }}</td></tr>
+    <tr><td class="k">Fecha de baja</td><td class="v">{{ fecha }}</td></tr>
+    {% if motivo %}<tr><td class="k">Motivo</td><td class="v">{{ motivo }}</td></tr>{% endif %}
+  </table>
+  {{ operator_block }}
+  <div class="footer">Sistema Inventario Lombardi · notificación automática</div>
+</div>

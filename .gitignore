@@ -1,0 +1,23 @@
+# Secretos
+.env.local
+.env.*.local
+backend/deploy/.env
+backend/deploy/.env.php
+*.pem
+
+# Generados
+backend/api/var/
+backend/api/vendor/
+backend/api/.phpunit.cache/
+backend/api/config/reference.php
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Local
+.claude/
+.vscode/
+.idea/
+*.log

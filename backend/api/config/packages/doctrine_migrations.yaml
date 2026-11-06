@@ -1,0 +1,19 @@
+# Migraciones de esquema (Oracle Database 21c). Las ejecuta el migrador
+# (`php bin/console app:esquema:actualizar`) conectado como DUEÑO del esquema;
+# la API usa el usuario de ejecución, que no tiene DDL. La primera migración es
+# la línea base (esquema de producción del 2026-10-29): en una base existente se
+# registra sin emitir SQL. El VPD, los disparadores de inmutabilidad y el sellado
+# del kardex no van en migraciones: los instala de forma idempotente
+# App\Esquema\CapaSeguridad después de migrar.
+doctrine_migrations:
+    migrations_paths:
+        'Migraciones': '%kernel.project_dir%/migrations'
+    storage:
+        table_storage:
+            table_name: 'SYS_MIGRACION_ESQUEMA'
+    # DDL en Oracle confirma implícitamente: cada migración declara si es transaccional.
+    transactional: false
+    all_or_nothing: false
+    check_database_platform: true
+    organize_migrations: none
+    enable_profiler: false

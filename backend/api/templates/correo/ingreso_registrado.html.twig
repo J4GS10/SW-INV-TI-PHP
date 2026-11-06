@@ -1,0 +1,12 @@
+{{ style }}
+<div class="card">
+  <h1>Ingreso por confirmar <span class="tag">{{ codigo }}</span></h1>
+  <p>Compras registró lo que llegó a bodega. TI debe contar, clasificar y confirmar lo recibido.</p>
+  <table>
+    <tr><td class="k">Ingreso</td><td class="v">{{ codigo }}</td></tr>
+    <tr><td class="k">Factura o envío</td><td class="v">{{ documento }}</td></tr>
+    <tr><td class="k">Líneas</td><td class="v">{{ lineas }}</td></tr>
+  </table>
+  {{ operator_block }}
+  <div class="footer">Sistema Inventario · alerta automática de inventario</div>
+</div>

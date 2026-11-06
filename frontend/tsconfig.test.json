@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node", "vite/client"], "incremental": false },
+  "include": ["src", "test-support/setup.ts"],
+  "exclude": [],
+  "references": []
+}

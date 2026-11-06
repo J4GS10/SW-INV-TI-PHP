@@ -1,0 +1,24 @@
+# FrankenPHP en modo worker: el kernel de Symfony queda cargado entre
+# peticiones. Solo HTTP en :8000; el TLS lo termina el Caddy del despliegue.
+{
+	frankenphp {
+		worker {
+			file /app/public/index.php
+			num {$FRANKENPHP_WORKERS:4}
+		}
+	}
+	auto_https off
+	admin off
+}
+
+:8000 {
+	root * /app/public
+	encode zstd gzip
+	php_server {
+		try_files {path} index.php
+	}
+	log {
+		output stdout
+		format json
+	}
+}

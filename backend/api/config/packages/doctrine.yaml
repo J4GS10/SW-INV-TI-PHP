@@ -1,0 +1,22 @@
+# Oracle Database 21c vía oci8 (Instant Client). Solo DBAL: las consultas son
+# SQL explícito con identificadores entre comillas ("INV_USUARIO"."USU_Usuario"),
+# igual que el esquema existente. La preparación de cada sesión (UTC, formatos
+# NLS, CURRENT_SCHEMA) la hace App\Db\SesionOracleMiddleware.
+doctrine:
+    dbal:
+        driver: oci8
+        host: '%env(ORACLE_HOST)%'
+        port: '%env(int:ORACLE_PORT)%'
+        servicename: '%env(ORACLE_SERVICE_NAME)%'
+        user: '%env(ORACLE_USER)%'
+        password: '%env(ORACLE_PASSWORD)%'
+        charset: AL32UTF8
+        server_version: '21'
+        # Sin oci_pconnect: una conexión persistente conservaría el contexto
+        # VPD de una petición anterior (ver App\Db\ContextoRls).
+        persistent: false
+        # oci_new_connect: oci_connect devuelve la MISMA sesión a toda conexión
+        # del proceso con iguales credenciales, y con ella su contexto VPD.
+        options:
+            exclusive: true
+        profiling_collect_backtrace: '%kernel.debug%'

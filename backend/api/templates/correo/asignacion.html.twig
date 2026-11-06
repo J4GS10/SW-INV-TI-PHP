@@ -1,0 +1,22 @@
+{{ style }}
+<div class="card">
+  <h1>Activo asignado <span class="tag">{{ codigo }}</span></h1>
+  <p>Hola {{ persona_nombre }},</p>
+  <p>Se ha registrado la asignación de un activo bajo su custodia.</p>
+  <table>
+    <tr><td class="k">Código interno</td><td class="v">{{ codigo }}</td></tr>
+    <tr><td class="k">Serie</td><td class="v">{{ serie }}</td></tr>
+    <tr><td class="k">Tipo</td><td class="v">{{ tipo }}</td></tr>
+    <tr><td class="k">Marca / Modelo</td><td class="v">{{ marca }} {{ modelo }}</td></tr>
+    {% if hostname %}<tr><td class="k">Hostname</td><td class="v">{{ hostname }}</td></tr>{% endif %}
+    <tr><td class="k">Fecha asignación</td><td class="v">{{ fecha }}</td></tr>
+    <tr><td class="k">Área</td><td class="v">{{ area }}</td></tr>
+    {% if observacion %}<tr><td class="k">Observación</td><td class="v">{{ observacion }}</td></tr>{% endif %}
+  </table>
+  <p style="margin-top:16px;font-size:13px;color:#6b7280;">
+    Si recibe este activo en mano, le recomendamos conservar esta notificación como respaldo.
+    Para devolverlo, comuníquese con el equipo de TI.
+  </p>
+  {{ operator_block }}
+  <div class="footer">Sistema Inventario Lombardi · notificación automática</div>
+</div>

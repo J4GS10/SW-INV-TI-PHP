@@ -1,0 +1,18 @@
+{{ style }}
+<div class="card">
+  <h1>Active Directory: salidas pendientes</h1>
+  <p>La sincronización con Active Directory encontró cuentas deshabilitadas o
+     eliminadas cuyas personas todavía tienen activos asignados. No se
+     desactivaron: procese su <strong>offboarding</strong> en el sistema.</p>
+  <table>
+    <tr><td class="k" style="font-weight:600;color:#374151;">Persona</td>
+        <td class="k" style="font-weight:600;color:#374151;">Email</td>
+        <td class="k" style="font-weight:600;color:#374151;">Activos</td></tr>
+    {% for it in items %}
+    <tr><td class="v">{{ it.nombre }}</td>
+        <td class="v">{{ it.email }}</td>
+        <td class="v">{{ it.activos }}</td></tr>
+    {% endfor %}
+  </table>
+  <div class="footer">Sistema Inventario Lombardi · sincronización con Active Directory</div>
+</div>

@@ -1,0 +1,37 @@
+# Logs a stdout/stderr en JSON (producción) con el request_id de cada petición
+# (App\EventListener\ContextoPeticionListener).
+monolog:
+    channels: [deprecation, seguridad]
+
+when@dev:
+    monolog:
+        handlers:
+            main:
+                type: stream
+                path: php://stderr
+                level: debug
+                channels: ["!event", "!doctrine"]
+
+when@test:
+    monolog:
+        handlers:
+            main:
+                type: fingers_crossed
+                action_level: error
+                handler: nested
+                excluded_http_codes: [404, 405]
+                channels: ["!event"]
+            nested:
+                type: stream
+                path: "%kernel.logs_dir%/%kernel.environment%.log"
+                level: debug
+
+when@prod:
+    monolog:
+        handlers:
+            main:
+                type: stream
+                path: php://stderr
+                level: info
+                channels: ["!event", "!doctrine", "!deprecation"]
+                formatter: monolog.formatter.json
