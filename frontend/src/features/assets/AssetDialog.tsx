@@ -295,6 +295,7 @@ export const AssetDialog = ({ open, assetToEdit, onClose }: Props) => {
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <DialogContent>
           <Stack spacing={2}>
+          {!isEdit && <Alert severity="info">{t('assets.dialog.no_invoice_hint')}</Alert>}
           <SectionCard title={t('assets.dialog.classification')}>
           <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'flex-start' } }}>
             <Box sx={{ flex: 2, minWidth: 0, width: '100%' }}>
@@ -350,7 +351,7 @@ export const AssetDialog = ({ open, assetToEdit, onClose }: Props) => {
             <Controller name="ACT_Fecha_Compra" control={control} rules={{ required: true }} render={({ field }) => (<DateField {...field} fullWidth label={t('assets.dialog.purchase_date')} InputLabelProps={{ shrink: true }} error={!!errors.ACT_Fecha_Compra} helperText={errors.ACT_Fecha_Compra ? t('common.required') : undefined} required/>)}/>
             <Controller name="ACT_Fin_Garantia" control={control} render={({ field }) => (<DateField {...field} fullWidth label={t('assets.dialog.warranty_end')} InputLabelProps={{ shrink: true }}/>)}/>
             {canSeeCosts && <Controller name="ACT_Moneda" control={control} render={({ field: moneda }) => (<Controller name="ACT_Costo" control={control} render={({ field }) => (<MoneyField name={field.name} value={field.value} onChange={field.onChange} onBlur={field.onBlur} currency={moneda.value} onCurrencyChange={moneda.onChange} fullWidth label={t('assets.dialog.cost')}/>)}/>)}/>}
-            {estadoBloqueado && <Controller name="EOP_Estado_Operativo" control={control} rules={{ required: true }} render={({ field }) => (<TextField {...field} select fullWidth label={t('assets.dialog.operational_status')} error={!!errors.EOP_Estado_Operativo} disabled={estadoBloqueado} helperText={estadoBloqueado ? t('assets.dialog.state_locked_help') : errors.EOP_Estado_Operativo ? t('common.required') : t('assets.dialog.state_storage_help')}>
+            {estadoBloqueado && <Controller name="EOP_Estado_Operativo" control={control} rules={{ required: true }} render={({ field }) => (<TextField {...field} select fullWidth label={t('assets.dialog.operational_status')} error={!!errors.EOP_Estado_Operativo} disabled={estadoBloqueado} helperText={t('assets.dialog.state_locked_help')}>
                   {estadosPermitidos.map((e) => (<MenuItem key={e.EOP_Estado_Operativo} value={e.EOP_Estado_Operativo}>
                       {stateLabel(t, e.EOP_Nombre)}
                     </MenuItem>))}

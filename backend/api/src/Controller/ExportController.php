@@ -143,15 +143,6 @@ final readonly class ExportController
         return self::descarga($this->exportaciones->proveedores($idioma), 'proveedores', $idioma);
     }
 
-    #[Route('/ordenes.csv', methods: ['GET'])]
-    #[Autenticado(roles: Roles::EXPORTACION_COMPRAS)]
-    #[Limite('10/minute')]
-    public function ordenes(Request $request): Response
-    {
-        $idioma = self::idiomaDe($request);
-
-        return self::descarga($this->exportaciones->ordenes($idioma), 'ordenes', $idioma);
-    }
 
     /**
      * Bitácora filtrada por el alcance del lector. La propia exportación queda

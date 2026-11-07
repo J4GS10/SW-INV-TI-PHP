@@ -46,9 +46,23 @@ final readonly class ImportacionActivos
     ) {
     }
 
+    /** La importación es solo para la carga inicial: termina con el primer cierre mensual de cualquier sede. */
+    public function disponible(): bool
+    {
+        return false === $this->alcance->elevado(fn (): mixed => $this->conexion->fetchOne('SELECT 1 FROM TRC_MONTH_END_CLOSE FETCH FIRST 1 ROWS ONLY'));
+    }
+
+    private function exigirDisponible(): void
+    {
+        if (!$this->disponible()) {
+            throw new ErrorApi(409, 'IMPORT_ONLY_BEFORE_FIRST_CLOSE');
+        }
+    }
+
     /** @return array{resumen: array<string, int>, filas: list<array<string, mixed>>} */
     public function previsualizar(string $contenido): array
     {
+        $this->exigirDisponible();
         [$filas, $resumen] = $this->analizar($contenido);
 
         return ['resumen' => $resumen, 'filas' => array_map(static fn (FilaImportacion $f): array => $f->resumen(), $filas)];
@@ -57,6 +71,8 @@ final readonly class ImportacionActivos
     /** @return array{creados: int, omitidos: int, codigos: list<string>} */
     public function confirmar(string $contenido, bool $omitirErrores, string $usuario, ?string $ip): array
     {
+        $this->exigirDisponible();
+
         return $this->transaccion->ejecutar(function () use ($contenido, $omitirErrores, $usuario, $ip): array {
             [$filas, $resumen] = $this->analizar($contenido);
             if ($resumen['con_error'] > 0 && !$omitirErrores) {

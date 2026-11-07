@@ -15,12 +15,12 @@ export function getApiErrorDetail(error: unknown): string | undefined {
   return typeof detail === 'string' ? detail : undefined;
 }
 
-/** Código del error sin sus parámetros (`RECEIPT_EXCEEDS_PENDING:12:1` → `RECEIPT_EXCEEDS_PENDING`). */
+/** Código del error sin sus parámetros (`APPROVAL_ALREADY_PENDING:12` → `APPROVAL_ALREADY_PENDING`). */
 export function getApiErrorCode(error: unknown): string | undefined {
   return getApiErrorDetail(error)?.split(':')[0];
 }
 
-/** Parámetros del código (`RECEIPT_EXCEEDS_PENDING:12:1` → `['12', '1']`). */
+/** Parámetros del código (`APPROVAL_ALREADY_PENDING:12` → `['12']`). */
 export function getApiErrorParams(error: unknown): string[] {
   const detail = getApiErrorDetail(error);
   return detail ? detail.split(':').slice(1) : [];

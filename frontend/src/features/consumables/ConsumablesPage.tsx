@@ -9,8 +9,6 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import HistoryIcon from '@mui/icons-material/History';
 import TuneIcon from '@mui/icons-material/Tune';
-import { PurchaseOrderDialog } from '../procurement/PurchaseOrderDialog';
-import type { LineaOrden } from '../../types/procurement';
 import { formatMoney } from '../../utils/currency';
 import { useTranslation } from 'react-i18next';
 import { emptyStateProps } from '../../utils/emptyState';
@@ -39,8 +37,6 @@ export const ConsumablesPage = () => {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [toEdit, setToEdit] = useState<Consumible | null>(null);
     const [stockModo, setStockModo] = useState<StockModo | null>(null);
-    // Orden de reposición propuesta tras una salida que dejó el stock bajo el mínimo.
-    const [reposicion, setReposicion] = useState<LineaOrden[] | null>(null);
     const [stockTarget, setStockTarget] = useState<Consumible | null>(null);
     const [histTarget, setHistTarget] = useState<Consumible | null>(null);
     const load = useCallback(async () => {
@@ -96,22 +92,11 @@ export const ConsumablesPage = () => {
 
       <ConsumableDialog open={dialogOpen} toEdit={toEdit} onClose={(r) => { setDialogOpen(false); setToEdit(null); if (r)
         load(); }}/>
-      <StockDialog open={!!stockModo} modo={stockModo ?? 'entrada'} consumible={stockTarget} onClose={(r, reponer) => {
+      <StockDialog open={!!stockModo} modo={stockModo ?? 'entrada'} consumible={stockTarget} onClose={(r) => {
             setStockModo(null);
             setStockTarget(null);
             if (r)
                 load();
-            if (reponer)
-                setReposicion([{
-                    OCL_Tipo: 'CONSUMIBLE', CON_Consumible: reponer.consumible.CON_Consumible,
-                    OCL_Descripcion: reponer.consumible.CON_Nombre, OCL_Cantidad: reponer.sugerido,
-                    OCL_Precio_Unitario: String(reponer.consumible.CON_Costo_Unitario ?? '0'),
-                }]);
-        }}/>
-      <PurchaseOrderDialog open={!!reposicion} lineasIniciales={reposicion ?? undefined} onClose={(r) => {
-            setReposicion(null);
-            if (r)
-                enqueueSnackbar(t('consumables.order_created_hint'), { variant: 'info' });
         }}/>
       <ConsumableHistoryDialog open={!!histTarget} consumible={histTarget} onClose={() => setHistTarget(null)}/>
 

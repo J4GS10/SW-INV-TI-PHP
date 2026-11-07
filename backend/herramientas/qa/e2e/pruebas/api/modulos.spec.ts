@@ -1,7 +1,7 @@
 /*
  * MÓDULOS por el borde de QA, verificados en Oracle, Mailpit y el doble de Samba AD:
- * consumibles (stock y existencias), licencias (cupos y claves cifradas), compras con
- * recepción -> activos creados -> etiquetas QR decodificadas, mantenimiento, directorio
+ * consumibles (stock y existencias), licencias (cupos y claves cifradas),
+ * etiquetas QR decodificadas, mantenimiento, directorio
  * (integración guardada con secretos cifrados, prueba de LDAPS, sincronización), cola de
  * correos y gobierno (configuración y auditoría).
  */
@@ -14,12 +14,10 @@ test.describe.configure({ mode: 'serial' });
 let jefe: Sesion;
 let raiz: Sesion;
 let tecnico: Sesion;
-let compras: Sesion;
 let cat: { tipo: number; modelo: number; prefijo: string };
 
 test.beforeAll(async () => {
-  [jefe, raiz, tecnico, compras] = await Promise.all([sesionApi('qa_jefe_ti'), sesionApi('qa_superadmin'), sesionApi('qa_tecnico_norte'),
-    sesionApi('qa_compras_norte')]);
+  [jefe, raiz, tecnico] = await Promise.all([sesionApi('qa_jefe_ti'), sesionApi('qa_superadmin'), sesionApi('qa_tecnico_norte')]);
   cat = await tipoYModelo();
 });
 
@@ -53,33 +51,11 @@ test('licencias: cupos y claves cifradas en la base (nunca en claro)', async () 
   expect((await tecnico.ctx.get(`/api/v1/soft/licencias/${lic.LIC_Licencia}/claves`)).status()).toBe(403);
 });
 
-test('compras: orden -> recepción en bodega -> activos creados -> etiquetas QR de lo recibido', async () => {
-  const prv = await (await compras.ctx.post('/api/v1/compras/proveedores', { data: { PRV_Nombre: `QA Proveedor ${sufijo()}` } })).json();
-  const o = await compras.ctx.post('/api/v1/compras/ordenes', {
-    data: { OCO_Numero: `OC-QA-${sufijo()}`, OCO_Fecha: '2026-10-20', PRV_Proveedor: prv.PRV_Proveedor, SED_Sede: SEDES.A,
-      lineas: [{ OCL_Descripcion: 'Laptop', OCL_Cantidad: 2, OCL_Precio_Unitario: 7000.5, OCL_Tipo: 'ACTIVO' }] },
-  });
-  expect(o.status(), await o.text()).toBe(201);
-  const orden = await o.json();
-  expect(orden.OCO_Total).toBe('14001.00');
-  // Recibir en bodega es de TI (COMPRAS recibe 403).
-  expect((await compras.ctx.post(`/api/v1/compras/ordenes/${orden.OCO_Orden}/recibir`, { data: { otros: [] } })).status()).toBe(403);
-  const det = await (await jefe.ctx.get(`/api/v1/compras/ordenes/${orden.OCO_Orden}`)).json();
-  const linea = det.lineas[0].OCL_Linea;
-  const rec = await jefe.ctx.post(`/api/v1/compras/ordenes/${orden.OCO_Orden}/recibir`, {
-    data: { documento: 'GR-QA', activos: [1, 2].map(() => ({ OCL_Linea: linea, ACT_Serie_Fabricante: `OC-${sufijo()}`, MOD_Modelo: cat.modelo,
-      TAC_Tipo_Activo: cat.tipo, ACT_Fecha_Compra: '2026-10-20' })) },
-  });
-  expect(rec.status(), await rec.text()).toBe(200);
-  const r = await rec.json();
-  expect(r.activos_creados).toBe(2);
-  const codigos: string[] = r.activos_codigos;
+test('etiquetas QR: el PDF lleva el código de cada activo', async () => {
+  const codigos = [(await altaApi(jefe, cat.modelo, cat.tipo)).ACT_Codigo_Interno, (await altaApi(jefe, cat.modelo, cat.tipo)).ACT_Codigo_Interno];
   const pdf = await jefe.ctx.post('/api/v1/core/activos/etiquetas.pdf', { data: { codigos } });
   expect(pdf.status()).toBe(200);
   expect((await leerQr((await pdfAPng(await pdf.body()))[0])).sort()).toEqual([...codigos].sort());
-  const bd = await consulta<any>(`SELECT "ACT_Costo" C FROM "INV_ACTIVO" WHERE "ACT_Codigo_Interno" IN (${codigos.map((_, i) => `:c${i}`).join(',')})`,
-    Object.fromEntries(codigos.map((c, i) => [`c${i}`, c])));
-  expect(bd.map((f) => Number(f.C))).toEqual([7000.5, 7000.5]);
 });
 
 test('mantenimiento: ticket con detalle, cierre y estado del activo', async () => {

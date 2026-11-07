@@ -57,6 +57,13 @@ final class GoodsReceiptFlowTest extends PruebaApi
         self::assertSame(403, $this->pedir('POST', '/api/v1/goods-receipts', $this->body('F-'.D::sufijo()), $this->technician)[0]);
     }
 
+    public function testASupplierWithReceiptsCannotBeDeleted(): void
+    {
+        $this->register('F-'.D::sufijo());
+
+        self::assertSame([409, 'CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS'], $this->detalle('DELETE', "/api/v1/compras/proveedores/{$this->supplier}", null, $this->admin));
+    }
+
     public function testFormContextUsesTheOrganizationsDateNotUtc(): void
     {
         $today = (new \DateTimeImmutable('now', new \DateTimeZone('America/Guatemala')))->format('Y-m-d');

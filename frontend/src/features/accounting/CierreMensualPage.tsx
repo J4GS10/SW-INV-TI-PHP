@@ -20,7 +20,7 @@ type Fila = Record<string, string | number | null>;
 interface Cierre {
   frozen?: boolean;
   closed_by?: string | null;
-  activos: Fila[]; altas: Fila[]; bajas: Fila[]; consumibles: Fila[]; compras: Fila[]; licencias: Fila[];
+  activos: Fila[]; altas: Fila[]; bajas: Fila[]; consumibles: Fila[]; licencias: Fila[];
   mantenimiento: Fila[];
 }
 
@@ -42,7 +42,7 @@ const scrollHintSx = (theme: Theme) => {
 
 /**
  * Cierre mensual para Contabilidad: valor del inventario al inicio y al cierre
- * del mes, altas y bajas, consumibles valorizados, compras recibidas,
+ * del mes, altas y bajas, consumibles valorizados,
  * licencias vigentes y mantenimiento, por sede y moneda (sin convertir).
  */
 export const CierreMensualPage = () => {
@@ -171,10 +171,6 @@ export const CierreMensualPage = () => {
             { k: 'ajustes_cantidad', label: t('month_end.adjustments'), derecha: true },
             { k: 'final_cantidad', label: t('month_end.closing_qty'), derecha: true }, { k: 'final_valor', label: t('month_end.closing'), dinero: true },
           ], datos.consumibles)}</Grid>
-          <Grid size={{ xs: 12, md: 6 }}>{tabla(t('month_end.purchases'), [
-            { k: 'orden', label: t('month_end.order') }, { k: 'proveedor', label: t('month_end.supplier') },
-            { k: 'valor', label: t('month_end.value'), dinero: true },
-          ], datos.compras)}</Grid>
           <Grid size={{ xs: 12, md: 6 }}>{tabla(t('month_end.maintenance'), [
             { k: 'sede', label: t('inventory_count.site') }, { k: 'tickets', label: t('month_end.tickets'), derecha: true },
             { k: 'valor', label: t('month_end.value'), dinero: true },

@@ -239,7 +239,7 @@ final readonly class Activos
      * Búsqueda paginada (más recientes por fecha de compra primero).
      *
      * @param array{q: ?string, modelo_id: ?int, tipo_activo_id: ?int, estado_operativo_id: ?int, sede_id: ?int,
-     *     fecha_compra_start: ?string, fecha_compra_end: ?string, page: int, per_page: int} $f
+     *     fecha_compra_start: ?string, fecha_compra_end: ?string, page: int, per_page: int, sort?: ?string, sort_dir?: ?string} $f
      *
      * @return array{items: list<array<string, mixed>>, total: int, page: int, per_page: int}
      */

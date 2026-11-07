@@ -23,6 +23,7 @@ Para aprobar bajas y diferencias hacen falta **al menos dos** administradores de
 5. **El técnico** abre *Por completar*, captura la serie con el lector y las especificaciones, e imprime las etiquetas.
 
 Un activo por completar no se puede asignar ni aparece como esperado en una toma.
+El ingreso a bodega es la única vía normal de entrada. Hay dos excepciones, ambas del administrador de TI:- **Nuevo activo:** solo para equipos sin factura, como una donación.- **Importar desde Excel:** solo para la carga inicial; deja de estar disponible con el primer cierre mensual.
 
 ## Baja por pérdida o robo
 

@@ -4,7 +4,7 @@ import type { PersonaResumen } from '../types/users';
 
 /** Registro abierto hace poco (se muestra en la paleta de comandos). */
 export interface Reciente {
-  tipo: 'activo' | 'persona' | 'orden';
+  tipo: 'activo' | 'persona';
   id: string;
   titulo: string;
   subtitulo?: string;

@@ -18,11 +18,6 @@ export const attachmentService = {
     return r.data;
   },
 
-  listOrden: async (ordenId: number): Promise<Adjunto[]> => {
-    const r = await client.get<Adjunto[]>(`/adjuntos/ordenes/${ordenId}`);
-    return r.data;
-  },
-
   upload: async (
     activoId: string, file: File, categoria: string, descripcion?: string,
   ): Promise<Adjunto> => {
@@ -33,17 +28,6 @@ export const attachmentService = {
     // El cliente axios NO fija Content-Type global, así el navegador pone
     // `multipart/form-data` con boundary automáticamente para el FormData.
     const r = await client.post<Adjunto>(`/adjuntos/activos/${activoId}`, form);
-    return r.data;
-  },
-
-  uploadOrden: async (
-    ordenId: number, file: File, categoria: string, descripcion?: string,
-  ): Promise<Adjunto> => {
-    const form = new FormData();
-    form.append('file', file);
-    form.append('categoria', categoria);
-    if (descripcion) form.append('descripcion', descripcion);
-    const r = await client.post<Adjunto>(`/adjuntos/ordenes/${ordenId}`, form);
     return r.data;
   },
 

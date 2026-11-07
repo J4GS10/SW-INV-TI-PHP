@@ -30,7 +30,6 @@ final readonly class Aprobaciones
         private Solicitudes $solicitudes,
         private Activos $activos,
         private Consumibles $consumibles,
-        private Compras $compras,
         private Reclasificacion $reclasificacion,
         private Faltantes $faltantes,
         private \App\GoodsReceipt\Application\GoodsReceiptService $goodsReceipts,
@@ -100,19 +99,9 @@ final readonly class Aprobaciones
                     $this->activos->darDeBaja((string) $a['ACT_Activo'], Esquemas::baja(Entrada::de($payload)), $solicitante, $traza);
                     $this->faltantes->alResolverBaja((int) $a['APR_Aprobacion'], true);
                     break;
-                case 'RECEPCION_SOBRANTE':
-                    $r = $this->compras->recibir((int) $a['OCO_Orden'], Esquemas::recepcion(Entrada::de($this->compras->abrirClaves($payload))), $solicitante, $ip, $traza);
-                    $traza['recepcion'] = $r['REC_Recepcion'];
-                    break;
                 case 'AJUSTE_CONSUMIBLE':
                     $this->consumibles->ajustar((int) $a['CON_Consumible'], (int) $payload['CON_Stock_Real'], (string) $payload['MOC_Motivo'], $solicitante, $ip,
                         $traza, isset($payload['stock_antes']) ? (int) $payload['stock_antes'] : null);
-                    break;
-                case 'CIERRE_FALTANTE':
-                    $this->compras->cerrarConFaltante((int) $a['OCO_Orden'], (string) $payload['motivo'], $solicitante, $ip, $traza);
-                    break;
-                case 'CANCELACION_ORDEN':
-                    $this->compras->cancelar((int) $a['OCO_Orden'], $payload['motivo'] ?? null, $solicitante, $ip, $traza);
                     break;
                 case 'RECEPCION_DIFERENCIA':
                     $this->goodsReceipts->approveDifference((int) $payload['goods_receipt'], $solicitante, $ip, (int) $a['APR_Aprobacion']);

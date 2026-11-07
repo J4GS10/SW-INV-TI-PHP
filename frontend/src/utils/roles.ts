@@ -23,7 +23,7 @@ export const STOCK_ROLES: UserRole[] = INVENTORY_ROLES;
 /** Software y licencias (páginas): administradores y auditor. */
 export const SOFTWARE_PAGE_ROLES: UserRole[] = ['ADMIN_TI', 'AUDITOR'];
 
-/** Compras: crean proveedores y órdenes. Espejo de PURCHASE_WRITE_ROLES. */
+/** Compras: crean proveedores e ingresos a bodega. Espejo de PURCHASE_WRITE_ROLES. */
 export const PURCHASE_WRITE_ROLES: UserRole[] = ['ADMIN_TI', 'COMPRAS'];
 
 /** Compras en lectura. Espejo de PURCHASE_READ_ROLES. */

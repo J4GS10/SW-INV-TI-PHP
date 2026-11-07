@@ -15,12 +15,12 @@
 
 | Tema | Situación | Recomendación |
 |---|---|---|
-| Entrada al inventario | Hay cuatro vías: ingreso a bodega, recibir una orden de compra, «Nuevo activo» e importar Excel. Las dos centrales no pasan por la validación del ingreso | Ingreso a bodega para el día a día; importar solo para la carga inicial; «Nuevo activo» solo para el administrador de TI en casos sin factura; quitar la recepción de órdenes |
 | Cerrar el mes con trabajo pendiente | Se puede cerrar con ingresos o aprobaciones sin resolver | Avisar antes de cerrar |
 | Mes cerrado por error | No se puede reabrir | Reapertura con aprobación de otra persona y registro en auditoría |
 | Listas cerradas | Sistema Operativo y Tarjeta Gráfica se escriben a mano | Lista cerrada, al menos para Sistema Operativo |
 | Administradores de TI | Nadie aprueba lo que pidió: hacen falta dos activos | Alerta cuando quede solo uno |
 | Oracle XE | Sin Data Guard; réplica por archivos con hasta 1 hora de pérdida | Confirmar la fecha de soporte de 21c |
+| Tablas de órdenes de compra | Sin uso desde que se retiró el módulo, con 0 filas: `INV_ORDEN_COMPRA`, sus líneas y `INV_RECEPCION` | Borrarlas con una migración cuando se confirme que no vuelve |
 
 ## Calidad sin confirmar
 

@@ -22,7 +22,7 @@ const COLOR = { alta: 'error', media: 'warning', baja: 'info' } as const;
 
 /**
  * «Requiere su atención»: lo que el sistema detecta que hay que resolver
- * (inconsistencias, préstamos vencidos, stock bajo, órdenes a medias…), con
+ * (inconsistencias, préstamos vencidos, stock bajo…), con
  * acceso directo a cada caso. El tablero deja de ser solo lectura.
  */
 export const AttentionInbox = ({ onLoaded }: { onLoaded?: (items: ItemAtencion[]) => void }) => {
@@ -68,7 +68,6 @@ export const AttentionInbox = ({ onLoaded }: { onLoaded?: (items: ItemAtencion[]
       case 'PERSONA_INACTIVA_CON_EQUIPOS': return `${f.nombre} (${f.cantidad})`;
       case 'PRESTAMO_VENCIDO': return `${f.codigo} · ${formatDate(String(f.fecha), i18n.language)}`;
       case 'STOCK_BAJO': return `${f.nombre}: ${f.stock}/${f.minimo}`;
-      case 'ORDEN_PARCIAL': return String(f.numero);
       case 'INGRESO_POR_CONFIRMAR': return `${f.codigo} · ${f.documento}`;
       case 'APROBACION_PENDIENTE': return approvalSummaryLabel(t, String(f.resumen ?? '')).slice(0, 80);
       case 'TICKET_ANTIGUO': return `${f.codigo} · ${formatDate(String(f.desde), i18n.language)}`;
@@ -85,8 +84,6 @@ export const AttentionInbox = ({ onLoaded }: { onLoaded?: (items: ItemAtencion[]
       void abrirActivo(String(f.id));
     } else if (clave === 'INGRESO_POR_CONFIRMAR') {
       navigate(`/ingresos/${f.id}`);
-    } else if (clave === 'ORDEN_PARCIAL') {
-      navigate(`/compras/ordenes?orden=${f.id}`);
     } else {
       navigate(DESTINO[clave]?.ruta ?? '/');
     }

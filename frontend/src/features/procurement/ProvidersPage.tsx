@@ -50,8 +50,8 @@ export const ProvidersPage = () => {
         }
         catch (err: unknown) {
             const code = getApiErrorDetail(err);
-            enqueueSnackbar(code === 'CANNOT_DELETE_SUPPLIER_HAS_ORDERS'
-                ? t('procurement.err_provider_has_orders')
+            enqueueSnackbar(code === 'CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS'
+                ? t('procurement.err_provider_has_receipts')
                 : t('common.error_generic'), { variant: 'error' });
         }
     };

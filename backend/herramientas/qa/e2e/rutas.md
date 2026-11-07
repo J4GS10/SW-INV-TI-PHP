@@ -331,8 +331,6 @@ Estado final (fase 6, 2026-10-29): **325 / 325** migradas; todas las atiende la 
 |---|---|---|
 | [x] | GET | `/api/v1/adjuntos/activos/{activo_id}` |
 | [x] | POST | `/api/v1/adjuntos/activos/{activo_id}` |
-| [x] | GET | `/api/v1/adjuntos/ordenes/{orden_id}` |
-| [x] | POST | `/api/v1/adjuntos/ordenes/{orden_id}` |
 | [x] | GET | `/api/v1/adjuntos/licencias/{licencia_id}` |
 | [x] | POST | `/api/v1/adjuntos/licencias/{licencia_id}` |
 | [x] | GET | `/api/v1/adjuntos/{id}/download` |
@@ -347,13 +345,6 @@ Estado final (fase 6, 2026-10-29): **325 / 325** migradas; todas las atiende la 
 | [x] | POST | `/api/v1/compras/proveedores` |
 | [x] | PATCH | `/api/v1/compras/proveedores/{id}` |
 | [x] | DELETE | `/api/v1/compras/proveedores/{id}` |
-| [x] | GET | `/api/v1/compras/ordenes` |
-| [x] | GET | `/api/v1/compras/ordenes/{id}` |
-| [x] | POST | `/api/v1/compras/ordenes` |
-| [x] | PATCH | `/api/v1/compras/ordenes/{id}/estado` |
-| [x] | POST | `/api/v1/compras/ordenes/{id}/cerrar` |
-| [x] | GET | `/api/v1/compras/ordenes/{id}/recepciones` |
-| [x] | POST | `/api/v1/compras/ordenes/{id}/recibir` |
 | [x] | GET | `/api/v1/compras/garantias` |
 | [x] | POST | `/api/v1/compras/garantias/notificar` |
 
@@ -442,6 +433,7 @@ Estado final (fase 6, 2026-10-29): **325 / 325** migradas; todas las atiende la 
 | [x] | GET | `/api/v1/productividad/kit-sugerido/{persona_id}` |
 | [x] | GET | `/api/v1/productividad/personas/{persona_id}/ficha` |
 | [x] | GET | `/api/v1/productividad/calidad-datos` |
+| [x] | GET | `/api/v1/productividad/importar/activos/estado` |
 | [x] | GET | `/api/v1/productividad/importar/activos/plantilla` |
 | [x] | POST | `/api/v1/productividad/importar/activos/previsualizar` |
 | [x] | POST | `/api/v1/productividad/importar/activos/confirmar` |
@@ -454,7 +446,6 @@ Estado final (fase 6, 2026-10-29): **325 / 325** migradas; todas las atiende la 
 | [x] | GET | `/api/v1/export/movimientos.csv` |
 | [x] | GET | `/api/v1/export/consumibles.csv` |
 | [x] | GET | `/api/v1/export/proveedores.csv` |
-| [x] | GET | `/api/v1/export/ordenes.csv` |
 | [x] | GET | `/api/v1/export/auditoria.csv` |
 
 ## `directory` (/directorio) — 13 rutas

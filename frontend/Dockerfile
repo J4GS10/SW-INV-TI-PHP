@@ -30,7 +30,7 @@ FROM nginx:1.30.6-alpine AS runtime
 # Parches de seguridad de Alpine publicados después de la imagen base (paquetes firmados).
 RUN apk upgrade --no-cache
 
-# Headers de seguridad, gzip, fallback SPA, proxy al backend
+# Headers de seguridad, gzip y fallback SPA
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Static build

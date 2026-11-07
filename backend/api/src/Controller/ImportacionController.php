@@ -31,6 +31,12 @@ final readonly class ImportacionController
     {
     }
 
+    #[Route('/estado', methods: ['GET'])]
+    public function estado(): JsonResponse
+    {
+        return new JsonResponse(['disponible' => $this->importacion->disponible()]);
+    }
+
     /** Plantilla .xlsx con los encabezados y las listas de categorías, ubicaciones y marcas. */
     #[Route('/plantilla', methods: ['GET'])]
     public function plantilla(): Response

@@ -19,7 +19,7 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 final class RoleResponsibilitiesTest extends WebTestCase
 {
     private const array BUSINESS_ROUTES = ['/api/v1/core/activos', '/api/v1/consumibles', '/api/v1/mantenimiento/',
-        '/api/v1/trazabilidad/movimientos', '/api/v1/inventario/tomas', '/api/v1/compras/ordenes',
+        '/api/v1/trazabilidad/movimientos', '/api/v1/inventario/tomas',
         '/api/v1/compras/proveedores', '/api/v1/compras/garantias', '/api/v1/aprobaciones',
         '/api/v1/inventario/kardex/verificar', '/api/v1/export/activos.csv', '/api/v1/inventario/atencion'];
 
@@ -88,7 +88,7 @@ final class RoleResponsibilitiesTest extends WebTestCase
         foreach (['/api/v1/core/activos', '/api/v1/compras/garantias', '/api/v1/org/personas', '/api/v1/trazabilidad/movimientos'] as $route) {
             self::assertSame(403, $this->statusOf('GET', $route, $token), $route);
         }
-        foreach (['/api/v1/compras/ordenes', '/api/v1/compras/proveedores', '/api/v1/consumibles', '/api/v1/reports/stock',
+        foreach (['/api/v1/compras/proveedores', '/api/v1/consumibles', '/api/v1/reports/stock',
             '/api/v1/inventario/atencion', '/api/v1/export/activos.csv',
             '/api/v1/inventario/cierre-mensual?anio=2026&mes=10&sede_id='.$site] as $route) {
             self::assertSame(200, $this->statusOf('GET', $route, $token), $route);

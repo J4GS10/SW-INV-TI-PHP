@@ -1,4 +1,4 @@
-export type TipoAprobacion = 'BAJA' | 'RECEPCION_SOBRANTE' | 'AJUSTE_CONSUMIBLE' | 'CIERRE_FALTANTE' | 'CANCELACION_ORDEN'
+export type TipoAprobacion = 'BAJA' | 'AJUSTE_CONSUMIBLE'
   | 'RECLASIFICACION';
 export type EstadoAprobacion = 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' | 'ANULADA';
 
@@ -11,7 +11,6 @@ export interface Aprobacion {
   APR_Motivo?: string | null;
   APR_Payload: Record<string, unknown>;
   ACT_Activo?: string | null;
-  OCO_Orden?: number | null;
   SED_Sede?: number | null;
   APR_Solicitante: string;
   solicitante_nombre?: string | null;

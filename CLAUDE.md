@@ -7,4 +7,4 @@
 - API: el frontend traduce los códigos `{"detail": "<CÓDIGO>"}`, así que no se cambian. SQL explícito con DBAL e identificadores entre comillas.
 - Toda acción autenticada usa `#[Autenticado]`. Seguridad en dos capas: validaciones de la aplicación y VPD de Oracle.
 - Vocabulario: `docs/GLOSARIO.md`. Lo que un rol no puede trabajar no se le muestra.
-- Pruebas y despliegue: `README.md`. `e2e.sh` y `persistencia.sh` no corren contra producción.
+- Arquitectura: `docs/ARQUITECTURA.md`. Pruebas y despliegue: `README.md`. `e2e.sh` y `persistencia.sh` no corren contra producción.

@@ -109,7 +109,6 @@ final class ArchivosTest extends PruebaApi
         self::assertSame(403, $this->archivo('GET', '/api/v1/export/activos.csv', token: $tecnico)->getStatusCode(), 'Valores: solo finanzas.');
         $compras = $this->tokenDe(D::crearUsuario(['rol' => 'COMPRAS', 'sedes' => [$this->sede]]));
         self::assertSame(200, $this->archivo('GET', '/api/v1/export/proveedores.csv', token: $compras)->getStatusCode());
-        self::assertSame(200, $this->archivo('GET', '/api/v1/export/ordenes.csv?lang=it', token: $compras)->getStatusCode());
         self::assertSame(403, $this->archivo('GET', '/api/v1/export/movimientos.csv', token: $compras)->getStatusCode());
         self::assertSame(422, $this->archivo('GET', '/api/v1/export/consumibles.csv?lang=fr')->getStatusCode());
         self::assertSame(422, $this->archivo('GET', '/api/v1/export/movimientos.csv?limit=0')->getStatusCode());
@@ -221,7 +220,7 @@ final class ArchivosTest extends PruebaApi
         file_put_contents($temporal, (string) $r->getContent());
         $libro = (new Xlsx())->load($temporal);
         unlink($temporal);
-        self::assertSame(['Assets', 'Additions', 'Disposals', 'Consumables', 'Purchases received', 'Active licenses', 'Maintenance'], $libro->getSheetNames());
+        self::assertSame(['Assets', 'Additions', 'Disposals', 'Consumables', 'Active licenses', 'Maintenance'], $libro->getSheetNames());
         $altas = $libro->getSheetByName('Additions');
         self::assertSame(['Code', 'Serial'], [$altas->getCell('A1')->getValue(), $altas->getCell('B1')->getValue()]);
         $fila = null;

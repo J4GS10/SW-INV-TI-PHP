@@ -10,14 +10,13 @@ use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Http\ErrorApi;
 use App\Inventario\Activos;
-use App\Inventario\Compras;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
 use Psr\Log\LoggerInterface;
 
 /**
- * Adjuntos de activos, órdenes de compra y licencias (factura, foto, acta firmada…).
+ * Adjuntos de activos, ingresos y licencias (factura, foto, acta firmada…).
  *
  * - Extensión en lista blanca, tamaño y firma del contenido se validan ANTES de escribir.
  * - El nombre almacenado sale de un UUID, nunca del nombre del cliente.
@@ -28,14 +27,13 @@ final readonly class Adjuntos
 {
     private const string COLUMNAS = 'j."ADJ_Adjunto", j."ADJ_Nombre_Original", j."ADJ_Nombre_Almacenado", j."ADJ_Tipo_MIME", j."ADJ_Tamano_Bytes", '
         .'j."ADJ_Storage_Backend", j."ADJ_Bucket", j."ADJ_Object_Key", j."ADJ_Checksum_SHA256", j."ADJ_Categoria", j."ADJ_Descripcion", '
-        .'j."ADJ_Fecha_Subida", j."ACT_Activo", j."OCO_Orden", j."LIC_Licencia", j."GRC_Goods_Receipt", j."USU_Usuario"';
+        .'j."ADJ_Fecha_Subida", j."ACT_Activo", j."LIC_Licencia", j."GRC_Goods_Receipt", j."USU_Usuario"';
 
     public function __construct(
         private Connection $conexion,
         private Alcance $alcance,
         private Almacenes $almacenes,
         private Activos $activos,
-        private Compras $compras,
         private \App\GoodsReceipt\Infrastructure\GoodsReceiptRepository $goodsReceipts,
         private GobiernoRepositorio $gobierno,
         private Transaccion $transaccion,
@@ -159,7 +157,6 @@ final readonly class Adjuntos
     {
         match ($dueno->tipo) {
             TipoDueno::Activo => $this->activos->filaO404((string) $dueno->id),
-            TipoDueno::Orden => $this->compras->filaOrdenO404((int) $dueno->id),
             TipoDueno::Ingreso => null !== $this->goodsReceipts->find((int) $dueno->id) || throw new ErrorApi(404, 'GOODS_RECEIPT_NOT_FOUND'),
             TipoDueno::Licencia => false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA" WHERE "LIC_Licencia" = :id', ['id' => $dueno->id])
                 || throw new ErrorApi(404, 'LICENSE_NOT_FOUND'),
@@ -226,7 +223,6 @@ final readonly class Adjuntos
             'ADJ_Descripcion' => $f['ADJ_Descripcion'],
             'ADJ_Fecha_Subida' => Reloj::iso(Reloj::desdeBd((string) $f['ADJ_Fecha_Subida'])),
             'ACT_Activo' => $uuid($f['ACT_Activo']),
-            'OCO_Orden' => $entero($f['OCO_Orden']),
             'LIC_Licencia' => $entero($f['LIC_Licencia']),
             'USU_Usuario' => $uuid($f['USU_Usuario']),
         ];

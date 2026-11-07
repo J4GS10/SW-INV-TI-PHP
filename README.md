@@ -6,7 +6,7 @@ Sistema de inventario de equipos de TI: ingreso a bodega, custodia, mantenimient
 |---|---|---|
 | [`backend/`](backend) | API, base de datos, despliegue y pruebas | PHP 8.5, Symfony 8.1, Oracle Database 21c |
 | [`frontend/`](frontend) | Aplicación web | React 19, MUI 7, TypeScript |
-| [`docs/`](docs) | [Manual de operación](docs/MANUAL_OPERACION.md), [glosario](docs/GLOSARIO.md) y [pendientes](docs/PENDIENTES.md) | |
+| [`docs/`](docs) | [Arquitectura](docs/ARQUITECTURA.md), [manual de operación](docs/MANUAL_OPERACION.md), [glosario](docs/GLOSARIO.md) y [pendientes](docs/PENDIENTES.md) | |
 
 Solo hace falta Docker: PHP, Node y Oracle corren en contenedores.
 

@@ -23,7 +23,7 @@ final readonly class Reportes
             'FALTANTE_PENDIENTE', 'RESPONSABLE_INACTIVO'],
         'AUDITOR' => ['ASIGNADO_SIN_CUSTODIO', 'ALMACEN_CON_CUSTODIO', 'BAJA_CON_CUSTODIA', 'PERSONA_INACTIVA_CON_EQUIPOS', 'DATOS_INCOMPLETOS', 'CUENTA_SIN_ROTAR',
             'FALTANTE_PENDIENTE', 'INSUMOS_POR_RECLASIFICAR'],
-        'COMPRAS' => ['ORDEN_PARCIAL', 'STOCK_BAJO'],
+        'COMPRAS' => ['STOCK_BAJO'],
         'CONSULTA' => [],
     ];
     private const int ALERTA_LICENCIAS_DIAS = 60;
@@ -349,14 +349,10 @@ final readonly class Reportes
         $agregar('STOCK_BAJO', 'media', fn (): array => array_map(static fn (array $f): array => ['id' => (int) $f[0], 'nombre' => $f[1], 'stock' => (int) $f[2], 'minimo' => (int) $f[3]],
             $this->conexion->fetchAllNumeric('SELECT c."CON_Consumible", c."CON_Nombre", c."CON_Stock_Actual", c."CON_Stock_Minimo" FROM "INV_CONSUMIBLE" c WHERE c."CON_Activo" = 1 '
                 ."AND c.\"CON_Stock_Minimo\" > 0 AND c.\"CON_Stock_Actual\" <= c.\"CON_Stock_Minimo\" AND {$aCon}", $pCon)));
-        [$aOrd, $pOrd] = $this->alcance->lectura('INV_ORDEN_COMPRA', 'o');
         [$aIng, $pIng] = $this->alcance->lectura('PUR_GOODS_RECEIPT', 'g');
         $agregar('INGRESO_POR_CONFIRMAR', 'media', fn (): array => array_map(static fn (array $f): array => ['id' => (int) $f[0], 'codigo' => $f[1], 'documento' => $f[2]],
             $this->conexion->fetchAllNumeric("SELECT g.GRC_GOODS_RECEIPT, g.GRC_CODE, g.GRC_DOCUMENT_NUMBER FROM PUR_GOODS_RECEIPT g WHERE g.GRC_STATUS = 'REGISTERED' AND {$aIng} ORDER BY g.GRC_GOODS_RECEIPT", $pIng)));
         $agregar('ACTIVO_POR_COMPLETAR', 'media', fn (): array => $activos('a."ACT_Pending_Completion" = 1'));
-        $agregar('ORDEN_PARCIAL', 'media', fn (): array => array_map(static fn (array $f): array => ['id' => (int) $f[0], 'numero' => $f[1], 'fecha' => substr((string) $f[2], 0, 10)],
-            $this->conexion->fetchAllNumeric("SELECT o.\"OCO_Orden\", o.\"OCO_Numero\", o.\"OCO_Fecha\" FROM \"INV_ORDEN_COMPRA\" o WHERE o.\"OCO_Estado\" = 'PARCIAL' AND {$aOrd} "
-                .'ORDER BY o."OCO_Fecha"', $pOrd)));
         $agregar('TICKET_ANTIGUO', 'media', fn (): array => array_map(fn (array $f): array => ['id' => Ident::aTexto((string) $f[0]), 'codigo' => $f[1],
             'desde' => Reloj::desdeBd((string) $f[2])?->setTimezone(new \DateTimeZone($this->ajustes->zonaHoraria))->format('Y-m-d')],
             $filas('SELECT m."MAN_Mantenimiento", a."ACT_Codigo_Interno", m."MAN_Fecha_Ingreso" FROM "INV_MANTENIMIENTO" m JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" '

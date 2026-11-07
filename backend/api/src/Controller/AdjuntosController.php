@@ -21,7 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Adjuntos (/adjuntos): factura, foto, acta firmada… de activos, órdenes de compra
+ * Adjuntos (/adjuntos): factura, foto, acta firmada… de activos, ingresos
  * y licencias. Cada adjunto hereda el permiso de su dueño (App\Adjuntos\TipoDueno).
  */
 #[Route('/api/v1/adjuntos', requirements: ['id' => '\d+'])]
@@ -45,21 +45,6 @@ final readonly class AdjuntosController
     public function subirAActivo(Request $request): JsonResponse
     {
         return $this->subir($request, Dueno::activo(Entrada::uuidDeRuta($request, 'activo')), true);
-    }
-
-    #[Route('/ordenes/{id}', methods: ['GET'])]
-    #[Autenticado(roles: Roles::LECTURA_COMPRAS)]
-    public function deOrden(int $id): JsonResponse
-    {
-        return new JsonResponse($this->adjuntos->listar(Dueno::orden($id)));
-    }
-
-    #[Route('/ordenes/{id}', methods: ['POST'])]
-    #[Autenticado(roles: Roles::ESCRITURA_COMPRAS)]
-    #[Limite('30/minute')]
-    public function subirAOrden(int $id, Request $request): JsonResponse
-    {
-        return $this->subir($request, Dueno::orden($id), true);
     }
 
     #[Route('/ingresos/{id}', methods: ['GET'])]

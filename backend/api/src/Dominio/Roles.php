@@ -12,7 +12,7 @@ namespace App\Dominio;
  * - ADMIN_TI         administra el inventario y aprueba lo que pidió otra persona.
  * - TECNICO / CONSULTA  operación y consulta del inventario.
  * - AUDITOR          solo lectura del inventario y la bitácora.
- * - COMPRAS          compras y contabilidad: proveedores, órdenes, valores y cierre; sin inventario operativo.
+ * - COMPRAS          compras y contabilidad: proveedores, ingresos a bodega, valores y cierre; sin inventario operativo.
  */
 final class Roles
 {

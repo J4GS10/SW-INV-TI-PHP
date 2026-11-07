@@ -45,7 +45,6 @@ const MovementsPage = lazy(() => import('./features/operations/MovementsPage').t
 const SoftwarePage = lazy(() => import('./features/software/SoftwarePage').then((m) => ({ default: m.SoftwarePage })));
 const ConsumablesPage = lazy(() => import('./features/consumables/ConsumablesPage').then((m) => ({ default: m.ConsumablesPage })));
 const ProvidersPage = lazy(() => import('./features/procurement/ProvidersPage').then((m) => ({ default: m.ProvidersPage })));
-const PurchaseOrdersPage = lazy(() => import('./features/procurement/PurchaseOrdersPage').then((m) => ({ default: m.PurchaseOrdersPage })));
 const GoodsReceiptsPage = lazy(() => import('./features/goods-receipts/GoodsReceiptsPage').then((m) => ({ default: m.GoodsReceiptsPage })));
 const GoodsReceiptFormPage = lazy(() => import('./features/goods-receipts/GoodsReceiptFormPage').then((m) => ({ default: m.GoodsReceiptFormPage })));
 const GoodsReceiptDetailPage = lazy(() => import('./features/goods-receipts/GoodsReceiptDetailPage').then((m) => ({ default: m.GoodsReceiptDetailPage })));
@@ -298,7 +297,6 @@ const ThemedApp = () => {
                   {/* Compras: TI, Compras y Contabilidad (lectura) y el auditor. */}
                   <Route element={<ProtectedRoute allowedRoles={PURCHASE_READ_ROLES}/>}>
                     <Route path="/compras/proveedores" element={<ProvidersPage />}/>
-                    <Route path="/compras/ordenes" element={<PurchaseOrdersPage />}/>
                   </Route>
 
                   <Route element={<ProtectedRoute allowedRoles={INVENTORY_ADMIN_ROLES}/>}>

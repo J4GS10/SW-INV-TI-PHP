@@ -116,25 +116,65 @@
         "unknown": "Unknown",
         "loading": "Loading…",
         "more_actions": "More actions",
-        "undo": "Undo"
+        "undo": "Undo",
+        "retry": "Retry"
     },
     "tasks": {
         "title": "My tasks",
         "subtitle": "What is pending today and what you do every day.",
         "items": {
-            "approve": { "title": "Approve", "help": "Handle other people’s requests." },
-            "assign": { "title": "Assign or return", "help": "Hand over a device or take one back." },
-            "audit": { "title": "Audit", "help": "See who did what." },
-            "complete": { "title": "Complete serials", "help": "Capture each unit’s serial and data." },
-            "confirm": { "title": "Confirm receipts", "help": "Count and classify what arrived." },
-            "find": { "title": "Find a device", "help": "Find a device and who has it." },
-            "month_end": { "title": "Month-end close", "help": "Review the month’s figures." },
-            "new_receipt": { "title": "New receipt", "help": "Record what arrived at the warehouse." },
-            "people": { "title": "People", "help": "See employees and their devices." },
-            "receipts": { "title": "Receipts", "help": "See receipts and their status." },
-            "repair": { "title": "Repairs", "help": "Open or close a maintenance." },
-            "stock": { "title": "Stock and exports", "help": "See and export stock, entries and assignments." },
-            "trace": { "title": "Traceability", "help": "Follow a device’s history." }
+            "approve": {
+                "title": "Approve",
+                "help": "Handle other people’s requests."
+            },
+            "assign": {
+                "title": "Assign or return",
+                "help": "Hand over a device or take one back."
+            },
+            "audit": {
+                "title": "Audit",
+                "help": "See who did what."
+            },
+            "complete": {
+                "title": "Complete serials",
+                "help": "Capture each unit’s serial and data."
+            },
+            "confirm": {
+                "title": "Confirm receipts",
+                "help": "Count and classify what arrived."
+            },
+            "find": {
+                "title": "Find a device",
+                "help": "Find a device and who has it."
+            },
+            "month_end": {
+                "title": "Month-end close",
+                "help": "Review the month’s figures."
+            },
+            "new_receipt": {
+                "title": "New receipt",
+                "help": "Record what arrived at the warehouse."
+            },
+            "people": {
+                "title": "People",
+                "help": "See employees and their devices."
+            },
+            "receipts": {
+                "title": "Receipts",
+                "help": "See receipts and their status."
+            },
+            "repair": {
+                "title": "Repairs",
+                "help": "Open or close a maintenance."
+            },
+            "stock": {
+                "title": "Stock and exports",
+                "help": "See and export stock, entries and assignments."
+            },
+            "trace": {
+                "title": "Traceability",
+                "help": "Follow a device’s history."
+            }
         }
     },
     "system_alerts": {
@@ -157,7 +197,6 @@
         "providers": "Suppliers",
         "goods_receipts": "Goods receipts",
         "stock_report": "Stock and assignments",
-        "purchase_orders": "Purchase orders",
         "warranties": "Warranties",
         "departments": "Departments",
         "persons": "Employees",
@@ -570,7 +609,6 @@
             "free_licenses": "Available licenses",
             "licenses_in_use": "{{used}}/{{total}} in use"
         },
-        "alerts": {},
         "panels": {
             "by_status": "Assets by status",
             "by_type": "Assets by component type",
@@ -616,9 +654,11 @@
             "code_preview": "Automatic code: {{code}}",
             "code_no_prefix": "This type has no prefix: enter the code",
             "edit_title": "Edit asset",
-            "state_locked_help": "This status is set by an operation (assign, return, maintenance or decommission) from the asset record."
+            "state_locked_help": "This status is set by an operation (assign, return, maintenance or decommission) from the asset record.",
+            "no_invoice_hint": "Use this only for equipment without an invoice, such as a donation. Purchases come in through a goods receipt."
         },
-        "table": { "custodian": "Custodian",
+        "table": {
+            "custodian": "Custodian",
             "actions": "Actions",
             "code": "Code",
             "empty": "No assets registered",
@@ -882,7 +922,6 @@
         "license_added": "License added to inventory",
         "edit_license": "Edit license",
         "add_license_for": "Add license for: {{name}}",
-        "license_type": "License type",
         "seats": "Number of seats",
         "expiry": "Expiration date",
         "register_title": "Register software",
@@ -1303,9 +1342,6 @@
         "low_title": "Stock below the minimum",
         "low_message": "“{{name}}” is now at {{stock}} {{unit}} (minimum {{min}}).",
         "low_notify_admin": "The administrators were notified to arrange replenishment.",
-        "low_later": "Later",
-        "low_create_order": "Create purchase order ({{count}})",
-        "order_created_hint": "Order created. When it is received, the stock will be added automatically.",
         "avg_cost": "Average cost",
         "initial_cost": "Unit cost of the opening balance",
         "initial_cost_help": "Optional. Values the opening stock; the weighted average cost is used afterwards.",
@@ -1366,25 +1402,10 @@
     "procurement": {
         "sections": {
             "general": "General information",
-            "contact": "Contact",
-            "order_data": "Order details",
-            "notes": "Notes"
+            "contact": "Contact"
         },
-        "confirm_cancel": "Cancel this order?",
-        "order": "Order",
         "provider": "Supplier",
-        "date": "Date",
         "status": "Status",
-        "total": "Total",
-        "lines": "Lines",
-        "line_desc": "Description",
-        "line_qty": "Qty",
-        "line_price": "Price",
-        "subtotal": "Subtotal",
-        "no_lines": "No lines",
-        "invoice": "Invoice and documents",
-        "cancel_order": "Cancel order",
-        "receive": "Receive",
         "provider_created": "Supplier created",
         "err_provider_exists": "A supplier with that name already exists.",
         "new_provider": "New supplier",
@@ -1394,39 +1415,12 @@
         "email": "Email",
         "phone": "Phone",
         "address": "Address",
-        "err_provider_has_orders": "It cannot be deleted because it has related orders.",
         "providers_title": "Suppliers",
-        "err_required": "Supplier and number are required.",
-        "order_created": "Purchase order created",
-        "err_number_exists": "An order with that number already exists.",
-        "new_order": "New purchase order",
-        "order_number": "Order number",
         "currency": "Currency",
         "currency_gtq": "Quetzales (GTQ)",
         "currency_usd": "US dollars (USD)",
         "currency_chf": "Swiss francs (CHF)",
-        "notes": "Notes",
-        "add_line": "Add line",
-        "orders_title": "Purchase orders",
-        "all": "All",
-        "view_receive": "View / Receive",
-        "recv_err_consumible": "Select the consumable for each line that adds to stock.",
-        "recv_err_activo": "Complete the type, model and purchase date of the devices.",
-        "recv_restocked_one": "{{count}} consumable restocked",
-        "recv_restocked_other": "{{count}} consumables restocked",
-        "recv_created_one": "{{count}} asset created",
-        "recv_created_other": "{{count}} assets created",
-        "recv_license_keys_one": "{{count}} license key registered",
-        "recv_license_keys_other": "{{count}} license keys registered",
-        "receive_title": "Receive order",
-        "recv_action": "Action",
-        "recv_err_license_catalog": "Select the software and the license type.",
-        "serials_one_per_unit": "Serial numbers, one per unit",
-        "hostnames_optional": "Optional hostnames, one per line",
-        "assets_bulk_hint": "A separate asset will be created for each serial number.",
-        "license_refs_optional": "Optional references, one per line",
         "warranty_end": "Warranty end",
-        "confirm_receive": "Confirm receipt",
         "w_expired": "Expired",
         "w_expiring": "Expiring soon",
         "w_valid": "Valid",
@@ -1467,61 +1461,10 @@
             "PARCIAL": "partial delivery",
             "COMPLETA": "complete delivery"
         },
-        "line_type": "What is purchased",
-        "line_type_help": "Indicate what each line is: on receipt, the system will only accept that (and the indicated consumable).",
-        "ordered": "Ordered",
-        "received_qty": "Received",
-        "pending": "Pending",
-        "progress": "{{received}} of {{ordered}} units received",
-        "pending_detail": "Ordered {{ordered}} · received {{received}} · pending {{pending}}",
-        "partial_hint": "Some goods are still pending. Record the next delivery when it arrives or, if it will not arrive, close the order with a shortage.",
-        "receipts_title": "Deliveries received",
-        "receipts_subtitle": "Each delivery with its delivery note or invoice and the justified differences.",
-        "no_receipts": "Nothing has been received for this order yet.",
-        "no_document": "no document",
-        "receive_next": "Receive next delivery",
-        "close_with_shortage": "Close with shortage",
-        "close_help": "The pending items will not arrive. The order is closed with what was received and the reason is recorded.",
-        "close_reason": "Reason for closing",
-        "close_reason_label": "Reason for closing or cancellation",
-        "cancel_reason": "Reason for cancellation (optional)",
-        "receive_help_partial": "Record what arrived in this delivery. You can receive in parts: anything that does not arrive remains pending. If the quantity or price does not match the order, you will be asked for a justification.",
-        "recv_document": "Delivery note or invoice",
-        "recv_document_help": "Number of the document that came with the goods.",
-        "recv_quantity": "Quantity received",
-        "recv_real_price": "Invoiced unit price",
-        "recv_real_cost": "Invoiced unit cost",
-        "recv_other_help": "Freight, installation or other services: the confirmation is recorded, without inventory.",
-        "units_captured": "{{count}} entered · {{pending}} pending",
-        "license_keys_optional": "License keys, one per unit (optional)",
-        "license_keys_help": "If you enter them, the quantity will be the number of keys.",
-        "recv_surplus_warning": "You are receiving {{count}} and only {{pending}} remain pending.",
-        "recv_price_warning": "The price differs from the order price. If it exceeds the configured tolerance, you must justify it.",
-        "recv_justification": "Justification",
         "recv_justification_help": "At least 5 characters. It is recorded and notified to the administrators.",
-        "recv_accept_surplus": "Accept the surplus",
-        "recv_err_quantity": "Indicate how much of “{{line}}” arrived or mark it as “Not in this delivery”.",
-        "recv_err_surplus": "“{{line}}” exceeds the pending quantity ({{count}}): justify and accept the surplus, or correct the quantity.",
-        "recv_nothing_pending": "This order has nothing pending to receive.",
-        "recv_done_title": "Delivery recorded · {{number}}",
-        "recv_done_state": "The order is now “{{state}}”.",
-        "recv_licenses_one": "{{count}} license registered",
-        "recv_licenses_other": "{{count}} licenses registered",
-        "recv_only_services": "The service confirmation was recorded.",
-        "recv_new_codes": "Devices registered",
-        "recv_differences": "Recorded differences",
-        "recv_differences_notified": "The administrators were notified.",
-        "recv_still_pending": "Still pending",
-        "recv_pending_hint": "When it arrives, use “Receive next delivery”; if it will not arrive, “Close with shortage”.",
-        "recv_print_labels": "Print QR labels",
-        "recv_surplus_needs_approval": "The surplus requires approval by another IT administrator: the delivery will remain pending until then.",
-        "recv_sent_title": "Delivery sent for approval · {{number}}",
-        "recv_pending_approval": "The delivery includes a surplus and is pending (request #{{id}}). The inventory does not change until another IT administrator approves it.",
-        "recv_nothing_yet": "Nothing has been recorded yet.",
-        "recv_handover": "Hand over to a person",
         "close_requested": "Closing with shortage is awaiting approval by another IT administrator.",
         "cancel_requested": "The cancellation is awaiting approval by another IT administrator.",
-        "needs_approval": "It will be applied once another IT administrator approves it."
+        "err_provider_has_receipts": "It cannot be deleted because it has goods receipts."
     },
     "directory": {
         "title": "Directory & notifications",
@@ -1860,7 +1803,7 @@
         "HOSTNAME_ALREADY_EXISTS": "That hostname is already in use.",
         "MONTH_ALREADY_CLOSED": "That month is already closed.",
         "MONTH_NOT_FINISHED": "Only a finished month can be closed.",
-        "SERIAL_NUMBER_ALREADY_EXISTS": "That serial number is already registered.",
+        "SERIAL_NUMBER_ALREADY_EXISTS": "An asset with that serial number already exists.",
         "INSUFFICIENT_PERMISSIONS": "You do not have permission to perform this operation.",
         "ONLY_SUPER_ADMIN_CAN_CREATE_ADMINS": "Only a super administrator can create administrators.",
         "ONLY_SUPER_ADMIN_CAN_GRANT_ADMIN_ROLES": "Only a super administrator can grant administrative roles.",
@@ -1874,9 +1817,7 @@
         "ASSET_NOT_FOUND": "Asset not found.",
         "ASSET_CODE_ALREADY_EXISTS": "An asset with that internal code already exists.",
         "NEW_ASSET_CODE_ALREADY_EXISTS": "An asset with that internal code already exists.",
-        "SERIAL_NUMBER_ALREADY_EXISTS": "An asset with that serial number already exists.",
         "NEW_SERIAL_NUMBER_ALREADY_EXISTS": "An asset with that serial number already exists.",
-        "DUPLICATE_SERIAL_NUMBER_IN_RECEIPT": "The receipt contains duplicate serial numbers.",
         "ASSET_TYPE_ALREADY_EXISTS": "An asset type with that name already exists.",
         "ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION": "The asset type has no prefix configured. Enter the code manually or define a prefix.",
         "ASSET_ALREADY_ASSIGNED_USE_TRANSFER": "The asset is already assigned. Use a transfer to change the responsible person.",
@@ -1893,14 +1834,12 @@
         "DEPARTMENT_ALREADY_EXISTS": "A department with that name already exists.",
         "SUPPLIER_ALREADY_EXISTS": "A supplier with that name already exists.",
         "CONSUMABLE_ALREADY_EXISTS": "A consumable with that name already exists.",
-        "PURCHASE_ORDER_NUMBER_EXISTS": "A purchase order with that number already exists.",
         "CANNOT_DELETE_BRAND_IN_USE": "The brand cannot be deleted because it is in use.",
         "CANNOT_DELETE_MODEL_IN_USE": "The model cannot be deleted because it is in use.",
         "CANNOT_DELETE_ASSET_TYPE_IN_USE": "The asset type cannot be deleted because it is in use.",
         "CANNOT_DELETE_AREA_IN_USE": "The area cannot be deleted because it is in use.",
         "CANNOT_DELETE_DEPARTMENT_HAS_PERSONS": "The department cannot be deleted because it has employees.",
         "CANNOT_DELETE_PERSON_HAS_USER_ACCOUNT": "The person cannot be deleted because they have a system user.",
-        "CANNOT_DELETE_SUPPLIER_HAS_ORDERS": "The supplier cannot be deleted because it has related orders.",
         "CANNOT_DELETE_CONSUMABLE_HAS_MOVEMENTS": "The consumable cannot be deleted because it has recorded movements. Deactivate it instead.",
         "CANNOT_DELETE_SOFTWARE_HAS_LICENSES": "The software cannot be deleted because it has registered licenses.",
         "CANNOT_DELETE_LICENSE_IN_USE": "The license cannot be deleted because it is in use.",
@@ -1921,9 +1860,6 @@
         "LICENSE_KEY_COUNT_MISMATCH": "The number of keys does not match the number of licenses.",
         "LICENSE_EXPIRATION_IN_THE_PAST": "The expiration date cannot be in the past.",
         "LICENSE_ALREADY_ASSIGNED_TO_TARGET": "The license is already assigned to this target.",
-        "ORDER_ALREADY_CANCELLED": "The order is already cancelled.",
-        "ORDER_NOT_RECEIVABLE": "The order cannot be received in its current status.",
-        "RECEIPT_QUANTITY_EXCEEDS_ORDER_LINE": "The received quantity exceeds the order line quantity.",
         "FILE_TYPE_NOT_ALLOWED": "File type not allowed.",
         "EMPTY_FILE": "The file is empty.",
         "INVALID_OR_EXPIRED_RESET_TOKEN": "The link is invalid or has expired. Request a new one.",
@@ -1981,7 +1917,6 @@
         "NOTIFICATION_EVENT_NOT_FOUND": "The notification event was not found.",
         "OPERATIONAL_STATUS_NOT_FOUND": "The operational status was not found.",
         "POSITION_NOT_FOUND": "The position was not found.",
-        "PURCHASE_ORDER_NOT_FOUND": "The purchase order was not found.",
         "REQUESTING_PERSON_NOT_FOUND": "The requesting person was not found.",
         "SITE_NOT_FOUND": "The site was not found.",
         "SOFTWARE_NOT_FOUND": "The software was not found.",
@@ -2021,11 +1956,9 @@
         "COMPONENT_IN_OTHER_SEDE": "The component is at another site.",
         "COMPONENT_IS_ASSIGNED_RETURN_IT_FIRST": "The component is assigned to a person: record its return first.",
         "COMPONENT_NOT_INSTALLED_IN_ASSET": "That component is not installed in this device.",
-        "CONSUMABLE_DOES_NOT_MATCH_LINE": "The consumable does not match the one indicated in order line {{p1}}.",
         "CONSUMABLE_INACTIVE": "The consumable is inactive.",
         "CUENTA_EMAIL_REQUERIDA": "Please enter the sender email account.",
         "DATABASE_ERROR": "A database error occurred. Please try again.",
-        "EMPTY_RECEIPT": "Please indicate at least one line received in this delivery.",
         "FIELD_DECRYPT_FAILED": "A protected value could not be read. Please contact the administrator.",
         "FILE_CONTENT_MISMATCH": "The file content does not match its extension.",
         "FILE_TOO_LARGE_MAX_MB": "The file exceeds the maximum of {{p1}} MB.",
@@ -2045,8 +1978,6 @@
         "INVENTORY_COUNT_NOT_OPEN": "The inventory count is no longer open.",
         "LABEL_ASSETS_REQUIRED": "Please select at least one asset for the labels.",
         "LICENSE_QUANTITY_REQUIRED": "Please indicate the number of licenses.",
-        "LINE_NOT_IN_ORDER": "The line does not belong to this order.",
-        "LINE_TYPE_MISMATCH": "Line {{p1}} does not accept that type of receipt (check what was purchased).",
         "LOAN_RETURN_DATE_IN_THE_PAST": "The expected return date cannot be in the past.",
         "LOAN_RETURN_DATE_REQUIRED": "A loan requires the expected return date.",
         "MISSING_REFRESH_TOKEN": "Your session has expired. Please sign in again.",
@@ -2055,13 +1986,8 @@
         "MOVEMENT_TYPE_REQUIRES_SPECIFIC_OPERATION": "That movement type is recorded with its own operation (return, transfer or maintenance).",
         "NO_MOVEMENTS_PROVIDED": "Please select at least one movement.",
         "OBSERVATION_REQUIRED_FOR_OTHER": "Please explain the reason when choosing “Other”.",
-        "ONLY_PARTIAL_ORDERS_CAN_BE_CLOSED": "Only partially received orders can be closed with a shortage.",
         "ONLY_SUPER_ADMIN_CAN_CHANGE_ROLE_OF_GLOBAL_ACCOUNT": "Only a super administrator can change the role of a global-scope account.",
-        "ORDER_HAS_RECEIPTS_CLOSE_WITH_SHORTAGE": "The order already has deliveries: close it with a shortage instead of cancelling it.",
-        "ORDER_STATE_TRANSITION_NOT_ALLOWED": "That order status change is not allowed.",
-        "PRICE_DIFFERENCE_REQUIRES_JUSTIFICATION": "The price of line {{p1}} differs from the order: please provide a justification.",
         "PURCHASE_DATE_REQUIRED": "Please indicate the purchase date.",
-        "RECEIPT_EXCEEDS_PENDING": "Line {{p1}} exceeds the pending quantity ({{p2}}): justify and accept the surplus.",
         "SMTP_HOST_REQUERIDO": "Please enter the SMTP server.",
         "STATE_CHANGE_REQUIRES_OPERATION": "That status is set by an operation (assign, return, maintenance or decommission), not by editing the asset.",
         "STOCK_ALREADY_MATCHES": "The counted stock matches the recorded stock: there is nothing to adjust.",
@@ -2184,7 +2110,6 @@
         "APPROVAL_ALREADY_PENDING": "There is already a pending request for this.",
         "ORDER_CANCEL_REQUIRES_APPROVAL": "Cancelling an order requires approval.",
         "ORDER_CLOSE_REQUIRES_APPROVAL": "Closing an order with shortage requires approval.",
-        "CANCEL_REASON_REQUIRED": "Please state why the order is cancelled.",
         "RECLASSIFY_ASSETS_IN_USE": "There are assets of that type in use: release them before reclassifying.",
         "RECLASSIFY_NOTHING_TO_CONVERT": "There are no assets of that type to convert.",
         "RECLASSIFY_REQUIRES_APPROVAL": "The reclassification requires approval.",
@@ -2192,7 +2117,9 @@
         "CONSUMABLE_NAME_IN_OTHER_SEDE": "A consumable with that name already exists at another site: use a different name.",
         "MISSING_ITEM_NOT_FOUND": "The missing item does not exist.",
         "MISSING_ITEM_ALREADY_RESOLVED": "That missing item has already been resolved.",
-        "MISSING_ITEM_DECOMMISSION_REASON": "A missing item is written off for loss or theft."
+        "MISSING_ITEM_DECOMMISSION_REASON": "A missing item is written off for loss or theft.",
+        "IMPORT_ONLY_BEFORE_FIRST_CLOSE": "Importing ended with the first month-end close. Record new items with a goods receipt.",
+        "CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS": "It cannot be deleted because it has goods receipts."
     },
     "catalog": {
         "states": {
@@ -2344,8 +2271,7 @@
             "movement_free": "the asset is available",
             "hostname_current": "the asset's current hostname",
             "type_model_assets": "type this model is usually registered with",
-            "type_model_catalog": "type defined in the model catalog",
-            "currency_last_order": "currency of their last order ({{number}})"
+            "type_model_catalog": "type defined in the model catalog"
         },
         "info": {
             "manager": "Manager: {{name}}",
@@ -2370,7 +2296,6 @@
         "sede_required": "Please select the site.",
         "asset_sede_help": "Site the asset belongs to. It is updated automatically when the asset is assigned to an area of another site.",
         "person_sede_help": "Site where the person works. It determines who can see and manage their data.",
-        "order_sede_help": "Site receiving the purchase: received assets will be registered there.",
         "consumable_sede_help": "Site where the consumable is stored.",
         "reasons": {
             "only_sede": "your assigned site",
@@ -2563,7 +2488,8 @@
         "continue": "Continue",
         "view": "View result",
         "states": {
-            "ABIERTA": "Open", "CERRANDO": "Closing",
+            "ABIERTA": "Open",
+            "CERRANDO": "Closing",
             "CERRADA": "Closed",
             "ANULADA": "Cancelled"
         },
@@ -2708,7 +2634,7 @@
             "STOCK_BAJO": {
                 "title_one": "{{count}} consumable at or below the minimum",
                 "title_other": "{{count}} consumables at or below the minimum",
-                "hint": "Create the replenishment purchase order."
+                "hint": "Record the new stock with a goods receipt."
             },
             "ACTIVO_POR_COMPLETAR": {
                 "title_one": "{{count}} asset to complete",
@@ -2719,11 +2645,6 @@
                 "title_one": "{{count}} receipt to confirm",
                 "title_other": "{{count}} receipts to confirm",
                 "hint": "Count, classify and confirm what arrived."
-            },
-            "ORDEN_PARCIAL": {
-                "title_one": "{{count}} partially received purchase order",
-                "title_other": "{{count}} partially received purchase orders",
-                "hint": "Record the next delivery or close with a shortage."
             },
             "TICKET_ANTIGUO": {
                 "title_one": "{{count}} maintenance ticket open for more than 15 days",
@@ -2812,10 +2733,7 @@
         "resolution_note": "Resolution by {{name}}",
         "types": {
             "BAJA": "Asset decommission",
-            "RECEPCION_SOBRANTE": "Purchase surplus",
             "AJUSTE_CONSUMIBLE": "Consumable adjustment",
-            "CIERRE_FALTANTE": "Close with shortage",
-            "CANCELACION_ORDEN": "Order cancellation",
             "RECLASIFICACION": "Reclassification to consumable"
         },
         "states": {
@@ -2826,10 +2744,7 @@
         },
         "approve_effect": {
             "BAJA": "On approval, the device leaves the inventory, its licenses are released and the decommission is recorded in the kardex with your name as approver.",
-            "RECEPCION_SOBRANTE": "On approval, the full delivery (including the surplus) is recorded exactly as it was received.",
             "AJUSTE_CONSUMIBLE": "On approval, the stock is set to the counted amount and the adjustment is recorded in the ledger. If the stock changed since the request, it is not applied.",
-            "CIERRE_FALTANTE": "On approval, the order is closed and the pending items will no longer be received.",
-            "CANCELACION_ORDEN": "On approval, the order is cancelled.",
             "RECLASIFICACION": "On approval, the assets are retired as “Reclassified” and the consumable receives the same quantity."
         },
         "summary_decommission": "Decommission of {{asset}}: {{reason}} → {{destination}}"
@@ -2851,7 +2766,6 @@
             "actions": "Quick actions",
             "assets": "Assets",
             "people": "People",
-            "orders": "Purchase orders",
             "recent": "Recent",
             "navigation": "Go to"
         },
@@ -3007,7 +2921,7 @@
     },
     "import": {
         "title": "Import assets",
-        "subtitle": "Load assets from Excel and review every row before saving.",
+        "subtitle": "Initial inventory load from Excel, available until the first month-end close.",
         "template": "Download template",
         "step_upload": "File",
         "choose": "Choose .xlsx file",
@@ -3071,7 +2985,9 @@
             "INVALID_CURRENCY": "Invalid currency",
             "TYPE_FROM_CODE": "Category inferred from the code prefix"
         },
-        "choose_another": "Choose another file"
+        "choose_another": "Choose another file",
+        "closed": "Importing is only for the initial load and ended with the first month-end close. Record new items with a goods receipt.",
+        "go_receipts": "Go to receipts"
     },
     "quality": {
         "title": "Data quality",
@@ -3121,7 +3037,11 @@
         }
     },
     "catalog_center": {
-        "data_types": { "TEXT": "Text", "NUMBER": "Number", "BOOLEAN": "Yes or no" },
+        "data_types": {
+            "TEXT": "Text",
+            "NUMBER": "Number",
+            "BOOLEAN": "Yes or no"
+        },
         "title": "Catalog center",
         "subtitle": "Lists that standardize your data: reasons, disposals, units, faults and documents.",
         "catalog": "Catalog",
@@ -3753,9 +3673,6 @@
         "out_qty": "Outflows",
         "out_value": "Outflows value",
         "adjustments": "Adjustments",
-        "purchases": "Purchases received",
-        "order": "Order",
-        "supplier": "Supplier",
         "value": "Value",
         "maintenance": "Maintenance closed this month",
         "tickets": "Tickets",
@@ -3799,11 +3716,6 @@
             "title": "No suppliers yet",
             "description": "Register who you buy equipment or services from to use them in orders and warranties.",
             "action": "Register supplier"
-        },
-        "orders": {
-            "title": "No purchase orders",
-            "description": "Orders record what was bought; when received, the equipment enters the inventory.",
-            "action": "Create order"
         },
         "brands": {
             "title": "No brands yet",

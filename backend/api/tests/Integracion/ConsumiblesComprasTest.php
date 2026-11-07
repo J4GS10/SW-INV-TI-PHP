@@ -8,7 +8,7 @@ use App\Tests\Soporte\DatosPrueba as D;
 use App\Tests\Soporte\Inventario as I;
 use App\Tests\Soporte\PruebaApi;
 
-/** /consumibles, /compras y su lazo con aprobaciones: valoración, stock atómico, recepciones y diferencias. */
+/** /consumibles, /compras y su lazo con aprobaciones: valoración, stock atómico y licencias. */
 final class ConsumiblesComprasTest extends PruebaApi
 {
     private int $sede;
@@ -84,110 +84,6 @@ final class ConsumiblesComprasTest extends PruebaApi
         $this->ok(201, 'POST', "/api/v1/consumibles/{$id}/entrada", ['MOC_Cantidad' => 1]);
         self::assertSame([409, 'STOCK_CHANGED_SINCE_REQUEST'], $this->detalle('POST', "/api/v1/aprobaciones/{$s2['APR_Aprobacion']}/aprobar", [], $this->jefe));
         self::assertSame('PENDIENTE', $this->ok(200, 'GET', '/api/v1/aprobaciones?estado=PENDIENTE')[0]['APR_Estado']);
-    }
-
-    public function testOrdenRecepcionParcialSobranteAprobadoYCierreConFaltante(): void
-    {
-        $prv = I::proveedor();
-        $con = $this->consumible();
-        $tipo = I::tipo('COMPUTO');
-        $modelo = I::modelo($tipo);
-        $orden = $this->ok(201, 'POST', '/api/v1/compras/ordenes', ['OCO_Numero' => 'OC-'.D::sufijo(), 'OCO_Fecha' => '2026-10-01', 'PRV_Proveedor' => $prv,
-            'lineas' => [
-                ['OCL_Descripcion' => 'Tóner', 'OCL_Cantidad' => 10, 'OCL_Precio_Unitario' => 25.5, 'OCL_Tipo' => 'CONSUMIBLE', 'CON_Consumible' => $con['CON_Consumible']],
-                ['OCL_Descripcion' => 'Laptop', 'OCL_Cantidad' => 2, 'OCL_Precio_Unitario' => 7000, 'OCL_Tipo' => 'ACTIVO'],
-                ['OCL_Descripcion' => 'Flete', 'OCL_Cantidad' => 1, 'OCL_Precio_Unitario' => 100, 'OCL_Tipo' => 'OTRO'],
-            ]]);
-        self::assertSame(['BORRADOR', '14355.00', $this->sede], [$orden['OCO_Estado'], $orden['OCO_Total'], $orden['SED_Sede']]);
-        [$lCon, $lAct, $lOtro] = array_column($orden['lineas'], 'OCL_Linea');
-        $id = $orden['OCO_Orden'];
-
-        self::assertSame([400, "RECEIPT_EXCEEDS_PENDING:{$lCon}:10"], $this->detalle('POST', "/api/v1/compras/ordenes/{$id}/recibir",
-            ['consumibles' => [['OCL_Linea' => $lCon, 'CON_Consumible' => $con['CON_Consumible'], 'cantidad' => 11]]]));
-        self::assertSame([400, "PRICE_DIFFERENCE_REQUIRES_JUSTIFICATION:{$lCon}"], $this->detalle('POST', "/api/v1/compras/ordenes/{$id}/recibir",
-            ['consumibles' => [['OCL_Linea' => $lCon, 'CON_Consumible' => $con['CON_Consumible'], 'cantidad' => 4, 'precio_unitario' => 30]]]));
-        self::assertSame([400, "LINE_TYPE_MISMATCH:{$lAct}"], $this->detalle('POST', "/api/v1/compras/ordenes/{$id}/recibir",
-            ['otros' => [['OCL_Linea' => $lAct, 'cantidad' => 1]]]));
-
-        $r = $this->ok(200, 'POST', "/api/v1/compras/ordenes/{$id}/recibir", ['documento' => 'GR-1',
-            'consumibles' => [['OCL_Linea' => $lCon, 'CON_Consumible' => $con['CON_Consumible'], 'cantidad' => 4]],
-            'activos' => [['OCL_Linea' => $lAct, 'ACT_Serie_Fabricante' => 'OC-SN-'.D::sufijo(), 'MOD_Modelo' => $modelo, 'TAC_Tipo_Activo' => $tipo,
-                'ACT_Fecha_Compra' => '2026-10-05', 'ACT_Fin_Garantia' => '2027-10-05']],
-            'otros' => [['OCL_Linea' => $lOtro, 'cantidad' => 1]]]);
-        self::assertSame(['PARCIAL', 1, 1], [$r['OCO_Estado'], $r['consumibles_reabastecidos'], $r['activos_creados']]);
-        self::assertSame([[$lCon, 6], [$lAct, 1]], array_map(static fn (array $p): array => [$p['OCL_Linea'], $p['pendiente']], $r['pendientes']));
-        $stock = $this->ok(200, 'GET', "/api/v1/consumibles/{$con['CON_Consumible']}");
-        self::assertSame([4, '25.5000'], [$stock['CON_Stock_Actual'], $stock['CON_Costo_Unitario']]);
-        $activo = $this->ok(200, 'POST', '/api/v1/core/activos/search', ['q' => $r['activos_codigos'][0]])['items'][0];
-        self::assertSame(['En Bodega', '7000.00', $this->sede], [$activo['estado_operativo']['EOP_Nombre'], $activo['ACT_Costo'], $activo['SED_Sede']]);
-        $garantias = $this->ok(200, 'GET', '/api/v1/compras/garantias?dias=3650');
-        self::assertContains($r['activos_codigos'][0], array_column($garantias, 'ACT_Codigo_Interno'));
-
-        // Sobrante: no entra hasta que otra persona lo aprueba.
-        $sobra = $this->ok(200, 'POST', "/api/v1/compras/ordenes/{$id}/recibir", [
-            'consumibles' => [['OCL_Linea' => $lCon, 'CON_Consumible' => $con['CON_Consumible'], 'cantidad' => 8]],
-            'diferencias' => [['OCL_Linea' => $lCon, 'motivo' => 'Llegaron de más', 'aceptar_sobrante' => true]]]);
-        self::assertNotNull($sobra['aprobacion_pendiente']);
-        self::assertSame(['SOBRANTE', null], [$sobra['diferencias'][0]['tipo'], $sobra['REC_Recepcion']]);
-        // Un reintento no crea otra solicitud: aprobar las dos duplicaría el ingreso.
-        self::assertSame([409, "APPROVAL_ALREADY_PENDING:{$sobra['aprobacion_pendiente']}"], $this->detalle('POST', "/api/v1/compras/ordenes/{$id}/recibir", [
-            'consumibles' => [['OCL_Linea' => $lCon, 'CON_Consumible' => $con['CON_Consumible'], 'cantidad' => 8]],
-            'diferencias' => [['OCL_Linea' => $lCon, 'motivo' => 'Llegaron de más', 'aceptar_sobrante' => true]]]));
-        self::assertSame(4, $this->ok(200, 'GET', "/api/v1/consumibles/{$con['CON_Consumible']}")['CON_Stock_Actual']);
-        $this->ok(200, 'POST', "/api/v1/aprobaciones/{$sobra['aprobacion_pendiente']}/aprobar", [], $this->jefe);
-        self::assertSame(12, $this->ok(200, 'GET', "/api/v1/consumibles/{$con['CON_Consumible']}")['CON_Stock_Actual']);
-        $recepciones = $this->ok(200, 'GET', "/api/v1/compras/ordenes/{$id}/recepciones");
-        self::assertSame(['PARCIAL', 'SOBRANTE'], [$recepciones[1]['REC_Resultado'], $recepciones[1]['lineas'][0]['RCL_Diferencia']]);
-
-        // Lo que falta (una laptop) no llegará: cierre con faltante aprobado.
-        $cierre = $this->ok(202, 'POST', "/api/v1/compras/ordenes/{$id}/cerrar", ['motivo' => 'El proveedor no tiene más']);
-        $this->ok(200, 'POST', "/api/v1/aprobaciones/{$cierre['APR_Aprobacion']}/aprobar", [], $this->jefe);
-        self::assertSame('CERRADA_CON_FALTANTE', $this->ok(200, 'GET', "/api/v1/compras/ordenes/{$id}")['OCO_Estado']);
-        self::assertSame([409, 'ORDER_NOT_RECEIVABLE'], $this->detalle('POST', "/api/v1/compras/ordenes/{$id}/recibir",
-            ['otros' => [['OCL_Linea' => $lOtro, 'cantidad' => 1]]]));
-    }
-
-    public function testCancelacionSoloDeBorradorYConMotivo(): void
-    {
-        $orden = $this->ok(201, 'POST', '/api/v1/compras/ordenes', ['OCO_Numero' => 'OC-'.D::sufijo(), 'OCO_Fecha' => '2026-10-01', 'PRV_Proveedor' => I::proveedor()]);
-        $id = $orden['OCO_Orden'];
-        self::assertSame([409, 'ORDER_STATE_TRANSITION_NOT_ALLOWED'], $this->detalle('PATCH', "/api/v1/compras/ordenes/{$id}/estado", ['OCO_Estado' => 'RECIBIDA']));
-        self::assertSame([422, 'CANCEL_REASON_REQUIRED'], $this->detalle('PATCH', "/api/v1/compras/ordenes/{$id}/estado", ['OCO_Estado' => 'CANCELADA']));
-        $s = $this->ok(202, 'PATCH', "/api/v1/compras/ordenes/{$id}/estado", ['OCO_Estado' => 'CANCELADA', 'motivo' => 'Ya no se necesita']);
-        $this->ok(200, 'POST', "/api/v1/aprobaciones/{$s['APR_Aprobacion']}/aprobar", [], $this->jefe);
-        self::assertSame(['CANCELADA', 'Ya no se necesita'], [$this->ok(200, 'GET', "/api/v1/compras/ordenes/{$id}")['OCO_Estado'],
-            $this->ok(200, 'GET', "/api/v1/compras/ordenes/{$id}")['OCO_Motivo_Cierre']]);
-        self::assertSame([409, 'PURCHASE_ORDER_NUMBER_EXISTS'], $this->detalle('POST', '/api/v1/compras/ordenes', ['OCO_Numero' => $orden['OCO_Numero'],
-            'OCO_Fecha' => '2026-10-01', 'PRV_Proveedor' => I::proveedor()]));
-        $compras = $this->tokenDe(D::crearUsuario(['rol' => 'COMPRAS', 'sedes' => [$this->sede]]));
-        self::assertSame(403, $this->pedir('POST', "/api/v1/compras/ordenes/{$id}/recibir", ['otros' => []], $compras)[0], 'Recibir en bodega es de TI.');
-        self::assertSame(403, $this->pedir('GET', '/api/v1/consumibles/1/movimientos', token: $compras)[0]);
-    }
-
-    public function testSobranteDeLicenciasNoGuardaLasClavesEnClaroEnLaAprobacion(): void
-    {
-        $orden = $this->ok(201, 'POST', '/api/v1/compras/ordenes', ['OCO_Numero' => 'OC-'.D::sufijo(), 'OCO_Fecha' => '2026-10-01', 'PRV_Proveedor' => I::proveedor(),
-            'lineas' => [['OCL_Descripcion' => 'Suite', 'OCL_Cantidad' => 1, 'OCL_Precio_Unitario' => 50, 'OCL_Tipo' => 'LICENCIA']]]);
-        $linea = $orden['lineas'][0]['OCL_Linea'];
-        $clave = 'SECRETA-'.D::sufijo();
-        $referencia = 'REF-'.D::sufijo();
-        $sobra = $this->ok(200, 'POST', "/api/v1/compras/ordenes/{$orden['OCO_Orden']}/recibir", [
-            'licencias' => [['OCL_Linea' => $linea, 'SOF_Software' => I::software(), 'TLI_Tipo_Licencia' => I::tipoLicencia(),
-                'claves' => [['LCL_Clave_Activacion' => $clave, 'LCL_Referencia' => $referencia], ['LCL_Clave_Activacion' => $clave.'-2', 'LCL_Referencia' => $referencia]]]],
-            'diferencias' => [['OCL_Linea' => $linea, 'motivo' => 'Vino una clave de más', 'aceptar_sobrante' => true]]]);
-        $aprobacion = $sobra['aprobacion_pendiente'];
-        self::assertNotNull($aprobacion);
-        self::assertSame(0, D::contar('SELECT COUNT(*) FROM "INV_APROBACION" WHERE "APR_Aprobacion" = :a AND DBMS_LOB.INSTR("APR_Payload", :c) > 0',
-            ['a' => $aprobacion, 'c' => $clave]), 'La clave nunca queda en claro en la aprobación.');
-        $listado = (string) json_encode($this->ok(200, 'GET', '/api/v1/aprobaciones', null, $this->jefe));
-        self::assertStringContainsString((string) $aprobacion, $listado);
-        self::assertStringNotContainsString($clave, $listado);
-
-        $this->ok(200, 'POST', "/api/v1/aprobaciones/{$aprobacion}/aprobar", [], $this->jefe);
-        self::assertSame(2, D::contar('SELECT COUNT(*) FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Referencia" = :r', ['r' => $referencia]),
-            'Al aprobar, las claves se descifran y se registran como credenciales.');
-        self::assertSame(0, D::contar('SELECT COUNT(*) FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Referencia" = :r AND "LCL_Clave_Activacion" = :c',
-            ['r' => $referencia, 'c' => $clave]), 'La credencial se guarda cifrada.');
     }
 
     public function testUnaCredencialQueDebeRotarseNoSeEntregaAOtraPersona(): void

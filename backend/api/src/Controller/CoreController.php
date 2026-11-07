@@ -97,7 +97,7 @@ final readonly class CoreController
     // ---------------- Activos ----------------
 
     #[Route('/activos', methods: ['POST'])]
-    #[Autenticado(roles: Roles::OPERATIVO)]
+    #[Autenticado(roles: Roles::ADMIN)]
     public function crear(Request $request): JsonResponse
     {
         $e = Entrada::json($request);

@@ -116,25 +116,65 @@
         "unknown": "Sconosciuto",
         "loading": "Caricamento…",
         "more_actions": "Altre azioni",
-        "undo": "Annulla"
+        "undo": "Annulla",
+        "retry": "Riprova"
     },
     "tasks": {
         "title": "Le mie attività",
         "subtitle": "Ciò che è in sospeso oggi e ciò che fa ogni giorno.",
         "items": {
-            "approve": { "title": "Approva", "help": "Gestisca le richieste altrui." },
-            "assign": { "title": "Assegna o restituisci", "help": "Consegni un dispositivo o ne riceva uno." },
-            "audit": { "title": "Audit", "help": "Veda chi ha fatto cosa." },
-            "complete": { "title": "Completa i seriali", "help": "Inserisca seriale e dati di ogni unità." },
-            "confirm": { "title": "Conferma ingressi", "help": "Conti e classifichi ciò che è arrivato." },
-            "find": { "title": "Cerca dispositivo", "help": "Trovi un dispositivo e chi lo ha." },
-            "month_end": { "title": "Chiusura mensile", "help": "Controlli i dati del mese." },
-            "new_receipt": { "title": "Nuovo ingresso", "help": "Registri ciò che è arrivato in magazzino." },
-            "people": { "title": "Persone", "help": "Consulti i dipendenti e i loro dispositivi." },
-            "receipts": { "title": "Ingressi", "help": "Consulti gli ingressi e il loro stato." },
-            "repair": { "title": "Riparazioni", "help": "Apra o chiuda una manutenzione." },
-            "stock": { "title": "Giacenze ed esportazioni", "help": "Consulti ed esporti giacenze, ingressi e assegnazioni." },
-            "trace": { "title": "Tracciabilità", "help": "Segua la storia di un dispositivo." }
+            "approve": {
+                "title": "Approva",
+                "help": "Gestisca le richieste altrui."
+            },
+            "assign": {
+                "title": "Assegna o restituisci",
+                "help": "Consegni un dispositivo o ne riceva uno."
+            },
+            "audit": {
+                "title": "Audit",
+                "help": "Veda chi ha fatto cosa."
+            },
+            "complete": {
+                "title": "Completa i seriali",
+                "help": "Inserisca seriale e dati di ogni unità."
+            },
+            "confirm": {
+                "title": "Conferma ingressi",
+                "help": "Conti e classifichi ciò che è arrivato."
+            },
+            "find": {
+                "title": "Cerca dispositivo",
+                "help": "Trovi un dispositivo e chi lo ha."
+            },
+            "month_end": {
+                "title": "Chiusura mensile",
+                "help": "Controlli i dati del mese."
+            },
+            "new_receipt": {
+                "title": "Nuovo ingresso",
+                "help": "Registri ciò che è arrivato in magazzino."
+            },
+            "people": {
+                "title": "Persone",
+                "help": "Consulti i dipendenti e i loro dispositivi."
+            },
+            "receipts": {
+                "title": "Ingressi",
+                "help": "Consulti gli ingressi e il loro stato."
+            },
+            "repair": {
+                "title": "Riparazioni",
+                "help": "Apra o chiuda una manutenzione."
+            },
+            "stock": {
+                "title": "Giacenze ed esportazioni",
+                "help": "Consulti ed esporti giacenze, ingressi e assegnazioni."
+            },
+            "trace": {
+                "title": "Tracciabilità",
+                "help": "Segua la storia di un dispositivo."
+            }
         }
     },
     "system_alerts": {
@@ -157,7 +197,6 @@
         "providers": "Fornitori",
         "goods_receipts": "Entrate in magazzino",
         "stock_report": "Giacenze e assegnazioni",
-        "purchase_orders": "Ordini di acquisto",
         "warranties": "Garanzie",
         "departments": "Reparti",
         "persons": "Dipendenti",
@@ -570,7 +609,6 @@
             "free_licenses": "Licenze disponibili",
             "licenses_in_use": "{{used}}/{{total}} in uso"
         },
-        "alerts": {},
         "panels": {
             "by_status": "Beni per stato",
             "by_type": "Beni per tipo di componente",
@@ -616,9 +654,11 @@
             "code_preview": "Codice automatico: {{code}}",
             "code_no_prefix": "Questo tipo non ha prefisso: inserisca il codice",
             "edit_title": "Modifica bene",
-            "state_locked_help": "Questo stato viene impostato da un'operazione (assegnazione, restituzione, manutenzione o dismissione) dalla scheda dell'asset."
+            "state_locked_help": "Questo stato viene impostato da un'operazione (assegnazione, restituzione, manutenzione o dismissione) dalla scheda dell'asset.",
+            "no_invoice_hint": "Usi questa opzione solo per apparecchiature senza fattura, come una donazione. Gli acquisti entrano con un'entrata merci."
         },
-        "table": { "custodian": "Custode",
+        "table": {
+            "custodian": "Custode",
             "actions": "Azioni",
             "code": "Codice",
             "empty": "Nessun bene registrato",
@@ -882,7 +922,6 @@
         "license_added": "Licenza aggiunta all'inventario",
         "edit_license": "Modifica licenza",
         "add_license_for": "Aggiungi licenza per: {{name}}",
-        "license_type": "Tipo di licenza",
         "seats": "Numero di postazioni",
         "expiry": "Scadenza",
         "register_title": "Registra software",
@@ -1303,9 +1342,6 @@
         "low_title": "Stock sotto il minimo",
         "low_message": "«{{name}}» è ora a {{stock}} {{unit}} (minimo {{min}}).",
         "low_notify_admin": "Gli amministratori sono stati avvisati per gestire il riassortimento.",
-        "low_later": "Più tardi",
-        "low_create_order": "Crea ordine di acquisto ({{count}})",
-        "order_created_hint": "Ordine creato. Alla ricezione, lo stock verrà aggiunto automaticamente.",
         "avg_cost": "Costo medio",
         "initial_cost": "Costo unitario della giacenza iniziale",
         "initial_cost_help": "Facoltativo. Valorizza lo stock iniziale; in seguito si usa il costo medio ponderato.",
@@ -1366,25 +1402,10 @@
     "procurement": {
         "sections": {
             "general": "Dati generali",
-            "contact": "Contatti",
-            "order_data": "Dati dell'ordine",
-            "notes": "Note"
+            "contact": "Contatti"
         },
-        "confirm_cancel": "Annullare questo ordine?",
-        "order": "Ordine",
         "provider": "Fornitore",
-        "date": "Data",
         "status": "Stato",
-        "total": "Totale",
-        "lines": "Righe",
-        "line_desc": "Descrizione",
-        "line_qty": "Qtà",
-        "line_price": "Prezzo",
-        "subtotal": "Subtotale",
-        "no_lines": "Nessuna riga",
-        "invoice": "Fattura e documenti",
-        "cancel_order": "Annulla ordine",
-        "receive": "Ricevi",
         "provider_created": "Fornitore creato",
         "err_provider_exists": "Esiste già un fornitore con questo nome.",
         "new_provider": "Nuovo fornitore",
@@ -1394,39 +1415,12 @@
         "email": "Email",
         "phone": "Telefono",
         "address": "Indirizzo",
-        "err_provider_has_orders": "Impossibile eliminare: ha ordini associati.",
         "providers_title": "Fornitori",
-        "err_required": "Fornitore e numero sono obbligatori.",
-        "order_created": "Ordine di acquisto creato",
-        "err_number_exists": "Esiste già un ordine con questo numero.",
-        "new_order": "Nuovo ordine di acquisto",
-        "order_number": "Numero ordine",
         "currency": "Valuta",
         "currency_gtq": "Quetzal (GTQ)",
         "currency_usd": "Dollari USA (USD)",
         "currency_chf": "Franchi svizzeri (CHF)",
-        "notes": "Note",
-        "add_line": "Aggiungi riga",
-        "orders_title": "Ordini di acquisto",
-        "all": "Tutte",
-        "view_receive": "Visualizza / Ricevi",
-        "recv_err_consumible": "Selezioni il materiale di consumo di ogni riga che si aggiunge allo stock.",
-        "recv_err_activo": "Completi il tipo, il modello e la data di acquisto dei dispositivi.",
-        "recv_restocked_one": "{{count}} materiale di consumo rifornito",
-        "recv_restocked_other": "{{count}} materiali di consumo riforniti",
-        "recv_created_one": "{{count}} bene creato",
-        "recv_created_other": "{{count}} beni creati",
-        "recv_license_keys_one": "{{count}} chiave di licenza registrata",
-        "recv_license_keys_other": "{{count}} chiavi di licenza registrate",
-        "receive_title": "Ricevi ordine",
-        "recv_action": "Azione",
-        "recv_err_license_catalog": "Selezioni il software e il tipo di licenza.",
-        "serials_one_per_unit": "Numeri di serie, uno per unità",
-        "hostnames_optional": "Hostname opzionali, uno per riga",
-        "assets_bulk_hint": "Verrà creato un bene distinto per ogni numero di serie.",
-        "license_refs_optional": "Riferimenti opzionali, uno per riga",
         "warranty_end": "Fine garanzia",
-        "confirm_receive": "Conferma ricezione",
         "w_expired": "Scaduta",
         "w_expiring": "In scadenza",
         "w_valid": "Valida",
@@ -1467,61 +1461,10 @@
             "PARCIAL": "consegna parziale",
             "COMPLETA": "consegna completa"
         },
-        "line_type": "Cosa si acquista",
-        "line_type_help": "Indichi cos'è ogni riga: alla ricezione il sistema accetterà solo quello (e il materiale indicato).",
-        "ordered": "Ordinato",
-        "received_qty": "Ricevuto",
-        "pending": "In sospeso",
-        "progress": "{{received}} di {{ordered}} unità ricevute",
-        "pending_detail": "Ordinato {{ordered}} · ricevuto {{received}} · in sospeso {{pending}}",
-        "partial_hint": "Mancano ancora delle merci. Registri la prossima consegna quando arriva oppure, se non arriverà, chiuda l'ordine con mancanze.",
-        "receipts_title": "Consegne ricevute",
-        "receipts_subtitle": "Ogni consegna con la sua bolla o fattura e le differenze giustificate.",
-        "no_receipts": "Non è stato ancora ricevuto nulla per questo ordine.",
-        "no_document": "senza documento",
-        "receive_next": "Ricevi la prossima consegna",
-        "close_with_shortage": "Chiudi con mancanze",
-        "close_help": "Gli articoli in sospeso non arriveranno. L'ordine viene chiuso con quanto ricevuto e il motivo viene registrato.",
-        "close_reason": "Motivo della chiusura",
-        "close_reason_label": "Motivo della chiusura o dell'annullamento",
-        "cancel_reason": "Motivo dell'annullamento (facoltativo)",
-        "receive_help_partial": "Registri ciò che è arrivato in questa consegna. Può ricevere a parti: ciò che non arriva resta in sospeso. Se la quantità o il prezzo non corrispondono all'ordine, Le verrà chiesta una giustificazione.",
-        "recv_document": "Bolla di consegna o fattura",
-        "recv_document_help": "Numero del documento con cui è arrivata la merce.",
-        "recv_quantity": "Quantità ricevuta",
-        "recv_real_price": "Prezzo unitario fatturato",
-        "recv_real_cost": "Costo unitario fatturato",
-        "recv_other_help": "Trasporto, installazione o altri servizi: si registra la conformità, senza inventario.",
-        "units_captured": "{{count}} inserite · {{pending}} in sospeso",
-        "license_keys_optional": "Chiavi di licenza, una per unità (facoltativo)",
-        "license_keys_help": "Se le inserisce, la quantità sarà il numero di chiavi.",
-        "recv_surplus_warning": "Sta ricevendo {{count}} e ne restano in sospeso solo {{pending}}.",
-        "recv_price_warning": "Il prezzo differisce da quello dell'ordine. Se supera la tolleranza configurata, deve giustificarlo.",
-        "recv_justification": "Giustificazione",
         "recv_justification_help": "Almeno 5 caratteri. Viene registrata e notificata agli amministratori.",
-        "recv_accept_surplus": "Accetta l'eccedenza",
-        "recv_err_quantity": "Indichi quanto è arrivato di «{{line}}» o lo segni come «Non arrivato».",
-        "recv_err_surplus": "«{{line}}» supera la quantità in sospeso ({{count}}): giustifichi e accetti l'eccedenza, oppure corregga la quantità.",
-        "recv_nothing_pending": "Questo ordine non ha nulla in sospeso da ricevere.",
-        "recv_done_title": "Consegna registrata · {{number}}",
-        "recv_done_state": "L'ordine è ora «{{state}}».",
-        "recv_licenses_one": "{{count}} licenza registrata",
-        "recv_licenses_other": "{{count}} licenze registrate",
-        "recv_only_services": "È stata registrata la conformità dei servizi.",
-        "recv_new_codes": "Dispositivi registrati",
-        "recv_differences": "Differenze registrate",
-        "recv_differences_notified": "Gli amministratori sono stati avvisati.",
-        "recv_still_pending": "Ancora da ricevere",
-        "recv_pending_hint": "Quando arriva, usi «Ricevi la prossima consegna»; se non arriverà, «Chiudi con mancanze».",
-        "recv_print_labels": "Stampa etichette QR",
-        "recv_surplus_needs_approval": "L'eccedenza richiede l'approvazione di un altro amministratore IT: la consegna resterà in sospeso fino ad allora.",
-        "recv_sent_title": "Consegna inviata per l'approvazione · {{number}}",
-        "recv_pending_approval": "La consegna include un'eccedenza ed è in sospeso (richiesta #{{id}}). L'inventario non cambia finché un altro amministratore IT non la approva.",
-        "recv_nothing_yet": "Non è stato ancora registrato nulla.",
-        "recv_handover": "Consegna a una persona",
         "close_requested": "La chiusura con mancanza è in attesa di approvazione di un altro amministratore IT.",
         "cancel_requested": "L'annullamento è in attesa di approvazione di un altro amministratore IT.",
-        "needs_approval": "Verrà applicato quando un altro amministratore IT lo approverà."
+        "err_provider_has_receipts": "Non può essere eliminato perché ha entrate merci associate."
     },
     "directory": {
         "title": "Directory e notifiche",
@@ -1860,7 +1803,7 @@
         "HOSTNAME_ALREADY_EXISTS": "Questo nome host è già in uso.",
         "MONTH_ALREADY_CLOSED": "Quel mese è già chiuso.",
         "MONTH_NOT_FINISHED": "Si può chiudere solo un mese concluso.",
-        "SERIAL_NUMBER_ALREADY_EXISTS": "Questo numero di serie è già registrato.",
+        "SERIAL_NUMBER_ALREADY_EXISTS": "Esiste già un bene con questo numero di serie.",
         "INSUFFICIENT_PERMISSIONS": "Non dispone dei permessi per eseguire questa operazione.",
         "ONLY_SUPER_ADMIN_CAN_CREATE_ADMINS": "Solo un super amministratore può creare amministratori.",
         "ONLY_SUPER_ADMIN_CAN_GRANT_ADMIN_ROLES": "Solo un super amministratore può assegnare ruoli amministrativi.",
@@ -1874,9 +1817,7 @@
         "ASSET_NOT_FOUND": "Bene non trovato.",
         "ASSET_CODE_ALREADY_EXISTS": "Esiste già un bene con questo codice interno.",
         "NEW_ASSET_CODE_ALREADY_EXISTS": "Esiste già un bene con questo codice interno.",
-        "SERIAL_NUMBER_ALREADY_EXISTS": "Esiste già un bene con questo numero di serie.",
         "NEW_SERIAL_NUMBER_ALREADY_EXISTS": "Esiste già un bene con questo numero di serie.",
-        "DUPLICATE_SERIAL_NUMBER_IN_RECEIPT": "La ricezione contiene numeri di serie duplicati.",
         "ASSET_TYPE_ALREADY_EXISTS": "Esiste già un tipo di bene con questo nome.",
         "ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION": "Il tipo di bene non ha un prefisso configurato. Inserisca il codice manualmente o definisca un prefisso.",
         "ASSET_ALREADY_ASSIGNED_USE_TRANSFER": "Il bene è già assegnato. Utilizzi un trasferimento per cambiare il responsabile.",
@@ -1893,14 +1834,12 @@
         "DEPARTMENT_ALREADY_EXISTS": "Esiste già un reparto con questo nome.",
         "SUPPLIER_ALREADY_EXISTS": "Esiste già un fornitore con questo nome.",
         "CONSUMABLE_ALREADY_EXISTS": "Esiste già un materiale di consumo con questo nome.",
-        "PURCHASE_ORDER_NUMBER_EXISTS": "Esiste già un ordine di acquisto con questo numero.",
         "CANNOT_DELETE_BRAND_IN_USE": "Impossibile eliminare la marca perché è in uso.",
         "CANNOT_DELETE_MODEL_IN_USE": "Impossibile eliminare il modello perché è in uso.",
         "CANNOT_DELETE_ASSET_TYPE_IN_USE": "Impossibile eliminare il tipo di bene perché è in uso.",
         "CANNOT_DELETE_AREA_IN_USE": "Impossibile eliminare l'area perché è in uso.",
         "CANNOT_DELETE_DEPARTMENT_HAS_PERSONS": "Impossibile eliminare il reparto perché ha dei dipendenti.",
         "CANNOT_DELETE_PERSON_HAS_USER_ACCOUNT": "Impossibile eliminare la persona perché ha un utente di sistema.",
-        "CANNOT_DELETE_SUPPLIER_HAS_ORDERS": "Impossibile eliminare il fornitore perché ha ordini associati.",
         "CANNOT_DELETE_CONSUMABLE_HAS_MOVEMENTS": "Impossibile eliminare il materiale di consumo perché ha movimenti registrati. Può disattivarlo invece di eliminarlo.",
         "CANNOT_DELETE_SOFTWARE_HAS_LICENSES": "Impossibile eliminare il software perché ha licenze registrate.",
         "CANNOT_DELETE_LICENSE_IN_USE": "Impossibile eliminare la licenza perché è in uso.",
@@ -1921,9 +1860,6 @@
         "LICENSE_KEY_COUNT_MISMATCH": "Il numero di chiavi non corrisponde al numero di licenze.",
         "LICENSE_EXPIRATION_IN_THE_PAST": "La data di scadenza non può essere nel passato.",
         "LICENSE_ALREADY_ASSIGNED_TO_TARGET": "La licenza è già assegnata a questa destinazione.",
-        "ORDER_ALREADY_CANCELLED": "L'ordine è già annullato.",
-        "ORDER_NOT_RECEIVABLE": "L'ordine non può essere ricevuto nel suo stato attuale.",
-        "RECEIPT_QUANTITY_EXCEEDS_ORDER_LINE": "La quantità ricevuta supera quella della riga dell'ordine.",
         "FILE_TYPE_NOT_ALLOWED": "Tipo di file non consentito.",
         "EMPTY_FILE": "Il file è vuoto.",
         "INVALID_OR_EXPIRED_RESET_TOKEN": "Il link non è valido o è scaduto. Ne richieda uno nuovo.",
@@ -1981,7 +1917,6 @@
         "NOTIFICATION_EVENT_NOT_FOUND": "Non è stato trovato l'evento di notifica.",
         "OPERATIONAL_STATUS_NOT_FOUND": "Non è stato trovato lo stato operativo.",
         "POSITION_NOT_FOUND": "Non è stato trovato il ruolo.",
-        "PURCHASE_ORDER_NOT_FOUND": "Non è stato trovato l'ordine di acquisto.",
         "REQUESTING_PERSON_NOT_FOUND": "Non è stato trovato la persona richiedente.",
         "SITE_NOT_FOUND": "Non è stato trovato la sede.",
         "SOFTWARE_NOT_FOUND": "Non è stato trovato il software.",
@@ -2021,11 +1956,9 @@
         "COMPONENT_IN_OTHER_SEDE": "Il componente si trova in un'altra sede.",
         "COMPONENT_IS_ASSIGNED_RETURN_IT_FIRST": "Il componente è assegnato a una persona: ne registri prima la restituzione.",
         "COMPONENT_NOT_INSTALLED_IN_ASSET": "Quel componente non è installato in questo dispositivo.",
-        "CONSUMABLE_DOES_NOT_MATCH_LINE": "Il materiale di consumo non corrisponde a quello indicato nella riga {{p1}} dell'ordine.",
         "CONSUMABLE_INACTIVE": "Il materiale di consumo è inattivo.",
         "CUENTA_EMAIL_REQUERIDA": "Indichi l'account email mittente.",
         "DATABASE_ERROR": "Si è verificato un errore nel database. Riprovi.",
-        "EMPTY_RECEIPT": "Indichi almeno una riga ricevuta in questa consegna.",
         "FIELD_DECRYPT_FAILED": "Non è stato possibile leggere un dato protetto. Contatti l'amministratore.",
         "FILE_CONTENT_MISMATCH": "Il contenuto del file non corrisponde alla sua estensione.",
         "FILE_TOO_LARGE_MAX_MB": "Il file supera il massimo di {{p1}} MB.",
@@ -2045,8 +1978,6 @@
         "INVENTORY_COUNT_NOT_OPEN": "L'inventario fisico non è più aperto.",
         "LABEL_ASSETS_REQUIRED": "Selezioni almeno un asset per le etichette.",
         "LICENSE_QUANTITY_REQUIRED": "Indichi la quantità di licenze.",
-        "LINE_NOT_IN_ORDER": "La riga non appartiene a questo ordine.",
-        "LINE_TYPE_MISMATCH": "La riga {{p1}} non accetta quel tipo di ricezione (verifichi cosa è stato acquistato).",
         "LOAN_RETURN_DATE_IN_THE_PAST": "La data prevista di restituzione non può essere passata.",
         "LOAN_RETURN_DATE_REQUIRED": "Un prestito richiede la data prevista di restituzione.",
         "MISSING_REFRESH_TOKEN": "La Sua sessione è scaduta. Acceda di nuovo.",
@@ -2055,13 +1986,8 @@
         "MOVEMENT_TYPE_REQUIRES_SPECIFIC_OPERATION": "Quel tipo di movimento si registra con la propria operazione (restituzione, trasferimento o manutenzione).",
         "NO_MOVEMENTS_PROVIDED": "Selezioni almeno un movimento.",
         "OBSERVATION_REQUIRED_FOR_OTHER": "Spieghi il motivo quando sceglie «Altro».",
-        "ONLY_PARTIAL_ORDERS_CAN_BE_CLOSED": "Solo gli ordini ricevuti parzialmente possono essere chiusi con mancanze.",
         "ONLY_SUPER_ADMIN_CAN_CHANGE_ROLE_OF_GLOBAL_ACCOUNT": "Solo un super amministratore può cambiare il ruolo di un account con ambito globale.",
-        "ORDER_HAS_RECEIPTS_CLOSE_WITH_SHORTAGE": "L'ordine ha già delle consegne: lo chiuda con mancanze invece di annullarlo.",
-        "ORDER_STATE_TRANSITION_NOT_ALLOWED": "Quel cambio di stato dell'ordine non è consentito.",
-        "PRICE_DIFFERENCE_REQUIRES_JUSTIFICATION": "Il prezzo della riga {{p1}} differisce da quello dell'ordine: indichi la giustificazione.",
         "PURCHASE_DATE_REQUIRED": "Indichi la data di acquisto.",
-        "RECEIPT_EXCEEDS_PENDING": "La riga {{p1}} supera la quantità in sospeso ({{p2}}): giustifichi e accetti l'eccedenza.",
         "SMTP_HOST_REQUERIDO": "Indichi il server SMTP.",
         "STATE_CHANGE_REQUIRES_OPERATION": "Quello stato si imposta con un'operazione (assegnazione, restituzione, manutenzione o dismissione), non modificando l'asset.",
         "STOCK_ALREADY_MATCHES": "La giacenza contata coincide con quella registrata: non c'è nulla da rettificare.",
@@ -2184,7 +2110,6 @@
         "APPROVAL_ALREADY_PENDING": "C'è già una richiesta in sospeso per questo.",
         "ORDER_CANCEL_REQUIRES_APPROVAL": "Annullare un ordine richiede approvazione.",
         "ORDER_CLOSE_REQUIRES_APPROVAL": "Chiudere un ordine con mancanza richiede approvazione.",
-        "CANCEL_REASON_REQUIRED": "Indichi perché l'ordine viene annullato.",
         "RECLASSIFY_ASSETS_IN_USE": "Ci sono asset di quel tipo in uso: li liberi prima di riclassificare.",
         "RECLASSIFY_NOTHING_TO_CONVERT": "Non ci sono asset di quel tipo da convertire.",
         "RECLASSIFY_REQUIRES_APPROVAL": "La riclassificazione richiede approvazione.",
@@ -2192,7 +2117,9 @@
         "CONSUMABLE_NAME_IN_OTHER_SEDE": "Esiste già un materiale con quel nome in un'altra sede: usi un altro nome.",
         "MISSING_ITEM_NOT_FOUND": "Il mancante non esiste.",
         "MISSING_ITEM_ALREADY_RESOLVED": "Quel mancante è già stato risolto.",
-        "MISSING_ITEM_DECOMMISSION_REASON": "Un mancante si dismette per perdita o furto."
+        "MISSING_ITEM_DECOMMISSION_REASON": "Un mancante si dismette per perdita o furto.",
+        "IMPORT_ONLY_BEFORE_FIRST_CLOSE": "L'importazione è terminata con la prima chiusura mensile. Registri i nuovi articoli con un'entrata merci.",
+        "CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS": "Non può essere eliminato perché ha entrate merci associate."
     },
     "catalog": {
         "states": {
@@ -2344,8 +2271,7 @@
             "movement_free": "il bene è libero",
             "hostname_current": "hostname attuale del bene",
             "type_model_assets": "tipo con cui viene solitamente registrato questo modello",
-            "type_model_catalog": "tipo definito nel catalogo del modello",
-            "currency_last_order": "valuta del suo ultimo ordine ({{number}})"
+            "type_model_catalog": "tipo definito nel catalogo del modello"
         },
         "info": {
             "manager": "Responsabile: {{name}}",
@@ -2370,7 +2296,6 @@
         "sede_required": "Selezioni la sede.",
         "asset_sede_help": "Sede a cui appartiene il bene. Si aggiorna automaticamente quando il bene viene assegnato a un'area di un'altra sede.",
         "person_sede_help": "Sede in cui lavora la persona. Determina chi può vedere e gestire i suoi dati.",
-        "order_sede_help": "Sede che riceve l'acquisto: i beni ricevuti verranno registrati in questa sede.",
         "consumable_sede_help": "Sede in cui è conservato il materiale di consumo.",
         "reasons": {
             "only_sede": "la sua sede assegnata",
@@ -2563,7 +2488,8 @@
         "continue": "Continua",
         "view": "Vedi esito",
         "states": {
-            "ABIERTA": "Aperto", "CERRANDO": "In chiusura",
+            "ABIERTA": "Aperto",
+            "CERRANDO": "In chiusura",
             "CERRADA": "Chiuso",
             "ANULADA": "Annullato"
         },
@@ -2708,7 +2634,7 @@
             "STOCK_BAJO": {
                 "title_one": "{{count}} materiale di consumo al minimo o sotto",
                 "title_other": "{{count}} materiali di consumo al minimo o sotto",
-                "hint": "Crei l'ordine di acquisto di riassortimento."
+                "hint": "Registri il carico con un'entrata merci."
             },
             "ACTIVO_POR_COMPLETAR": {
                 "title_one": "{{count}} bene da completare",
@@ -2719,11 +2645,6 @@
                 "title_one": "{{count}} entrata da confermare",
                 "title_other": "{{count}} entrate da confermare",
                 "hint": "Conti, classifichi e confermi quanto ricevuto."
-            },
-            "ORDEN_PARCIAL": {
-                "title_one": "{{count}} ordine di acquisto ricevuto parzialmente",
-                "title_other": "{{count}} ordini di acquisto ricevuti parzialmente",
-                "hint": "Registri la prossima consegna o chiuda con mancanze."
             },
             "TICKET_ANTIGUO": {
                 "title_one": "{{count}} ticket di manutenzione aperto da oltre 15 giorni",
@@ -2812,10 +2733,7 @@
         "resolution_note": "Decisione di {{name}}",
         "types": {
             "BAJA": "Dismissione di asset",
-            "RECEPCION_SOBRANTE": "Eccedenza di acquisto",
             "AJUSTE_CONSUMIBLE": "Rettifica di materiale",
-            "CIERRE_FALTANTE": "Chiusura con mancanza",
-            "CANCELACION_ORDEN": "Annullamento ordine",
             "RECLASIFICACION": "Riclassificazione a materiale"
         },
         "states": {
@@ -2826,10 +2744,7 @@
         },
         "approve_effect": {
             "BAJA": "Con l'approvazione, il dispositivo esce dall'inventario, le sue licenze vengono liberate e la dismissione resta nel kardex con il Suo nome come approvatore.",
-            "RECEPCION_SOBRANTE": "Con l'approvazione, viene registrata la consegna completa (eccedenza inclusa) così come è stata ricevuta.",
             "AJUSTE_CONSUMIBLE": "All'approvazione, la giacenza diventa quanto contato e la rettifica resta nel registro. Se la giacenza è cambiata dalla richiesta, non si applica.",
-            "CIERRE_FALTANTE": "All'approvazione, l'ordine si chiude e quanto in sospeso non verrà più ricevuto.",
-            "CANCELACION_ORDEN": "All'approvazione, l'ordine viene annullato.",
             "RECLASIFICACION": "All'approvazione, gli asset vengono dismessi come «Riclassificato» e il materiale riceve la stessa quantità."
         },
         "summary_decommission": "Dismissione di {{asset}}: {{reason}} → {{destination}}"
@@ -2851,7 +2766,6 @@
             "actions": "Azioni rapide",
             "assets": "Beni",
             "people": "Persone",
-            "orders": "Ordini di acquisto",
             "recent": "Recenti",
             "navigation": "Vai a"
         },
@@ -3007,7 +2921,7 @@
     },
     "import": {
         "title": "Importa beni",
-        "subtitle": "Carichi i beni da Excel e controlli ogni riga prima di salvare.",
+        "subtitle": "Caricamento iniziale dell'inventario da Excel, disponibile fino alla prima chiusura mensile.",
         "template": "Scarica modello",
         "step_upload": "File",
         "choose": "Scegli file .xlsx",
@@ -3071,7 +2985,9 @@
             "INVALID_CURRENCY": "Valuta non valida",
             "TYPE_FROM_CODE": "Categoria dedotta dal prefisso del codice"
         },
-        "choose_another": "Scegli un altro file"
+        "choose_another": "Scegli un altro file",
+        "closed": "L'importazione serve solo per il caricamento iniziale ed è terminata con la prima chiusura mensile. Registri i nuovi articoli con un'entrata merci.",
+        "go_receipts": "Vai alle entrate"
     },
     "quality": {
         "title": "Qualità dei dati",
@@ -3121,7 +3037,11 @@
         }
     },
     "catalog_center": {
-        "data_types": { "TEXT": "Testo", "NUMBER": "Numero", "BOOLEAN": "Sì o no" },
+        "data_types": {
+            "TEXT": "Testo",
+            "NUMBER": "Numero",
+            "BOOLEAN": "Sì o no"
+        },
         "title": "Centro cataloghi",
         "subtitle": "Elenchi che standardizzano i dati: motivi, dismissioni, unità, guasti e documenti.",
         "catalog": "Catalogo",
@@ -3753,9 +3673,6 @@
         "out_qty": "Uscite",
         "out_value": "Valore uscite",
         "adjustments": "Rettifiche",
-        "purchases": "Acquisti ricevuti",
-        "order": "Ordine",
-        "supplier": "Fornitore",
         "value": "Valore",
         "maintenance": "Manutenzioni chiuse nel mese",
         "tickets": "Ticket",
@@ -3799,11 +3716,6 @@
             "title": "Nessun fornitore",
             "description": "Registri da chi acquista apparecchiature o servizi per usarli in ordini e garanzie.",
             "action": "Registra fornitore"
-        },
-        "orders": {
-            "title": "Nessun ordine di acquisto",
-            "description": "Gli ordini registrano gli acquisti; alla ricezione, i dispositivi entrano nell'inventario.",
-            "action": "Crea ordine"
         },
         "brands": {
             "title": "Nessuna marca",

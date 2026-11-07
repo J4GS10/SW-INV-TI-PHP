@@ -24,33 +24,26 @@ const fmtSize = (bytes: number): string => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 interface Props {
-    activoId?: string;
-    ordenId?: number;
+    activoId: string;
 }
-export const AttachmentsSection = ({ activoId, ordenId }: Props) => {
+export const AttachmentsSection = ({ activoId }: Props) => {
     const { t, i18n } = useTranslation();
     const confirm = useConfirm();
-    const { canOperate, canAdminInventory, canPurchase } = usePermissions();
+    const { canOperate, canAdminInventory } = usePermissions();
     const { enqueueSnackbar } = useSnackbar();
     const fileRef = useRef<HTMLInputElement>(null);
-    const isOrden = ordenId != null;
-    // Subir: operativos en activos, administradores en órdenes. Eliminar: administradores.
-    // La factura de una orden la adjunta Compras (o TI).
-    const puedeSubir = isOrden ? canPurchase : canOperate;
+    // Subir: operativos. Eliminar: administradores.
+    const puedeSubir = canOperate;
     const [items, setItems] = useState<Adjunto[]>([]);
     const [loading, setLoading] = useState(false);
     // Categoría = código del catálogo de tipos de evidencia (factura, foto, acta…).
-    const [categoria, setCategoria] = useState(isOrden ? 'factura' : 'otro');
+    const [categoria, setCategoria] = useState('otro');
     const etiquetaCategoria = useCatalogLabel('tipos-evidencia');
     const [uploading, setUploading] = useState(false);
     const load = useCallback(async () => {
-        if (!activoId && !ordenId)
-            return;
         setLoading(true);
         try {
-            setItems(isOrden
-                ? await attachmentService.listOrden(ordenId as number)
-                : await attachmentService.list(activoId as string));
+            setItems(await attachmentService.list(activoId));
         }
         catch {
             enqueueSnackbar(t('common.error_loading'), { variant: 'error' });
@@ -58,7 +51,7 @@ export const AttachmentsSection = ({ activoId, ordenId }: Props) => {
         finally {
             setLoading(false);
         }
-    }, [activoId, enqueueSnackbar, isOrden, ordenId, t]);
+    }, [activoId, enqueueSnackbar, t]);
     useEffect(() => { load(); }, [load]);
     const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -79,10 +72,7 @@ export const AttachmentsSection = ({ activoId, ordenId }: Props) => {
         }
         setUploading(true);
         try {
-            if (isOrden)
-                await attachmentService.uploadOrden(ordenId as number, file, categoria);
-            else
-                await attachmentService.upload(activoId as string, file, categoria);
+            await attachmentService.upload(activoId, file, categoria);
             enqueueSnackbar(t('attachments.uploaded'), { variant: 'success' });
             await load();
         }

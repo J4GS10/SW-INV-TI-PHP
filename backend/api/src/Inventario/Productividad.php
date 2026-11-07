@@ -55,9 +55,6 @@ final readonly class Productividad
         if (\in_array($rol, Roles::LECTURA_PERSONAS, true)) {
             $this->buscarPersonas($tokens, $resultados);
         }
-        if (\in_array($rol, Roles::LECTURA_COMPRAS, true)) {
-            $this->buscarOrdenes($tokens, $resultados);
-        }
 
         return ['q' => $q, 'resultados' => $resultados];
     }
@@ -112,25 +109,6 @@ final readonly class Productividad
         }
     }
 
-    /**
-     * @param list<string> $tokens
-     * @param list<array<string, mixed>> $resultados
-     */
-    private function buscarOrdenes(array $tokens, array &$resultados): void
-    {
-        [$alcance, $p] = $this->alcance->lectura('INV_ORDEN_COMPRA', 'o');
-        $cond = [];
-        foreach ($tokens as $i => $t) {
-            $p["t{$i}"] = '%'.mb_strtolower($t).'%';
-            $cond[] = "(LOWER(o.\"OCO_Numero\") LIKE :t{$i} OR LOWER(pr.\"PRV_Nombre\") LIKE :t{$i})";
-        }
-        foreach ($this->conexion->fetchAllAssociative('SELECT o."OCO_Orden", o."OCO_Numero", o."OCO_Estado", o."OCO_Fecha", pr."PRV_Nombre" FROM "INV_ORDEN_COMPRA" o '
-            .'JOIN "INV_PROVEEDOR" pr ON pr."PRV_Proveedor" = o."PRV_Proveedor" WHERE '.implode(' AND ', $cond).' AND '.$alcance
-            .' ORDER BY o."OCO_Fecha" DESC FETCH FIRST 4 ROWS ONLY', $p) as $f) {
-            $resultados[] = ['tipo' => 'orden', 'id' => (string) (int) $f['OCO_Orden'], 'titulo' => $f['OCO_Numero'],
-                'subtitulo' => implode(' · ', array_filter([$f['PRV_Nombre'], $f['OCO_Estado'], substr((string) $f['OCO_Fecha'], 0, 10)]))];
-        }
-    }
 
     // ------------------------------------------------------------------
     // Kit sugerido para una entrega de puesto

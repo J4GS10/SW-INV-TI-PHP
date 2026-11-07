@@ -11,7 +11,7 @@ use Doctrine\DBAL\Connection;
 
 /**
  * Exportaciones CSV de /export: activos, movimientos, consumibles, proveedores,
- * órdenes de compra y bitácora. Encabezados legibles en ES/EN/IT, todas las
+ * y bitácora. Encabezados legibles en ES/EN/IT, todas las
  * celdas entre comillas y respetando el alcance por sede del usuario.
  */
 final readonly class Exportaciones
@@ -42,11 +42,6 @@ final readonly class Exportaciones
             'en' => ['Name', 'Tax ID', 'Contact', 'Email', 'Phone', 'Address', 'Active'],
             'it' => ['Nome', 'Identificativo fiscale', 'Referente', 'Email', 'Telefono', 'Indirizzo', 'Attivo'],
         ],
-        'ordenes' => [
-            'es' => ['Número de orden', 'Proveedor', 'Fecha', 'Estado', 'Moneda', 'Total', 'Notas'],
-            'en' => ['Order number', 'Supplier', 'Date', 'Status', 'Currency', 'Total', 'Notes'],
-            'it' => ['Numero ordine', 'Fornitore', 'Data', 'Stato', 'Valuta', 'Totale', 'Note'],
-        ],
         'mantenimientos' => [
             'es' => ['Código del activo', 'Número de serie', 'Tipo', 'Falla', 'Ingreso', 'Cierre'],
             'en' => ['Asset code', 'Serial number', 'Type', 'Fault', 'Opened', 'Closed'],
@@ -75,7 +70,6 @@ final readonly class Exportaciones
         'movimientos' => ['es' => 'movimientos', 'en' => 'movements', 'it' => 'movimenti'],
         'consumibles' => ['es' => 'consumibles', 'en' => 'consumables', 'it' => 'materiali_di_consumo'],
         'proveedores' => ['es' => 'proveedores', 'en' => 'suppliers', 'it' => 'fornitori'],
-        'ordenes' => ['es' => 'ordenes_de_compra', 'en' => 'purchase_orders', 'it' => 'ordini_di_acquisto'],
         'mantenimientos' => ['es' => 'mantenimientos', 'en' => 'maintenance', 'it' => 'manutenzioni'],
         'personas' => ['es' => 'personas', 'en' => 'people', 'it' => 'persone'],
         'garantias' => ['es' => 'garantias', 'en' => 'warranties', 'it' => 'garanzie'],
@@ -241,21 +235,6 @@ final readonly class Exportaciones
         return $this->csv('proveedores', $idioma, array_map(static fn (array $f): array => [
             $f['PRV_Nombre'], $f['PRV_Identificacion_Fiscal'] ?? '', $f['PRV_Contacto'] ?? '', $f['PRV_Email'] ?? '', $f['PRV_Telefono'] ?? '',
             $f['PRV_Direccion'] ?? '', Traducciones::siNo(1 === (int) $f['PRV_Activo'], $idioma),
-        ], $filas));
-    }
-
-    /** Cabeceras de las órdenes (sin líneas), de la más reciente a la más antigua. */
-    public function ordenes(Idioma $idioma): string
-    {
-        [$alcance, $p] = $this->alcance->lectura('INV_ORDEN_COMPRA', 'o');
-        $filas = $this->conexion->fetchAllAssociative('SELECT o."OCO_Numero", o."OCO_Fecha", o."OCO_Estado", o."OCO_Moneda", o."OCO_Total", o."OCO_Notas", '
-            .'pr."PRV_Nombre" FROM "INV_ORDEN_COMPRA" o LEFT JOIN "INV_PROVEEDOR" pr ON pr."PRV_Proveedor" = o."PRV_Proveedor" '
-            .'WHERE '.$alcance.' ORDER BY o."OCO_Fecha" DESC, o."OCO_Orden" DESC', $p);
-
-        return $this->csv('ordenes', $idioma, array_map(fn (array $o): array => [
-            $o['OCO_Numero'], $o['PRV_Nombre'] ?? '', $this->formato->fecha($o['OCO_Fecha']),
-            Traducciones::catalogo(Traducciones::ESTADO_ORDEN, $o['OCO_Estado'], $idioma), $o['OCO_Moneda'],
-            FormatoLocal::monto($o['OCO_Total']), $o['OCO_Notas'] ?? '',
         ], $filas));
     }
 

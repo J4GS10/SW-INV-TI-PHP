@@ -10,7 +10,6 @@ export const DESTINO: Record<string, { ruta: string; activos?: boolean }> = {
   PERSONA_INACTIVA_CON_EQUIPOS: { ruta: '/trazabilidad?vista=custodia' },
   PRESTAMO_VENCIDO: { ruta: '/operaciones/movimientos' },
   STOCK_BAJO: { ruta: '/consumibles' },
-  ORDEN_PARCIAL: { ruta: '/compras/ordenes' },
   INGRESO_POR_CONFIRMAR: { ruta: '/ingresos?estado=REGISTERED' },
   ACTIVO_POR_COMPLETAR: { ruta: '/ingresos/por-completar' },
   TICKET_ANTIGUO: { ruta: '/mantenimiento' },

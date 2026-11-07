@@ -20,8 +20,7 @@ interface Props {
     open: boolean;
     modo: StockModo;
     consumible: Consumible | null;
-    /** `reponer`: el usuario pidió generar una orden de compra para reponer. */
-    onClose: (refresh?: boolean, reponer?: { consumible: Consumible; sugerido: number }) => void;
+    onClose: (refresh?: boolean) => void;
 }
 interface StockFormValues {
     MOC_Cantidad: string | number;
@@ -43,8 +42,7 @@ const personLabel = (person: PersonaResumen) => [
 
 /**
  * Entrada (con costo y moneda), salida (a una persona) o ajuste por conteo
- * físico. Si una salida deja el stock en el mínimo o por debajo, el diálogo lo
- * dice y ofrece generar la orden de compra de reposición.
+ * físico. Si una salida deja el stock en el mínimo o por debajo, el diálogo lo dice.
  */
 export const StockDialog = ({ open, modo, consumible, onClose }: Props) => {
     const { t } = useTranslation();
@@ -147,8 +145,6 @@ export const StockDialog = ({ open, modo, consumible, onClose }: Props) => {
 
     if (bajoMinimo && consumible) {
         const minimo = bajoMinimo.CON_Stock_Minimo ?? consumible.CON_Stock_Minimo;
-        // Sugerencia: volver al doble del mínimo.
-        const sugerido = Math.max(minimo * 2 - bajoMinimo.MOC_Stock_Resultante, 1);
         return (<Dialog open={open} onClose={() => onClose(true)} maxWidth="xs" fullWidth>
           <DialogTitle>{t('consumables.low_title')}</DialogTitle>
           <DialogContent>
@@ -158,10 +154,7 @@ export const StockDialog = ({ open, modo, consumible, onClose }: Props) => {
             {!canAdminInventory && (<Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>{t('consumables.low_notify_admin')}</Typography>)}
           </DialogContent>
           <DialogActions>
-            <Button color="inherit" onClick={() => onClose(true)}>{t('consumables.low_later')}</Button>
-            {canAdminInventory && (<Button variant="contained" onClick={() => onClose(true, { consumible, sugerido })}>
-                {t('consumables.low_create_order', { count: sugerido })}
-              </Button>)}
+            <Button color="inherit" onClick={() => onClose(true)}>{t('common.close')}</Button>
           </DialogActions>
         </Dialog>);
     }

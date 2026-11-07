@@ -192,15 +192,15 @@ export const AssetsPage = () => {
 
     // «?nuevo=1» (paleta de comandos o atajo) abre el alta.
     useEffect(() => {
-        if (params.get('nuevo') && canOperate) {
+        if (params.get('nuevo') && canAdminInventory) {
             setSelected(null);
             setEditOpen(true);
             setFiltros({ nuevo: null }, false);
         }
-    }, [params, canOperate, setFiltros]);
+    }, [params, canAdminInventory, setFiltros]);
 
     const handleNew = useCallback(() => { setSelected(null); setEditOpen(true); }, []);
-    useAccionPagina('nuevo', canOperate ? handleNew : null);
+    useAccionPagina('nuevo', canAdminInventory ? handleNew : null);
 
     // ── Métricas de filtros activos ─────────────────────────────────────────
     const activeFilters = [q.trim(), estadoFilter !== 'all', tipoFilter !== 'all'].filter(Boolean).length;
@@ -364,7 +364,7 @@ export const AssetsPage = () => {
                                 {t('handover.button')}
                             </Button>
                         )}
-                        {canOperate && (
+                        {canAdminInventory && (
                             <Tooltip title={t('shortcuts.hint_new')} describeChild>
                                 <Button variant="contained" startIcon={<AddIcon />} onClick={handleNew}>
                                     {t('assets.new_btn')}

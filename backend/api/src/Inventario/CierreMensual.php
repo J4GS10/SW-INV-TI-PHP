@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Inventario;
 
 use App\Crud\Esquema;
-use App\Dominio\Reloj;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
 
@@ -13,7 +12,7 @@ use Doctrine\DBAL\Connection;
  * Cierre mensual para Contabilidad: valor del inventario al cierre de un mes y
  * lo que cambió en el mes, por sede y por moneda (no se convierten monedas):
  * activos (saldo inicial, altas, bajas, saldo final), consumibles (último saldo
- * del kardex), compras recibidas, licencias vigentes y mantenimientos cerrados.
+ * del kardex), licencias vigentes y mantenimientos cerrados.
  */
 final readonly class CierreMensual
 {
@@ -86,9 +85,9 @@ final readonly class CierreMensual
         $activos = $this->activos($inicio, $fin, $anterior, $sede);
         $datos = ['anio' => $anio, 'mes' => $mes, 'desde' => $inicio, 'hasta' => $fin, 'SED_Sede' => $sede,
             'activos' => $activos['resumen'], 'altas' => $activos['altas'], 'bajas' => $activos['bajas'],
-            'consumibles' => $this->consumibles($inicioDt, $finDt, $sede), 'compras' => $this->compras($inicioDt, $finDt, $sede),
+            'consumibles' => $this->consumibles($inicioDt, $finDt, $sede),
             'licencias' => $this->licencias($fin), 'mantenimiento' => $this->mantenimiento($inicioDt, $finDt, $sede)];
-        foreach (['activos', 'altas', 'bajas', 'consumibles', 'compras', 'mantenimiento'] as $seccion) {
+        foreach (['activos', 'altas', 'bajas', 'consumibles', 'mantenimiento'] as $seccion) {
             foreach ($datos[$seccion] as $i => $fila) {
                 $datos[$seccion][$i]['sede'] = null === $fila['SED_Sede'] ? null : ($sedes[$fila['SED_Sede']] ?? null);
             }
@@ -176,21 +175,6 @@ final readonly class CierreMensual
         }
 
         return $filas;
-    }
-
-    /** @return list<array<string, mixed>> */
-    private function compras(string $inicio, string $fin, ?int $sede): array
-    {
-        [$alcance, $pa] = $this->alcance->lectura('INV_ORDEN_COMPRA', 'o');
-
-        return array_map(static fn (array $f): array => ['orden' => $f[0], 'proveedor' => $f[1], 'moneda' => $f[2], 'SED_Sede' => null === $f[3] ? null : (int) $f[3],
-            'fecha' => Reloj::iso(Reloj::desdeBd((string) $f[4])), 'valor' => self::dos((string) $f[5])],
-            $this->conexion->fetchAllNumeric('SELECT o."OCO_Numero", p."PRV_Nombre", o."OCO_Moneda", o."SED_Sede", MAX(r."REC_Fecha"), '
-                .'SUM(rl."RCL_Cantidad" * NVL(rl."RCL_Precio_Real", l."OCL_Precio_Unitario")) FROM "INV_ORDEN_COMPRA" o JOIN "INV_RECEPCION" r ON r."OCO_Orden" = o."OCO_Orden" '
-                .'JOIN "INV_RECEPCION_LINEA" rl ON rl."REC_Recepcion" = r."REC_Recepcion" JOIN "INV_ORDEN_COMPRA_LINEA" l ON l."OCL_Linea" = rl."OCL_Linea" '
-                .'JOIN "INV_PROVEEDOR" p ON p."PRV_Proveedor" = o."PRV_Proveedor" WHERE r."REC_Fecha" > :i AND r."REC_Fecha" <= :f AND '.$alcance
-                .(null === $sede ? '' : ' AND o."SED_Sede" = :sede').' GROUP BY o."OCO_Numero", p."PRV_Nombre", o."OCO_Moneda", o."SED_Sede" ORDER BY o."OCO_Numero"',
-                [...$pa, 'i' => $inicio, 'f' => $fin, ...(null === $sede ? [] : ['sede' => $sede])]));
     }
 
     /** @return list<array<string, mixed>> */

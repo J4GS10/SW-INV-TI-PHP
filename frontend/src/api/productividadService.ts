@@ -2,8 +2,7 @@ import client from './axios';
 
 export type ResultadoBusqueda =
   | { tipo: 'activo'; id: string; codigo: string; titulo: string; subtitulo: string; estado: string; custodio: string | null }
-  | { tipo: 'persona'; id: string; titulo: string; subtitulo: string; activo: boolean }
-  | { tipo: 'orden'; id: string; titulo: string; subtitulo: string };
+  | { tipo: 'persona'; id: string; titulo: string; subtitulo: string; activo: boolean };
 
 export interface KitTipo {
   TAC_Tipo_Activo: number;
@@ -113,6 +112,8 @@ export const productividadService = {
     (await client.post<ResultadoLote>('/trazabilidad/entrega-lote', data)).data,
   devolucionLote: async (data: DevolucionLote): Promise<ResultadoLote> =>
     (await client.post<ResultadoLote>('/trazabilidad/devolucion-lote', data)).data,
+  importacionDisponible: async (): Promise<boolean> =>
+    (await client.get<{ disponible: boolean }>('/productividad/importar/activos/estado')).data.disponible,
   plantillaImportacion: async (): Promise<Blob> =>
     (await client.get('/productividad/importar/activos/plantilla', { responseType: 'blob' })).data,
   previsualizarImportacion: async (archivo: File): Promise<PrevisualizacionImportacion> =>

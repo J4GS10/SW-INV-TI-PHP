@@ -196,6 +196,7 @@ final class ActivosTest extends PruebaApi
         $tecnico = $this->tokenDe(D::crearUsuario(['rol' => 'TECNICO', 'sedes' => [$this->sede]]));
         $visto = $this->ok(200, 'GET', "/api/v1/core/activos/{$a['ACT_Activo']}", token: $tecnico);
         self::assertArrayNotHasKey('ACT_Costo', $visto);
+        self::assertSame(403, $this->pedir('POST', '/api/v1/core/activos', [], $tecnico)[0], 'El alta directa es solo del administrador de TI.');
         $this->ok(200, 'PATCH', "/api/v1/core/activos/{$a['ACT_Activo']}", ['ACT_Costo' => 1, 'ACT_Hostname' => 'T1-'.D::sufijo()], $tecnico);
         self::assertSame('1500.50', $this->ok(200, 'GET', "/api/v1/core/activos/{$a['ACT_Activo']}")['ACT_Costo'], 'El técnico no puede borrar ni cambiar el costo.');
 

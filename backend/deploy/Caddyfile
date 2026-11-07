@@ -6,8 +6,6 @@
 #   /api/* y /health            API PHP (api_php:8000): toda la API
 #   todo lo demás               frontend (Nginx: la aplicación React)
 #
-# Ninguna petición a la API pasa por Nginx: su proxy /api al backend anterior
-# queda sin uso (y sin destino una vez apagado).
 # =========================================================================
 
 {

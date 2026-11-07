@@ -118,7 +118,6 @@ final class AdjuntosTest extends PruebaApi
         self::assertSame([404, 'ATTACHMENT_NOT_FOUND'], $this->detalle('GET', "/api/v1/adjuntos/{$lic['ADJ_Adjunto']}/download", token: $tecnico));
         self::assertSame(403, $this->archivo('GET', "/api/v1/adjuntos/licencias/{$licencia}", token: $tecnico)->getStatusCode());
         self::assertSame([404, 'LICENSE_NOT_FOUND'], $this->detalle('GET', '/api/v1/adjuntos/licencias/999999999'));
-        self::assertSame([404, 'PURCHASE_ORDER_NOT_FOUND'], $this->detalle('GET', '/api/v1/adjuntos/ordenes/999999999'));
     }
 
     public function testArchivoBorradoDelVolumenResponde410(): void

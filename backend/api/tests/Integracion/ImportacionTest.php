@@ -29,6 +29,7 @@ final class ImportacionTest extends PruebaApi
     protected function setUp(): void
     {
         parent::setUp();
+        D::conexion()->executeStatement('DELETE FROM TRC_MONTH_END_CLOSE');
         I::estados();
         $this->sede = D::crearSede('Sede M '.D::sufijo());
         $area = I::area($this->sede);
@@ -93,6 +94,19 @@ final class ImportacionTest extends PruebaApi
         self::assertNotEmpty($marcas);
         $tecnico = $this->tokenDe(D::crearUsuario(['rol' => 'TECNICO', 'sedes' => [$this->sede]]));
         self::assertSame(403, $this->archivo('GET', self::RUTA.'/plantilla', token: $tecnico)->getStatusCode());
+    }
+
+    public function testLaImportacionTerminaConElPrimerCierreMensual(): void
+    {
+        self::assertSame(['disponible' => true], $this->ok(200, 'GET', self::RUTA.'/estado'));
+        D::conexion()->executeStatement('INSERT INTO TRC_MONTH_END_CLOSE (MEC_YEAR, MEC_MONTH, MEC_SNAPSHOT, MEC_USU_CLOSED_BY) '
+            .'VALUES (2020, 1, :f, (SELECT "USU_Usuario" FROM "INV_USUARIO" FETCH FIRST 1 ROWS ONLY))', ['f' => '{}']);
+
+        self::assertSame(['disponible' => false], $this->ok(200, 'GET', self::RUTA.'/estado'));
+        [$estado, $cuerpo] = $this->enviar('previsualizar', self::excel([]));
+        self::assertSame([409, 'IMPORT_ONLY_BEFORE_FIRST_CLOSE'], [$estado, $cuerpo['detail']]);
+        [$estado, $cuerpo] = $this->enviar('confirmar', self::excel([]));
+        self::assertSame([409, 'IMPORT_ONLY_BEFORE_FIRST_CLOSE'], [$estado, $cuerpo['detail']]);
     }
 
     public function testVistaPreviaYConfirmacionCreanActivosConKardexYSecuencia(): void

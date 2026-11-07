@@ -18,7 +18,6 @@ final class Traducciones
     public const string ESTADO_OPERATIVO = 'estado_operativo';
     public const string TIPO_MOVIMIENTO = 'tipo_movimiento';
     public const string TIPO_ACTIVO = 'tipo_activo';
-    public const string ESTADO_ORDEN = 'estado_orden';
     public const string ACCION_AUDITORIA = 'accion_auditoria';
     public const string UNIDAD = 'unidad';
 
@@ -64,13 +63,6 @@ final class Traducciones
             ['Docking Station', 'Docking station', 'Docking station', 'Base de acoplamiento'],
             ['UPS', 'UPS', 'Gruppo di continuità', 'No break'],
             ['Cargador', 'Charger', 'Caricabatterie'],
-        ],
-        self::ESTADO_ORDEN => [
-            ['Borrador', 'Draft', 'Bozza', 'BORRADOR'],
-            ['Recibida parcialmente', 'Partially received', 'Ricevuto parzialmente', 'PARCIAL'],
-            ['Recibida', 'Received', 'Ricevuto', 'RECIBIDA'],
-            ['Cerrada con faltante', 'Closed with shortage', 'Chiuso con mancanze', 'CERRADA_CON_FALTANTE'],
-            ['Cancelada', 'Cancelled', 'Annullato', 'CANCELADA'],
         ],
         self::ACCION_AUDITORIA => [
             ['Creación', 'Creation', 'Creazione', 'CREATE'],

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert, Box, Button, Chip, CircularProgress, FormControlLabel, Grid, Paper, Stack, Switch, TableCell, TableRow, Typography,
 } from '@mui/material';
@@ -35,6 +35,11 @@ export const ImportAssetsPage = () => {
   const [omitir, setOmitir] = useState(false);
   const [soloProblemas, setSoloProblemas] = useState(false);
   const [hecho, setHecho] = useState<{ creados: number; omitidos: number; codigos: string[] } | null>(null);
+  const [disponible, setDisponible] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    productividadService.importacionDisponible().then(setDisponible).catch(() => setDisponible(true));
+  }, []);
 
   const elegir = async (f: File | null) => {
     if (!f) return;
@@ -79,6 +84,17 @@ export const ImportAssetsPage = () => {
   const filas = prev ? prev.filas.filter((f) => !soloProblemas || f.estado !== 'ok') : [];
   const r = prev?.resumen;
   const puedeConfirmar = !!r && r.validas > 0 && (r.con_error === 0 || omitir);
+
+  if (disponible === false) {
+    return (
+      <Box>
+        <PageHeader title={t('import.title')} subtitle={t('import.subtitle')} />
+        <Alert severity="info" action={<Button color="inherit" size="small" onClick={() => navigate('/ingresos')}>{t('import.go_receipts')}</Button>}>
+          {t('import.closed')}
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box>

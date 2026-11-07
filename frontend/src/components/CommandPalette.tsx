@@ -4,9 +4,9 @@ import {
   ListSubheader, Typography, alpha, useTheme,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import ComputerIcon from '@mui/icons-material/Computer';
 import BadgeIcon from '@mui/icons-material/Badge';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import HistoryIcon from '@mui/icons-material/History';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import AddBoxIcon from '@mui/icons-material/AddBox';
@@ -48,7 +48,7 @@ interface Props {
 }
 
 const ICONO_TIPO: Record<Reciente['tipo'], SvgIconComponent> = {
-  activo: ComputerIcon, persona: BadgeIcon, orden: ReceiptLongIcon,
+  activo: ComputerIcon, persona: BadgeIcon,
 };
 
 const normal = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -106,7 +106,7 @@ const PaletteBody = ({ onClose, recientes, favoritos, onEntrega, onAtajos, onAbr
       rol === 'ADMIN_TI' && { clave: 'a-aprobar', grupo: 'actions', titulo: t('tasks.items.approve.title'), icono: AssignmentIndIcon, ejecutar: ir('/aprobaciones') },
       (rol === 'COMPRAS' || rol === 'ADMIN_TI' || rol === 'AUDITOR') && { clave: 'a-stock', grupo: 'actions', titulo: t('tasks.items.stock.title'), icono: Inventory2Icon, ejecutar: ir('/compras/stock') },
       canOperate && { clave: 'a-entrega', grupo: 'actions', titulo: t('palette.actions.handover'), subtitulo: t('palette.actions.handover_help'), icono: AssignmentIndIcon, etiqueta: 'E', ejecutar: () => { onClose(); onEntrega(); } },
-      canOperate && { clave: 'a-activo', grupo: 'actions', titulo: t('palette.actions.new_asset'), icono: AddBoxIcon, ejecutar: ir('/activos?nuevo=1') },
+      canAdminInventory && { clave: 'a-activo', grupo: 'actions', titulo: t('palette.actions.new_asset'), icono: AddBoxIcon, ejecutar: ir('/activos?nuevo=1') },
       canAdminInventory && { clave: 'a-alta', grupo: 'actions', titulo: t('palette.actions.onboarding'), subtitulo: t('palette.actions.onboarding_help'), icono: PersonAddIcon, ejecutar: ir('/operaciones/alta-empleado') },
       puedeBuscarDatos && rol !== 'COMPRAS' && { clave: 'a-scanner', grupo: 'actions', titulo: t('palette.actions.scan'), icono: QrCodeScannerIcon, ejecutar: ir('/scanner') },
       canAdminInventory && { clave: 'a-import', grupo: 'actions', titulo: t('palette.actions.import'), icono: UploadFileIcon, ejecutar: ir('/config/importar') },
@@ -125,16 +125,10 @@ const PaletteBody = ({ onClose, recientes, favoritos, onEntrega, onAtajos, onAbr
           ejecutar: () => { onClose(); onAbrirRegistro({ tipo: 'activo', id: r.id, titulo: r.titulo, subtitulo: r.subtitulo, ruta: `/activos/${encodeURIComponent(r.codigo)}` }); },
         };
       }
-      if (r.tipo === 'persona') {
-        return {
-          clave: `r-p-${r.id}`, grupo: 'people', titulo: r.titulo, subtitulo: r.subtitulo, icono: BadgeIcon,
-          etiqueta: r.activo ? undefined : t('persons.inactive'),
-          ejecutar: () => { onClose(); onAbrirRegistro({ tipo: 'persona', id: r.id, titulo: r.titulo, subtitulo: r.subtitulo, ruta: `/empleados/${r.id}` }); },
-        };
-      }
       return {
-        clave: `r-o-${r.id}`, grupo: 'orders', titulo: r.titulo, subtitulo: r.subtitulo, icono: ReceiptLongIcon,
-        ejecutar: () => { onClose(); onAbrirRegistro({ tipo: 'orden', id: r.id, titulo: r.titulo, subtitulo: r.subtitulo, ruta: `/compras/ordenes?orden=${r.id}` }); },
+        clave: `r-p-${r.id}`, grupo: 'people', titulo: r.titulo, subtitulo: r.subtitulo, icono: BadgeIcon,
+        etiqueta: r.activo ? undefined : t('persons.inactive'),
+        ejecutar: () => { onClose(); onAbrirRegistro({ tipo: 'persona', id: r.id, titulo: r.titulo, subtitulo: r.subtitulo, ruta: `/empleados/${r.id}` }); },
       };
     });
 
