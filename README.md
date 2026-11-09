@@ -6,13 +6,13 @@ Sistema de inventario de equipos de TI: ingreso a bodega, custodia, mantenimient
 |---|---|---|
 | [`backend/`](backend) | API, base de datos, despliegue y pruebas | PHP 8.5, Symfony 8.1, Oracle Database 21c |
 | [`frontend/`](frontend) | Aplicación web | React 19, MUI 7, TypeScript |
-| [`docs/`](docs) | [Arquitectura](docs/ARQUITECTURA.md), [manual de operación](docs/MANUAL_OPERACION.md), [glosario](docs/GLOSARIO.md) y [pendientes](docs/PENDIENTES.md) | |
+| [`docs/`](docs) | [Puesta en marcha](docs/PUESTA_EN_MARCHA.md), [arquitectura](docs/ARQUITECTURA.md), [manual de operación](docs/MANUAL_OPERACION.md), [glosario](docs/GLOSARIO.md) y [pendientes](docs/PENDIENTES.md) | |
 
 Solo hace falta Docker: PHP, Node y Oracle corren en contenedores.
 
 ## Desplegar
 
-Los secretos van en `backend/deploy/.env` y `backend/deploy/.env.php`, que no se versionan. El segundo parte de `backend/deploy/.env.php.example`; las variables del primero están en `backend/deploy/docker-compose.yml` y `backend/api/.env`.
+Los secretos van en `backend/deploy/.env` y `backend/deploy/.env.php`, que no se versionan. En un servidor nuevo los crea `bash herramientas/generar_env.sh` a partir de `backend/deploy/.env.example`, con claves aleatorias; los pasos completos están en la [puesta en marcha](docs/PUESTA_EN_MARCHA.md).
 
 ```bash
 cd backend

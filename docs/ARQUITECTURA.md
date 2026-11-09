@@ -80,7 +80,7 @@ Después de cambiar un valor de `deploy/.env`, aplique con `bash herramientas/de
 **Archivo:** `backend/deploy/Caddyfile`.
 
 **Qué hace:**
-- Obtiene y renueva el certificado HTTPS. Con un dominio público usa Let's Encrypt; con `localhost` o una IP usa un certificado propio, y por eso el navegador avisa.
+- Obtiene y renueva el certificado HTTPS. Con `TLS_EMISOR=internal` (por defecto) lo emite su CA privada; con un correo en `TLS_EMISOR` y un dominio público, Let's Encrypt.
 - Agrega cabeceras de seguridad como HSTS y `X-Frame-Options`.
 - Reparte: `/api/*` y `/health` van a la API, y lo demás a Nginx.
 - Bloquea desde afuera `/metrics` y `/health/full` con un 403.
@@ -88,7 +88,7 @@ Después de cambiar un valor de `deploy/.env`, aplique con `bash herramientas/de
 
 | Tarea | Cómo |
 |---|---|
-| Cambiar la dirección del sitio | `DOMAIN=inventario.empresa.com` y `ACME_EMAIL` en `deploy/.env`; los puertos 80 y 443 deben estar abiertos para Let's Encrypt |
+| Cambiar la dirección del sitio | `DOMAIN`, `BACKEND_CORS_ORIGINS`, `FRONTEND_BASE_URL` y `TLS_DEFAULT_SNI` en `deploy/.env` ([puesta en marcha](PUESTA_EN_MARCHA.md#4-configuración)); con Let's Encrypt, además los puertos 80 y 443 abiertos a Internet |
 | Aplicar un cambio del Caddyfile | `bash herramientas/desplegar.sh recargar` (sin cortar conexiones) |
 | Ver el acceso y los errores | `docker logs inventario-caddy-1 --tail 100` |
 | Entrar por IP | `TLS_DEFAULT_SNI=<ip>`: quien entra por IP no envía nombre y Caddy necesita saber qué certificado usar |

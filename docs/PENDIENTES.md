@@ -2,15 +2,13 @@
 
 ## Antes de cargar datos reales
 
-| Ajuste | Hoy | Para el uso real |
-|---|---|---|
 Hecho el 2026-11-09: base y adjuntos reinstalados desde cero, solo con el catálogo mínimo y la cuenta raíz `sa`. MFA obligatorio para SUPER_ADMIN, ADMIN_SEGURIDAD y ADMIN_TI, con `MFA_CAN_BE_DISABLED=false`. El respaldo con los datos de prueba es `inventario_20261109_170833.dmp`.
 
 | Ajuste | Hoy | Para el uso real |
 |---|---|---|
 | Cuentas | Solo `sa` | `sa` configura MFA al entrar y crea las cuentas reales: al menos dos ADMIN_TI |
 | Empresa | «Prueba Lombardi» | Nombre real en *Configuración* |
-| Dirección | Certificado de la CA privada de Caddy para `localhost` e IP; `DOMAIN` y `BACKEND_CORS_ORIGINS` aún con 192.168.7.115, y el equipo hoy tiene 192.168.7.122 | Nombre interno fijo del servidor formal (DNS) y la raíz de la CA instalada en los equipos ([Arquitectura](ARQUITECTURA.md#caddy-la-puerta-de-entrada)) |
+| Dirección | CA privada de Caddy (`TLS_EMISOR=internal`) para `localhost` y las IP de este PC, que cambia con el Wi-Fi (hoy 192.168.7.122) | Nombre interno fijo del servidor formal (DNS) y la raíz de la CA instalada en los equipos ([puesta en marcha](PUESTA_EN_MARCHA.md#6-certificado-con-la-ca-privada)) |
 | Correo | `SMTP_HOST` vacío: no sale ningún correo, tampoco la recuperación de clave | Configurar SMTP más adelante |
 | Servidor | Corre en un PC. `BACKUP_DIR` apunta a la carpeta antigua `26.10.13-sw-ti-agente` y la réplica va a otro disco del mismo equipo | Servidor formal en preparación: respaldos en su propia carpeta y copia fuera del equipo |
 | Limpieza del equipo | Imágenes viejas de `inventario-php` (fase4, fase5, fase6, qa-nueva, resistencia, qa), `inventario-php-dev` e `inventario-frontend:qa`, y los contenedores del backend en Python (`inventario-backend-1`, que aún monta `inventario_adjuntos_data`, e `inventario-migrator-1`) | Borrarlos con aprobación; conservar `anterior` |

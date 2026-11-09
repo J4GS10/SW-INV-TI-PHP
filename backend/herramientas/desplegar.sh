@@ -76,7 +76,12 @@ case "${1:-subir}" in
     docker image inspect inventario-frontend:latest >/dev/null 2>&1 && docker tag inventario-frontend:latest inventario-frontend:anterior
     "${stack[@]}" build -q frontend
     "${stack[@]}" config -q
-    respaldar
+    # Instalación nueva (sin el volumen de Oracle): no hay datos que respaldar.
+    if docker volume inspect inventario_oracle_data >/dev/null 2>&1; then
+      respaldar
+    else
+      echo "Instalación nueva: no hay base que respaldar. El migrador crea el esquema y la cuenta raíz."
+    fi
     # Recrea lo que cambió (Oracle se reinicia si cambia su definición); el migrador
     # corre antes que la API y aborta el despliegue si el esquema no queda completo.
     "${stack[@]}" up -d --no-build --wait --wait-timeout 900

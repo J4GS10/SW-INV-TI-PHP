@@ -375,6 +375,7 @@ services:
       DOMAIN: ${DOMAIN:-localhost}
       TLS_DEFAULT_SNI: ${TLS_DEFAULT_SNI:-localhost}
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+      TLS_EMISOR: ${TLS_EMISOR:-internal}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

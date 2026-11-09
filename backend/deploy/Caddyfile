@@ -1,6 +1,6 @@
 # =========================================================================
-# Caddy del stack de producción: TLS automático (Let's Encrypt, o certificado
-# autofirmado con DOMAIN=localhost), cabeceras de seguridad y enrutamiento:
+# Caddy del stack de producción: TLS (CA privada de Caddy con TLS_EMISOR=internal,
+# o Let's Encrypt con un correo), cabeceras de seguridad y enrutamiento:
 #
 #   /metrics, /health/full      403 (operativos: solo por la red interna)
 #   /api/* y /health            API PHP (api_php:8000): toda la API
@@ -20,6 +20,8 @@
 }
 
 {$DOMAIN:localhost} {
+    # internal: CA privada de Caddy (red interna). Con un correo, Let's Encrypt.
+    tls {$TLS_EMISOR:internal}
     encode zstd gzip
 
     # Registro de accesos (JSON en stdout; la rotación la hace Docker).
