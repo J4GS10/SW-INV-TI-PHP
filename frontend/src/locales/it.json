@@ -1217,6 +1217,8 @@
         "logo_upload_hint": "PNG, JPG, WebP o GIF fino a 2 MB. Viene salvata appena la sceglie.",
         "logo_link_help": "Incolli il link e controlli l’anteprima, poi prema Salva. Per Google Drive, il file deve essere condiviso con chiunque abbia il link.",
         "logo_remove": "Rimuovi logo",
+        "logo_size": "Dimensione del logo",
+        "logo_size_help": "L'anteprima mostra come apparirà nel menu. Nella pagina di accesso cambia nella stessa proporzione.",
         "logo_removed": "Logo rimosso.",
         "logo_too_big": "L’immagine supera i 2 MB.",
         "logo_wrong_type": "Scelga un’immagine PNG, JPG, WebP o GIF.",

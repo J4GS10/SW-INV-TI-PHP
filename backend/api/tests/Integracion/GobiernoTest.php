@@ -40,6 +40,15 @@ final class GobiernoTest extends WebTestCase
 
         self::assertSame([422, 'VALIDATION_ERROR'], $this->detalle('PUT', '/api/v1/gov/config', ['SYS_Color_Fondo' => 'rojo']));
         self::assertSame([422, 'VALIDATION_ERROR'], $this->detalle('PUT', '/api/v1/gov/config', ['SYS_Nombre_Empresa' => 'X']));
+
+        // Tamaño del logo: porcentaje de 50 a 250, nunca vacío.
+        self::assertSame(100, (int) $config['SYS_Logo_Tamano'], 'Por defecto, el tamaño base.');
+        [$e, $grande] = $this->pedir('PUT', '/api/v1/gov/config', ['SYS_Logo_Tamano' => 180]);
+        self::assertSame([200, 180], [$e, (int) $grande['SYS_Logo_Tamano']]);
+        foreach ([40, 260, null, 'grande'] as $invalido) {
+            self::assertSame([422, 'VALIDATION_ERROR'], $this->detalle('PUT', '/api/v1/gov/config', ['SYS_Logo_Tamano' => $invalido]), var_export($invalido, true));
+        }
+        $this->pedir('PUT', '/api/v1/gov/config', ['SYS_Logo_Tamano' => 100]);
         $admin = $this->token(D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]));
         self::assertSame([403, 'NOT_ENOUGH_PERMISSIONS'], $this->detalle('PUT', '/api/v1/gov/config', ['SYS_Ciudad' => 'Otra'], $admin));
         self::assertSame(401, $this->pedir('PUT', '/api/v1/gov/config', ['SYS_Ciudad' => 'Otra'], '')[0]);

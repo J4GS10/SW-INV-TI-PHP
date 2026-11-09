@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Box, Typography, TextField, Button, CircularProgress, Card, CardContent, Chip, Stack, Tooltip, InputAdornment, ThemeProvider, ToggleButton, ToggleButtonGroup, alpha } from '@mui/material';
+import { Box, Typography, TextField, Button, CircularProgress, Card, CardContent, Chip, Slider, Stack, Tooltip, InputAdornment, ThemeProvider, ToggleButton, ToggleButtonGroup, alpha } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import BusinessIcon from '@mui/icons-material/Business';
 import PaletteIcon from '@mui/icons-material/Palette';
@@ -17,7 +17,7 @@ import type { SystemConfig } from './configService';
 import { PageHeader, SectionCard as UiSectionCard } from '../../components/ui';
 import { PALETTE_PRESETS, createAppTheme, pickText } from '../../theme/theme';
 import { MfaRequirementCard } from './MfaRequirementCard';
-import { directLogoUrl, isUploadedLogo, LOGO_MAX_BYTES, LOGO_TYPES, logoSourceOf, type LogoSource } from './logoSource';
+import { directLogoUrl, isUploadedLogo, LOGO_BASE_HEIGHT, LOGO_MAX_BYTES, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_TYPES, logoScale, logoSourceOf, type LogoSource } from './logoSource';
 // Presets de fondo (oscuros, nunca negro puro) para guiar al usuario.
 const HEX_RE = /^#([0-9a-fA-F]{3}){1,2}$/;
 // Campo de color: input nativo + hex editable + swatch grande.
@@ -200,6 +200,7 @@ export const ConfigPage = () => {
     const colorSecundario = watch('SYS_Color_Secundario');
     const colorFondo = watch('SYS_Color_Fondo');
     const logoUrl = watch('SYS_Logo_URL');
+    const logoFactor = logoScale(watch('SYS_Logo_Tamano'));
     const nombreEmpresa = watch('SYS_Nombre_Empresa');
     const activePresetIndex = findPresetIndex(colorFondo, colorPrimario, colorSecundario);
     // Aplica un preset por la misma vía que los campos de color (setValue → submit → config API → recarga).
@@ -212,7 +213,7 @@ export const ConfigPage = () => {
     const loadConfig = useCallback(async () => {
         try {
             const data = await configService.getConfig();
-            reset({ ...data, SYS_Color_Fondo: data.SYS_Color_Fondo || '#0f172a' });
+            reset({ ...data, SYS_Color_Fondo: data.SYS_Color_Fondo || '#0f172a', SYS_Logo_Tamano: logoScale(data.SYS_Logo_Tamano) * 100 });
             setLogoSource(logoSourceOf(data.SYS_Logo_URL));
             setUploadedLogo(isUploadedLogo(data.SYS_Logo_URL) ? data.SYS_Logo_URL ?? '' : '');
         }
@@ -344,6 +345,15 @@ export const ConfigPage = () => {
                                         {errors.SYS_Logo_URL?.message ?? `${t('config.logo_upload_hint')} ${t('config.logo_help')}`}
                                     </Typography>
                                 </Box>)}
+                                {logoUrl ? (<Box>
+                                        <Typography id="logo-size-label" variant="body2" gutterBottom>
+                                            {t('config.logo_size')}: {Math.round(logoFactor * 100)} %
+                                        </Typography>
+                                        <Slider aria-labelledby="logo-size-label" min={LOGO_SIZE_MIN} max={LOGO_SIZE_MAX} step={10}
+                                            value={Math.round(logoFactor * 100)} valueLabelDisplay="auto" valueLabelFormat={(v) => `${v} %`}
+                                            onChange={(_, v) => { setValue('SYS_Logo_Tamano', v as number, { shouldDirty: true }); }}/>
+                                        <Typography variant="caption" color="text.secondary">{t('config.logo_size_help')}</Typography>
+                                    </Box>) : null}
                                 {logoUrl ? (<Button size="small" color="inherit" sx={{ alignSelf: 'flex-start' }} onClick={() => { void quitarLogo(); }}>{t('config.logo_remove')}</Button>) : null}
                             </Stack>
                             <Box sx={{
@@ -351,7 +361,7 @@ export const ConfigPage = () => {
             p: 2, bgcolor: 'action.hover', borderRadius: 2,
             border: '1px dashed rgba(255,255,255,0.15)',
         }}>
-                                {logoUrl && /^(https:\/\/|\/api\/v1\/gov\/config\/logo)/i.test(logoUrl) ? (<img key={logoUrl} src={logoUrl} alt={t('config.logo_alt')} style={{ maxHeight: '90px', maxWidth: '100%', objectFit: 'contain', display: logoBroken ? 'none' : undefined }} onError={() => {
+                                {logoUrl && /^(https:\/\/|\/api\/v1\/gov\/config\/logo)/i.test(logoUrl) ? (<img key={logoUrl} src={logoUrl} alt={t('config.logo_alt')} style={{ height: LOGO_BASE_HEIGHT.menu * logoFactor, maxWidth: 190, objectFit: 'contain', display: logoBroken ? 'none' : undefined }} onError={() => {
                                         setLogoBroken(true);
                                         setError('SYS_Logo_URL', { type: 'image', message: t('config.logo_not_image') });
                                     }} onLoad={() => { setLogoBroken(false); clearErrors('SYS_Logo_URL'); }}/>) : null}

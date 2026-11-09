@@ -8,6 +8,8 @@ export interface SystemConfig {
   SYS_Color_Secundario: string;
   SYS_Color_Fondo: string;
   SYS_Idioma_Defecto: string;
+  /** Porcentaje del tamaño base del logo (50–250); la API puede enviarlo como texto. */
+  SYS_Logo_Tamano?: number | string;
 }
 
 // Paleta "Neutro Cálido" (misma que el primer preset de theme.ts y el default de la BD).

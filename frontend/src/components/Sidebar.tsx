@@ -27,6 +27,7 @@ import type { TemaUsuario } from '../theme/theme';
 import { NotificationsBell } from './NotificationsBell';
 import { APP_ROLES } from '../utils/roles';
 import { useConfig } from '../context/config-context';
+import { LOGO_BASE_HEIGHT, logoScale } from '../features/config/logoSource';
 import { NAVIGATION_ITEMS, NavItem, navItemFor } from '../router/navigation';
 import { useWorkspace } from '../context/workspace-context';
 import { normalizeLanguage } from '../types/language';
@@ -172,7 +173,7 @@ export const Sidebar = ({ variant, collapsed = false, onToggleCollapse, open = f
           <Box sx={{ minWidth: 0 }}>
             {config.SYS_Logo_URL ? (
               <Box component="img" src={config.SYS_Logo_URL} alt={config.SYS_Nombre_Empresa}
-                sx={{ display: 'block', height: 48, maxWidth: 190, objectFit: 'contain' }}
+                sx={{ display: 'block', height: LOGO_BASE_HEIGHT.menu * logoScale(config.SYS_Logo_Tamano), maxWidth: 190, objectFit: 'contain' }}
                 onError={(e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.display = 'none'; }} />
             ) : (
               <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'primary.main', lineHeight: 1.2 }} noWrap>

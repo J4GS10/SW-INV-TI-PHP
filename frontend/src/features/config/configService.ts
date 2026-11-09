@@ -9,6 +9,8 @@ export interface SystemConfig {
     SYS_Idioma_Defecto: string;
     SYS_Codigo_Formulario?: string;
     SYS_Ciudad?: string;
+    /** Porcentaje del tamaño base del logo (50–250). */
+    SYS_Logo_Tamano?: number | string;
 }
 
 export const configService = {

@@ -10,6 +10,7 @@ import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 import { tokenStorage } from '../../api/tokenStorage';
 import { useAuth } from '../../context/auth-context';
 import { useConfig } from '../../context/config-context';
+import { LOGO_BASE_HEIGHT, logoScale } from '../config/logoSource';
 import { authService, SsoProvider } from './authService';
 import { ForgotPasswordDialog } from './ForgotPasswordDialog';
 interface LoginFormValues {
@@ -129,7 +130,7 @@ export const LoginPage = () => {
         }}>
           <CardContent sx={{ p: 5 }}>
             {config.SYS_Logo_URL ? (<Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-                <img src={config.SYS_Logo_URL} alt={config.SYS_Nombre_Empresa} style={{ maxHeight: 80, maxWidth: '100%', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}/>
+                <img src={config.SYS_Logo_URL} alt={config.SYS_Nombre_Empresa} style={{ maxHeight: LOGO_BASE_HEIGHT.login * logoScale(config.SYS_Logo_Tamano), maxWidth: '100%', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}/>
               </Box>) : null}
             <Typography variant="h4" component="h1" gutterBottom align="center" sx={{
             fontWeight: 'bold',
