@@ -8,6 +8,7 @@ import { getApiErrorCode, getApiErrorMessage } from '../../api/errors';
 import { Link as MuiLink } from '@mui/material';
 import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 import { tokenStorage } from '../../api/tokenStorage';
+import { SESSION_ENDED_FLAG } from '../../api/axios';
 import { useAuth } from '../../context/auth-context';
 import { useConfig } from '../../context/config-context';
 import { LOGO_BASE_HEIGHT, logoScale } from '../config/logoSource';
@@ -41,6 +42,17 @@ export const LoginPage = () => {
     } | null>(() => (location.state as { ssoChallenge?: { token: string; method: 'TOTP' | 'EMAIL' } } | null)?.ssoChallenge ?? null);
     const [otp, setOtp] = useState('');
     const [rememberDevice, setRememberDevice] = useState(false);
+    // Llegó aquí porque su sesión terminó (cerrada por un administrador o vencida).
+    const [sessionEnded] = useState(() => {
+        try {
+            const ended = window.sessionStorage.getItem(SESSION_ENDED_FLAG) === '1';
+            window.sessionStorage.removeItem(SESSION_ENDED_FLAG);
+            return ended;
+        }
+        catch {
+            return false;
+        }
+    });
     const handleClickShowPassword = () => setShowPassword((show) => !show);
     useEffect(() => {
         authService.getSsoProviders()
@@ -145,6 +157,7 @@ export const LoginPage = () => {
               {t('app.title')}
             </Typography>
 
+            {sessionEnded && !error && <Alert severity="info" sx={{ mb: 3 }}>{t('auth.session_ended')}</Alert>}
             {error && <Alert severity="error" variant="filled" sx={{ mb: 3 }}>{error}</Alert>}
 
             {challenge ? (<Box>

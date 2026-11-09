@@ -13,8 +13,10 @@ use App\Security\Mfa\MfaRequirementStore;
  * Restricciones de sesión (claims del JWT) que obligan a completar un paso de
  * seguridad antes de usar el sistema:
  * - pwd_change: contraseña temporal asignada por un administrador.
- * - mfa_enroll: el rol exige MFA, la cuenta no lo tiene y ya no le queda plazo.
- * - mfa_due (sin restringir): fecha límite de la gracia o de la excepción.
+ * - mfa_enroll: el rol exige MFA y la cuenta no lo tiene (mfa_can_skip si aún
+ *   no usó la única omisión, la de su primer ingreso).
+ * Sin restringir: mfa_due (fin de la excepción del administrador del sistema) y
+ * mfa_skipped (la sesión en que se omitió; el siguiente ingreso lo exige).
  * Con cualquiera, solo se admiten los endpoints de autoservicio (/me…).
  */
 final readonly class PoliticaSesion
@@ -37,9 +39,11 @@ final readonly class PoliticaSesion
      * contraseña la gestiona el proveedor (no aplica pwd_change) y el MFA local
      * se exige salvo SSO_MFA_LOCAL=false.
      *
+     * @param ?\DateTimeImmutable $sesionCreada inicio de la sesión que se renueva (null = sesión nueva)
+     *
      * @return array<string, mixed>
      */
-    public function claims(Usuario $u, bool $viaSso = false): array
+    public function claims(Usuario $u, bool $viaSso = false, ?\DateTimeImmutable $sesionCreada = null): array
     {
         if ($viaSso && !$this->ajustes->ssoMfaLocal) {
             return ['amr' => 'sso'];
@@ -49,36 +53,31 @@ final readonly class PoliticaSesion
             $claims['pwd_change'] = true;
         }
         if ($this->rolExigeMfa($u->rol) && !$u->dosFactoresHabilitado) {
-            // Con gracia o excepción vigente no se bloquea: se avisa con la fecha límite (Unix).
-            $plazo = $this->plazoMfa($u);
-            if (null === $plazo) {
-                $claims['mfa_enroll'] = true;
+            if ($this->exento($u)) {
+                $claims['mfa_due'] = $u->mfaExentoHasta?->getTimestamp();
+            } elseif ($this->esSesionOmitida($u, $sesionCreada)) {
+                $claims['mfa_skipped'] = true;
             } else {
-                $claims['mfa_due'] = $plazo->getTimestamp();
+                $claims['mfa_enroll'] = true;
+                if (null === $u->mfaOmitidoEn) {
+                    $claims['mfa_can_skip'] = true;
+                }
             }
         }
 
         return $claims;
     }
 
-    /**
-     * Hasta cuándo puede la cuenta seguir sin MFA: la excepción del administrador
-     * del sistema o, si no la hay, la gracia desde el alta. Null = ya es obligatorio.
-     */
-    public function plazoMfa(Usuario $u): ?\DateTimeImmutable
+    /** Excepción temporal vigente, concedida por el administrador del sistema. */
+    public function exento(Usuario $u): bool
     {
-        $ahora = Reloj::ahora();
-        if (null !== $u->mfaExentoHasta && $u->mfaExentoHasta > $ahora) {
-            return $u->mfaExentoHasta;
-        }
-        if ($this->ajustes->mfaGraciaDias > 0 && null !== $u->creadoEn) {
-            $fin = $u->creadoEn->modify('+'.$this->ajustes->mfaGraciaDias.' days');
-            if ($fin > $ahora) {
-                return $fin;
-            }
-        }
+        return null !== $u->mfaExentoHasta && $u->mfaExentoHasta > Reloj::ahora();
+    }
 
-        return null;
+    /** La sesión empezó antes de que se omitiera el MFA: es la del primer ingreso en que se omitió. */
+    private function esSesionOmitida(Usuario $u, ?\DateTimeImmutable $sesionCreada): bool
+    {
+        return null !== $u->mfaOmitidoEn && null !== $sesionCreada && $sesionCreada <= $u->mfaOmitidoEn;
     }
 
     /**

@@ -97,9 +97,8 @@ final class DatosPrueba
         $c->executeStatement(
             'INSERT INTO "INV_USUARIO" ("USU_Usuario", "USU_Username", "USU_Password_Hash", "USU_Rol", "USU_Estado", '
             .'"USU_SSO_Habilitado", "USU_Intentos_Fallidos", "USU_Bloqueos_Consecutivos", "USU_Debe_Cambiar_Password", '
-            .'"USU_2FA_Habilitado", "USU_2FA_Metodo", "USU_2FA_Secret", "USU_Alcance_Global", "PER_Persona", "USU_SSO_Provider", "USU_Creado_En") '
-            // Sin fecha de alta: ni gracia del MFA ni inactividad por antigüedad (MfaFlexibleTest fija otra fecha).
-            .'VALUES (:id, :username, :hash, :rol, :activo, :sso, 0, 0, :debe, :mfa, :metodo, :secreto, :global, :persona, :proveedor, NULL)',
+            .'"USU_2FA_Habilitado", "USU_2FA_Metodo", "USU_2FA_Secret", "USU_Alcance_Global", "PER_Persona", "USU_SSO_Provider") '
+            .'VALUES (:id, :username, :hash, :rol, :activo, :sso, 0, 0, :debe, :mfa, :metodo, :secreto, :global, :persona, :proveedor)',
             [
                 'id' => $id,
                 'username' => $username,

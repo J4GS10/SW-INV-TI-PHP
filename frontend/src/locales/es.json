@@ -46,7 +46,8 @@
         "or": "o",
         "sso_error": "No se pudo iniciar sesión con el proveedor externo. Inténtelo de nuevo o utilice su usuario y contraseña.",
         "password_change_failed": "No se pudo cambiar la contraseña.",
-        "remember_device": "Recordar este equipo durante {{count}} días"
+        "remember_device": "Recordar este equipo durante {{count}} días",
+        "session_ended": "Su sesión terminó: la cerró un administrador o venció. Vuelva a entrar."
     },
     "common": {
         "unsaved_title": "¿Descartar lo escrito?",
@@ -2142,7 +2143,9 @@
         "MFA_EXEMPTION_IN_PAST": "Elija una fecha a partir de hoy.",
         "MFA_ALREADY_ENABLED": "La cuenta ya tiene configurada la verificación en dos pasos.",
         "MFA_NOT_REQUIRED_FOR_ROLE": "Este rol no requiere verificación en dos pasos.",
-        "TRUSTED_DEVICE_NOT_FOUND": "Ese equipo ya no está recordado."
+        "TRUSTED_DEVICE_NOT_FOUND": "Ese equipo ya no está recordado.",
+        "MFA_SKIP_ALREADY_USED": "Ya omitió la verificación en dos pasos una vez: ahora debe configurarla.",
+        "MFA_SKIP_NOT_AVAILABLE": "Esta cuenta no puede omitir la verificación en dos pasos."
     },
     "catalog": {
         "states": {
@@ -2213,7 +2216,9 @@
             "title": "Configure la verificación en dos pasos",
             "description": "Su rol exige verificación en dos pasos. Configúrela para continuar usando el sistema.",
             "enter": "Entrar al sistema",
-            "session_failed": "No se pudo renovar la sesión. Por favor, inicie sesión de nuevo."
+            "session_failed": "No se pudo renovar la sesión. Por favor, inicie sesión de nuevo.",
+            "skip": "Omitir por esta vez",
+            "skip_hint": "Solo se puede omitir en este primer ingreso; la próxima vez será obligatorio."
         },
         "mfa": {
             "choose": "Elija cómo desea recibir el segundo factor:",
@@ -2276,7 +2281,8 @@
         },
         "mfa_due": {
             "message": "Configure la verificación en dos pasos antes del {{date}}. Después se le pedirá para entrar.",
-            "setup": "Configurar ahora"
+            "setup": "Configurar ahora",
+            "skipped": "Omitió la verificación en dos pasos en este ingreso. La próxima vez que entre será obligatoria."
         },
         "devices": {
             "title": "Equipos recordados",

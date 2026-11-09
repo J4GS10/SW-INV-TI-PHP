@@ -16,7 +16,7 @@ final readonly class UsuarioRepositorio
         .'u."USU_2FA_Habilitado", u."USU_2FA_Metodo", u."USU_2FA_Secret", u."USU_2FA_Ultimo_Paso", '
         .'u."USU_Intentos_Fallidos", u."USU_Bloqueado_Hasta", u."USU_Bloqueos_Consecutivos", '
         .'u."USU_Ultimo_Bloqueo", u."USU_Ultimo_Login", u."USU_SSO_Habilitado", u."USU_SSO_Provider", '
-        .'u."USU_Creado_En", u."USU_MFA_Exento_Hasta"';
+        .'u."USU_MFA_Exento_Hasta", u."USU_MFA_Omitido_En"';
 
     public function __construct(private Connection $conexion)
     {

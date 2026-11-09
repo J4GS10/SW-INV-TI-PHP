@@ -14,6 +14,8 @@ interface AuthProviderProps {
 }
 
 const DEFAULT_IDLE_TIMEOUT_MINUTES = 30;
+/** Cada cuánto se confirma con el servidor que la sesión sigue abierta. */
+const SESSION_CHECK_MS = 30_000;
 
 function getIdleTimeoutMs(): number {
   const configured = Number(import.meta.env.VITE_SESSION_IDLE_TIMEOUT_MINUTES ?? DEFAULT_IDLE_TIMEOUT_MINUTES);
@@ -25,6 +27,8 @@ interface TokenClaims extends User {
   pwd_change?: boolean;
   mfa_enroll?: boolean;
   mfa_due?: number;
+  mfa_skipped?: boolean;
+  mfa_can_skip?: boolean;
 }
 
 interface DecodedSession {
@@ -32,6 +36,8 @@ interface DecodedSession {
   /** Restricción según los claims del token (la contraseña va antes que el MFA). */
   restriction: SessionRestriction | null;
   mfaDue: number | null;
+  mfaSkipped: boolean;
+  mfaCanSkip: boolean;
 }
 
 function decodeAndValidate(token: string | null): DecodedSession | null {
@@ -44,7 +50,8 @@ function decodeAndValidate(token: string | null): DecodedSession | null {
       ? 'PASSWORD_CHANGE_REQUIRED'
       : decoded.mfa_enroll ? 'MFA_ENROLLMENT_REQUIRED' : null;
     return { user: { sub: decoded.sub, role: decoded.role, exp: decoded.exp ?? 0 }, restriction,
-      mfaDue: typeof decoded.mfa_due === 'number' ? decoded.mfa_due : null };
+      mfaDue: typeof decoded.mfa_due === 'number' ? decoded.mfa_due : null,
+      mfaSkipped: decoded.mfa_skipped === true, mfaCanSkip: decoded.mfa_can_skip === true };
   } catch {
     return null;
   }
@@ -56,6 +63,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [restriction, setRestriction] = useState<SessionRestriction | null>(null);
   const [mfaDue, setMfaDue] = useState<number | null>(null);
+  const [mfaSkipped, setMfaSkipped] = useState(false);
+  const [mfaCanSkip, setMfaCanSkip] = useState(false);
 
   const applyToken = useCallback((accessToken: string | null, explicit?: SessionRestriction | null): boolean => {
     const decoded = decodeAndValidate(accessToken);
@@ -66,6 +75,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(decoded.user);
       setRestriction(explicit !== undefined ? explicit : decoded.restriction);
       setMfaDue(decoded.mfaDue);
+      setMfaSkipped(decoded.mfaSkipped);
+      setMfaCanSkip(decoded.mfaCanSkip);
       setIsAuthenticated(true);
       return true;
     }
@@ -74,6 +85,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setUser(null);
     setRestriction(null);
     setMfaDue(null);
+    setMfaSkipped(false);
+    setMfaCanSkip(false);
     setIsAuthenticated(false);
     return false;
   }, []);
@@ -146,6 +159,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     isAuthenticated: () => isAuthenticated,
   }), [clearLocalSession, isAuthenticated]);
 
+  // Si un administrador cierra la sesión (o vence), la pantalla se entera sin esperar a
+  // que la persona haga algo: chequeo liviano cada 30 s y al volver a la pestaña. Un 401
+  // lo resuelve el interceptor (intenta renovar y, si no puede, lleva al inicio de sesión).
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const check = () => {
+      if (document.visibilityState === 'visible') void authService.me().catch(() => undefined);
+    };
+    const intervalId = window.setInterval(check, SESSION_CHECK_MS);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+    };
+  }, [isAuthenticated]);
+
   useEffect(() => {
     if (!isAuthenticated) return undefined;
 
@@ -171,7 +202,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   return (
     <AuthContext.Provider value={{
-      user, isAuthenticated, restriction, mfaDue, login, refreshSession, renewSession, logout, logoutAll, isLoading,
+      user, isAuthenticated, restriction, mfaDue, mfaSkipped, mfaCanSkip, login, refreshSession, renewSession, logout, logoutAll, isLoading,
     }}>
       {children}
     </AuthContext.Provider>

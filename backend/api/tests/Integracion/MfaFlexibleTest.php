@@ -11,7 +11,7 @@ use App\Tests\Soporte\DatosPrueba as D;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
-/** MFA flexible: gracia desde el alta, excepción del administrador del sistema y equipos recordados. */
+/** MFA flexible: omitirlo solo en el primer ingreso, excepción del administrador del sistema y equipos recordados. */
 final class MfaFlexibleTest extends WebTestCase
 {
     private const string SECRETO = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
@@ -23,24 +23,42 @@ final class MfaFlexibleTest extends WebTestCase
         $this->cliente = static::createClient();
     }
 
-    public function testDuranteLaGraciaNoSeBloqueaYAlVencerSeExige(): void
+    public function testElMfaSeOmiteSoloEnElPrimerIngresoYElSiguienteLoExige(): void
     {
         $admin = D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]);
-        $this->altaHace($admin['id'], 1);
-        $r = $this->login($admin['username']);
-        self::assertNull($r['json']['restriction'], 'Con gracia no se bloquea.');
-        self::assertGreaterThan(time(), $this->claims($r['json']['access_token'])['mfa_due'] ?? 0, 'Se avisa la fecha límite.');
+        $r = $this->login($admin['username'])['json'];
+        self::assertSame('MFA_ENROLLMENT_REQUIRED', $r['restriction'], 'Se pide configurarlo desde el primer ingreso.');
+        self::assertTrue($this->claims($r['access_token'])['mfa_can_skip'] ?? false, 'Y se ofrece omitirlo esta vez.');
 
-        $this->altaHace($admin['id'], 8);
-        self::assertSame('MFA_ENROLLMENT_REQUIRED', $this->login($admin['username'])['json']['restriction']);
+        $omitido = $this->post('/api/v1/me/2fa/skip', [], $r['access_token']);
+        self::assertSame(200, $omitido['estado']);
+        self::assertNull($omitido['json']['restriction']);
+        self::assertTrue($this->claims($omitido['json']['access_token'])['mfa_skipped'] ?? false);
+        self::assertSame(1, D::contar('SELECT COUNT(*) FROM "INV_AUDITORIA_SISTEMA" WHERE "AUD_Accion" = \'MFA_ENROLLMENT_SKIPPED\' '
+            .'AND DBMS_LOB.INSTR("AUD_Snapshot_JSON", :u) > 0', ['u' => $admin['username']]));
+        // La misma sesión sigue sin restricción al renovarse.
+        $renovado = $this->post('/api/v1/login/refresh', []);
+        self::assertSame([200, null], [$renovado['estado'], $renovado['json']['restriction']]);
+
+        // El siguiente ingreso lo exige y ya no deja omitirlo.
+        $siguiente = $this->login($admin['username'])['json'];
+        self::assertSame('MFA_ENROLLMENT_REQUIRED', $siguiente['restriction']);
+        self::assertArrayNotHasKey('mfa_can_skip', $this->claims($siguiente['access_token']));
+        self::assertSame([409, 'MFA_SKIP_ALREADY_USED'], $this->detalle($this->post('/api/v1/me/2fa/skip', [], $siguiente['access_token'])));
+    }
+
+    public function testQuienNoDebeTenerMfaNoPuedeOmitirlo(): void
+    {
+        $tecnico = D::crearUsuario();
+        $acceso = $this->login($tecnico['username'])['json']['access_token'];
+        self::assertSame([409, 'MFA_SKIP_NOT_AVAILABLE'], $this->detalle($this->post('/api/v1/me/2fa/skip', [], $acceso)));
     }
 
     public function testLaExcepcionLaDaSoloElAdministradorDelSistemaConPlazoYMotivo(): void
     {
         $sa = D::crearUsuario(['rol' => 'SUPER_ADMIN', 'metodo_2fa' => 'TOTP', 'secreto_totp' => self::SECRETO]);
         $admin = D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]);
-        $this->altaHace($admin['id'], 30);
-        $ruta = '/api/v1/org/usuarios/'.$this->uuid($admin['id']).'/mfa-exemption';
+        $ruta ='/api/v1/org/usuarios/'.$this->uuid($admin['id']).'/mfa-exemption';
         $hasta = (new \DateTimeImmutable('+10 days'))->format('Y-m-d');
 
         $otro = $this->token(D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]));
@@ -109,13 +127,6 @@ final class MfaFlexibleTest extends WebTestCase
     }
 
     // ---- apoyo ----
-
-    private function altaHace(string $usuarioHex, int $dias): void
-    {
-        D::conexion()->executeStatement(
-            'UPDATE "INV_USUARIO" SET "USU_Creado_En" = SYS_EXTRACT_UTC(SYSTIMESTAMP) - NUMTODSINTERVAL(:d, \'DAY\') WHERE "USU_Usuario" = :u',
-            ['d' => $dias, 'u' => $usuarioHex]);
-    }
 
     /** @param array{username: string} $u */
     private function token(array $u): string

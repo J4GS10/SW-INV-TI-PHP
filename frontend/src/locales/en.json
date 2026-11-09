@@ -46,7 +46,8 @@
         "or": "or",
         "sso_error": "Could not sign in with the external provider. Please try again or use your username and password.",
         "password_change_failed": "The password could not be changed.",
-        "remember_device": "Remember this device for {{count}} days"
+        "remember_device": "Remember this device for {{count}} days",
+        "session_ended": "Your session ended: an administrator closed it or it expired. Please sign in again."
     },
     "common": {
         "unsaved_title": "Discard your changes?",
@@ -2142,7 +2143,9 @@
         "MFA_EXEMPTION_IN_PAST": "Choose a date from today on.",
         "MFA_ALREADY_ENABLED": "The account already has two-step verification set up.",
         "MFA_NOT_REQUIRED_FOR_ROLE": "This role does not require two-step verification.",
-        "TRUSTED_DEVICE_NOT_FOUND": "That device is no longer remembered."
+        "TRUSTED_DEVICE_NOT_FOUND": "That device is no longer remembered.",
+        "MFA_SKIP_ALREADY_USED": "You already skipped two-step verification once: now you must set it up.",
+        "MFA_SKIP_NOT_AVAILABLE": "This account cannot skip two-step verification."
     },
     "catalog": {
         "states": {
@@ -2213,7 +2216,9 @@
             "title": "Set up two-step verification",
             "description": "Your role requires two-step verification. Set it up to keep using the system.",
             "enter": "Continue to the system",
-            "session_failed": "The session could not be renewed. Please sign in again."
+            "session_failed": "The session could not be renewed. Please sign in again.",
+            "skip": "Skip this time",
+            "skip_hint": "You can only skip it in this first sign-in; next time it will be required."
         },
         "mfa": {
             "choose": "Choose how to get your second factor:",
@@ -2276,7 +2281,8 @@
         },
         "mfa_due": {
             "message": "Set up two-step verification before {{date}}. After that it will be required to sign in.",
-            "setup": "Set up now"
+            "setup": "Set up now",
+            "skipped": "You skipped two-step verification in this sign-in. Next time you sign in it will be required."
         },
         "devices": {
             "title": "Remembered devices",

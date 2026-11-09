@@ -81,8 +81,7 @@ x-entorno-php: &entorno_php
   # Alertas de operación: el worker lee la carpeta de respaldos (solo lectura).
   # Mientras se prueba, el administrador del sistema puede apagar el MFA obligatorio. Para el uso real: false.
   MFA_CAN_BE_DISABLED: ${MFA_CAN_BE_DISABLED:-false}
-  # Días para dejar el MFA para más tarde desde el alta, para recordar un equipo y máximo de una excepción.
-  MFA_ENROLL_GRACE_DAYS: ${MFA_ENROLL_GRACE_DAYS:-7}
+  # Días para recordar un equipo sin pedir el código, y máximo de una excepción del MFA.
   MFA_REMEMBER_DAYS: ${MFA_REMEMBER_DAYS:-30}
   MFA_EXEMPTION_MAX_DAYS: ${MFA_EXEMPTION_MAX_DAYS:-30}
   BACKUP_ALERT_DIR: /backups/oracle

@@ -67,6 +67,11 @@ export const authService = {
     return r.data;
   },
 
+  /** Skips setting up MFA in the first sign-in (only once); returns a session without the restriction. */
+  async skipMfa(): Promise<AuthResponse> {
+    return (await client.post<AuthResponse>('/me/2fa/skip', {})).data;
+  },
+
   // --- Remembered devices (MFA code not asked on them) ---
   async trustedDevices(): Promise<TrustedDevice[]> {
     return (await client.get<TrustedDevice[]>('/me/trusted-devices')).data;

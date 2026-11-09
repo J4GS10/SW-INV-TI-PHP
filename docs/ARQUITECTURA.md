@@ -270,7 +270,7 @@ Si algo falla, la API responde un **código**, no un texto: `{"detail": "SERIAL_
 
 | Flexibilidad | Cómo funciona | Configuración |
 |---|---|---|
-| Gracia | Durante los primeros días desde el alta, la cuenta entra sin MFA y ve un aviso con la fecha límite; después, lo debe configurar para entrar | `MFA_ENROLL_GRACE_DAYS` (7) |
+| Omitir una vez | En el primer ingreso, la pantalla de configuración ofrece *Omitir por esta vez*: esa sesión sigue sin MFA (con un aviso) y el siguiente ingreso lo exige, sin volver a ofrecerlo | `INV_USUARIO.USU_MFA_Omitido_En` |
 | Excepción | El SUPER_ADMIN exime una cuenta hasta una fecha, con motivo, desde *Usuarios y accesos*. Queda en la auditoría | `MFA_EXEMPTION_MAX_DAYS` (30) |
 | Recordar el equipo | Al ingresar el código, la persona marca *Recordar este equipo*: en ese navegador solo se pide la contraseña hasta que vence. Se anula al cambiar la contraseña o el secreto MFA, al cerrar todas las sesiones o desde *Seguridad de mi cuenta* | `MFA_REMEMBER_DAYS` (30); tabla `SYS_TRUSTED_DEVICE` |
 

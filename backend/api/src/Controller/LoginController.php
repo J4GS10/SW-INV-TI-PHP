@@ -283,7 +283,8 @@ final readonly class LoginController
             }
             // Token anterior al registro de sesiones: se registra ahora.
             $sesionId = $sesion['id'] ?? $this->sesiones->abrir($usuario->id, $ip, $ua, $viaSso ? 'sso' : 'password')['id'];
-            $claims = [...$this->politica->claims($usuario, $viaSso), 'sid' => Ident::aTexto($sesionId)];
+            // Con el inicio de la sesión: la que empezó antes de omitir el MFA sigue sin pedirlo.
+            $claims = [...$this->politica->claims($usuario, $viaSso, $sesion['creada'] ?? null), 'sid' => Ident::aTexto($sesionId)];
             $nuevo = $this->tokens->crearRefresh($usuario->username, $usuario->rol, $authTime > 0 ? $authTime : null, $claims);
             $this->sesiones->tocar($sesionId, Tokens::jtiSinVerificar($nuevo), $ip);
             $this->inicio->fijarCookie($respuesta, $nuevo);

@@ -8,10 +8,10 @@ Dirección: `https://localhost` en el PC del sistema, o `https://<IP o nombre>` 
 
 | Cuenta | Rol | Sedes | Al entrar por primera vez |
 |---|---|---|---|
-| `sa` | SUPER_ADMIN | Todas | Clave propia (`SUPER_ADMIN_PASSWORD`); MFA con gracia |
-| `sistema2` | SUPER_ADMIN | Todas | MFA con gracia |
-| `seguridad1` | ADMIN_SEGURIDAD | Todas | MFA con gracia |
-| `adminti1`, `adminti2` | ADMIN_TI | Todas | MFA con gracia |
+| `sa` | SUPER_ADMIN | Todas | Clave propia (`SUPER_ADMIN_PASSWORD`); puede omitir el MFA una vez |
+| `sistema2` | SUPER_ADMIN | Todas | Puede omitir el MFA una vez |
+| `seguridad1` | ADMIN_SEGURIDAD | Todas | Puede omitir el MFA una vez |
+| `adminti1`, `adminti2` | ADMIN_TI | Todas | Puede omitir el MFA una vez |
 | `tecnico1` | TECNICO | Sede Prueba Norte | Entra directo |
 | `tecnico2` | TECNICO | Sede Prueba Sur | Entra directo |
 | `compras1` | COMPRAS | Todas | Entra directo |
@@ -19,7 +19,7 @@ Dirección: `https://localhost` en el PC del sistema, o `https://<IP o nombre>` 
 | `consulta1` | CONSULTA | Sede Prueba Norte | Entra directo |
 
 - **MFA:** use una aplicación autenticadora (Microsoft o Google Authenticator); una sola aplicación guarda varias cuentas. Guarde los códigos de recuperación de cada una.
-- **Gracia del MFA:** durante los 7 días siguientes al alta, las cuentas con MFA entran sin configurarlo y ven un aviso con la fecha límite y el botón *Configurar ahora*. Después, el MFA es obligatorio para entrar.
+- **Omitir el MFA una vez:** en el primer ingreso de una cuenta con MFA aparece la pantalla para configurarlo, con el botón *Omitir por esta vez*. Esa sesión sigue con un aviso; en el siguiente ingreso el MFA es obligatorio y ya no se puede omitir, salvo que el SUPER_ADMIN conceda una excepción.
 - **Datos que crean estas cuentas:** el país Guatemala, las sedes *Sede Prueba Norte* y *Sede Prueba Sur*, el departamento *Pruebas* y el cargo *Colaborador de prueba*.
 - **Sin SMTP no sale ningún correo.** Los avisos se ven en *Mis tareas* y en la campana.
 - **Pruebe en ventanas privadas**, una por cuenta, para tener varias sesiones a la vez.
@@ -104,7 +104,7 @@ Regla general: lo que un rol no puede trabajar **no aparece**. Para comprobarlo,
 - **Recordar el equipo** (cualquier cuenta que ya tenga MFA): al ingresar el código, marque *Recordar este equipo durante 30 días*. Al salir y volver a entrar en ese navegador solo se pide la contraseña; en otro navegador se pide el código. En *Seguridad de mi cuenta → Equipos recordados*, *Olvidar* vuelve a pedirlo. Cambiar la clave o cerrar todas las sesiones también lo anula.
 - **`seguridad1`:**
   - ve las cuentas y sus sesiones, pero no hay botones para editar;
-  - al cerrar las sesiones de `tecnico1`, este queda fuera en su siguiente clic;
+  - al cerrar las sesiones de `tecnico1`, su pantalla vuelve sola al inicio de sesión en menos de 30 segundos, con el aviso de que su sesión terminó;
   - no puede cerrar las de `sa`.
 - **`adminti1` y `adminti2`:** el recorrido completo. Además, la importación de Excel desaparece después del primer cierre, y una clave de licencia solo se ve al pedirla y queda en la auditoría.
 - **`tecnico1` y `tecnico2`:**

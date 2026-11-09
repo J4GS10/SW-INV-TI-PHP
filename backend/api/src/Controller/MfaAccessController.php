@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Autenticacion\InicioSesion;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
 use App\Http\Entrada;
 use App\Http\ErrorApi;
+use App\Http\Limite;
 use App\Repositorio\GobiernoRepositorio;
 use App\Security\Mfa\MfaExemption;
+use App\Security\Mfa\SkipMfaEnrollment;
 use App\Security\Mfa\TrustedDevices;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
@@ -19,16 +22,30 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
-/** Flexible MFA: temporary exemption per account and the signed-in person's remembered devices. */
+/** Flexible MFA: one-time skip in the first sign-in, temporary exemption per account and remembered devices. */
 #[Route('/api/v1')]
 final readonly class MfaAccessController
 {
     public function __construct(
         private MfaExemption $exemption,
         private TrustedDevices $devices,
+        private SkipMfaEnrollment $skip,
+        private InicioSesion $signIn,
         private GobiernoRepositorio $audit,
         private UsuarioActual $current,
     ) {
+    }
+
+    /** Skips setting up MFA in the first sign-in; returns an access token without the restriction. */
+    #[Route('/me/2fa/skip', methods: ['POST'])]
+    #[Autenticado(permitirRestringida: true)]
+    #[Limite('5/minute')]
+    public function skipEnrollment(Request $request): Response
+    {
+        $result = $this->skip->execute($this->current->usuario(), $this->current->payload(),
+            ClienteHttp::ip($request), ClienteHttp::userAgent($request));
+
+        return InicioSesion::sinCache(new JsonResponse($this->signIn->respuestaTokens($result['user'], $result['claims'])));
     }
 
     #[Route('/org/usuarios/{id}/mfa-exemption', methods: ['PUT'])]

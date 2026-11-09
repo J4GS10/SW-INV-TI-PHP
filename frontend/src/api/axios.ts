@@ -29,6 +29,9 @@ client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+/** Marca para que la pantalla de acceso avise que la sesión terminó (cerrada por un administrador o vencida). */
+export const SESSION_ENDED_FLAG = 'inv_sesion_terminada';
+
 // =========================================================================
 // RESPONSE: refresh transparente + manejo de 401
 // =========================================================================
@@ -68,9 +71,10 @@ client.interceptors.response.use(
       }
     }
 
-    // No se pudo refrescar → cerrar sesión.
+    // No se pudo refrescar → cerrar sesión (la pantalla de acceso explica por qué).
     tokenStorage.clear();
     if (typeof window !== 'undefined' && !window.location.pathname.endsWith('/login')) {
+      try { window.sessionStorage.setItem(SESSION_ENDED_FLAG, '1'); } catch { /* sin almacenamiento: solo no se muestra el aviso */ }
       window.location.href = '/login';
     }
     return Promise.reject(error);
