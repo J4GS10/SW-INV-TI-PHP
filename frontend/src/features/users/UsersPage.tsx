@@ -10,6 +10,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import DevicesOtherIcon from '@mui/icons-material/DevicesOther';
 import EditIcon from '@mui/icons-material/Edit';
 import GppBadIcon from '@mui/icons-material/GppBad';
+import GppMaybeIcon from '@mui/icons-material/GppMaybe';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -31,6 +32,7 @@ import { UserDialog } from './UserDialog';
 import { SecurityOverview } from './SecurityOverview';
 import { ActiveSessionsPanel } from './ActiveSessionsPanel';
 import { TemporaryPasswordDialog } from './TemporaryPasswordDialog';
+import { MfaExemptionDialog } from './MfaExemptionDialog';
 
 type MfaFilter = '' | 'enabled' | 'pending' | 'none';
 type StatusFilter = '' | 'active' | 'inactive';
@@ -68,6 +70,7 @@ export const UsersPage = () => {
   const [selectedUser, setSelectedUser] = useState<UsuarioSistema | null>(null);
   const [menu, setMenu] = useState<{ anchor: HTMLElement; row: UsuarioSistema } | null>(null);
   const [tempPassword, setTempPassword] = useState<{ value: string; name: string } | null>(null);
+  const [exemptUser, setExemptUser] = useState<{ id: string; name: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,6 +177,13 @@ export const UsersPage = () => {
         </Tooltip>
       );
     }
+    const exemptUntil = parseApiDate(u.mfa_exento_hasta ?? null);
+    if (state === 'pending' && exemptUntil) return (
+        <Tooltip title={u.mfa_exento_motivo ?? ''}>
+            <Chip size="small" color="info" variant="outlined"
+              label={t('users.mfa_exemption.chip', { date: exemptUntil.toLocaleDateString(locale) })} />
+        </Tooltip>
+    );
     if (state === 'pending') return (
         <Tooltip title={t('users.filters.mfa_pending')}>
             <Chip size="small" color="warning" label={t('users.mfa.pending_required')} />
@@ -373,6 +383,20 @@ export const UsersPage = () => {
               <ListItemText>{t('users.actions.reset_mfa')}</ListItemText>
             </MenuItem>
           ),
+          currentUser?.role === 'SUPER_ADMIN' && !menuRow.USU_2FA_Habilitado && menuRow.mfa_requerido && (menuRow.mfa_exento_hasta ? (
+            <MenuItem key="mfa-exemption-off" dense onClick={() => void runAction(menuRow, () => userService.revokeMfaExemption(menuRow.USU_Usuario), 'users.mfa_exemption.revoked', {
+              message: t('users.mfa_exemption.revoke_confirm', { name: menuName }),
+              confirmText: t('users.mfa_exemption.revoke'),
+            })}>
+              <ListItemIcon><GppMaybeIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('users.mfa_exemption.revoke')}</ListItemText>
+            </MenuItem>
+          ) : (
+            <MenuItem key="mfa-exemption" dense onClick={() => { setMenu(null); setExemptUser({ id: menuRow.USU_Usuario, name: menuName }); }}>
+              <ListItemIcon><GppMaybeIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('users.mfa_exemption.action')}</ListItemText>
+            </MenuItem>
+          )),
           lockedUntil(menuRow, now) && (
             <MenuItem key="unlock" dense onClick={() => void runAction(menuRow, () => userService.unlock(menuRow.USU_Usuario), 'users.actions.unlock_done')}>
               <ListItemIcon><LockOpenIcon fontSize="small" /></ListItemIcon>
@@ -416,6 +440,7 @@ export const UsersPage = () => {
         }}
       />
 
+      <MfaExemptionDialog user={exemptUser} onClose={() => setExemptUser(null)} onSaved={() => void load()} />
       <TemporaryPasswordDialog
         password={tempPassword?.value ?? null}
         userName={tempPassword?.name ?? ''}

@@ -27,6 +27,7 @@ import { Sidebar } from './components/Sidebar';
 import { ProtectedRoute } from './router/ProtectedRoute';
 import { WorkspaceProvider } from './context/WorkspaceContext';
 import { SystemAlertsBanner } from './components/SystemAlertsBanner';
+import { MfaDueBanner } from './components/MfaDueBanner';
 import { TaskHomePage } from './features/dashboard/TaskHomePage';
 import { useWorkspace } from './context/workspace-context';
 import {
@@ -187,6 +188,7 @@ const LayoutShell = ({ isDesktop, collapsed, onToggleCollapse, mobileOpen, setMo
             pb: 4,
         }}>
         <Box sx={{ maxWidth: 1600, mx: 'auto' }}>
+          <MfaDueBanner />
           <SystemAlertsBanner />
           <RouteTransition />
         </Box>

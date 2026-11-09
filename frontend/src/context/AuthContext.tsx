@@ -24,12 +24,14 @@ function getIdleTimeoutMs(): number {
 interface TokenClaims extends User {
   pwd_change?: boolean;
   mfa_enroll?: boolean;
+  mfa_due?: number;
 }
 
 interface DecodedSession {
   user: User;
   /** Restricción según los claims del token (la contraseña va antes que el MFA). */
   restriction: SessionRestriction | null;
+  mfaDue: number | null;
 }
 
 function decodeAndValidate(token: string | null): DecodedSession | null {
@@ -41,7 +43,8 @@ function decodeAndValidate(token: string | null): DecodedSession | null {
     const restriction: SessionRestriction | null = decoded.pwd_change
       ? 'PASSWORD_CHANGE_REQUIRED'
       : decoded.mfa_enroll ? 'MFA_ENROLLMENT_REQUIRED' : null;
-    return { user: { sub: decoded.sub, role: decoded.role, exp: decoded.exp ?? 0 }, restriction };
+    return { user: { sub: decoded.sub, role: decoded.role, exp: decoded.exp ?? 0 }, restriction,
+      mfaDue: typeof decoded.mfa_due === 'number' ? decoded.mfa_due : null };
   } catch {
     return null;
   }
@@ -52,6 +55,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [restriction, setRestriction] = useState<SessionRestriction | null>(null);
+  const [mfaDue, setMfaDue] = useState<number | null>(null);
 
   const applyToken = useCallback((accessToken: string | null, explicit?: SessionRestriction | null): boolean => {
     const decoded = decodeAndValidate(accessToken);
@@ -61,6 +65,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       tokenStorage.startSession();
       setUser(decoded.user);
       setRestriction(explicit !== undefined ? explicit : decoded.restriction);
+      setMfaDue(decoded.mfaDue);
       setIsAuthenticated(true);
       return true;
     }
@@ -68,6 +73,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     tokenStorage.clear();
     setUser(null);
     setRestriction(null);
+    setMfaDue(null);
     setIsAuthenticated(false);
     return false;
   }, []);
@@ -165,7 +171,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   return (
     <AuthContext.Provider value={{
-      user, isAuthenticated, restriction, login, refreshSession, renewSession, logout, logoutAll, isLoading,
+      user, isAuthenticated, restriction, mfaDue, login, refreshSession, renewSession, logout, logoutAll, isLoading,
     }}>
       {children}
     </AuthContext.Provider>

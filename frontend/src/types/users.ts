@@ -53,6 +53,9 @@ export interface UsuarioSistema {
   USU_Password_Cambiada_En?: string | null;
   /** El rol exige MFA y la cuenta no usa SSO. */
   mfa_requerido?: boolean;
+  /** Excepción temporal del MFA vigente: hasta cuándo y por qué. */
+  mfa_exento_hasta?: string | null;
+  mfa_exento_motivo?: string | null;
   /** Alcance global otorgado (solo lo concede un SUPER_ADMIN). */
   USU_Alcance_Global?: boolean;
   /** Ve todas las sedes: por rol de gobierno o por alcance global. */

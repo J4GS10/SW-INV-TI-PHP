@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Box, Button, Card, CardContent, TextField, Typography, Alert, Container, Divider, InputAdornment, IconButton, alpha, useTheme } from '@mui/material';
+import { Box, Button, Card, CardContent, Checkbox, FormControlLabel, TextField, Typography, Alert, Container, Divider, InputAdornment, IconButton, alpha, useTheme } from '@mui/material';
 import { Login as LoginIcon, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import { getApiErrorCode, getApiErrorMessage } from '../../api/errors';
@@ -36,8 +36,11 @@ export const LoginPage = () => {
     const [challenge, setChallenge] = useState<{
         token: string;
         method: 'TOTP' | 'EMAIL';
+        /** Días que se puede recordar este equipo (0 = no se ofrece). */
+        rememberDays?: number;
     } | null>(() => (location.state as { ssoChallenge?: { token: string; method: 'TOTP' | 'EMAIL' } } | null)?.ssoChallenge ?? null);
     const [otp, setOtp] = useState('');
+    const [rememberDevice, setRememberDevice] = useState(false);
     const handleClickShowPassword = () => setShowPassword((show) => !show);
     useEffect(() => {
         authService.getSsoProviders()
@@ -65,7 +68,7 @@ export const LoginPage = () => {
         try {
             const response = await authService.login(data.username.trim(), data.password);
             if ('requires_2fa' in response) {
-                setChallenge({ token: response.challenge_token, method: response.method });
+                setChallenge({ token: response.challenge_token, method: response.method, rememberDays: response.remember_days ?? 0 });
             }
             else {
                 login(response.access_token, response.restriction);
@@ -90,7 +93,7 @@ export const LoginPage = () => {
         setLoading(true);
         setError('');
         try {
-            const r = await authService.verify2fa(challenge.token, otp.trim());
+            const r = await authService.verify2fa(challenge.token, otp.trim(), rememberDevice);
             login(r.access_token, r.restriction);
             navigate('/');
         }
@@ -152,6 +155,8 @@ export const LoginPage = () => {
                 </Alert>
                 <TextField fullWidth autoFocus label={t('auth.twofa_code')} margin="normal" variant="outlined" value={otp} autoComplete="one-time-code" inputMode="numeric" onChange={(e) => setOtp(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter')
             onVerify2fa(); }} helperText={t('auth.twofa_recovery_hint')}/>
+                {(challenge.rememberDays ?? 0) > 0 ? (<FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={rememberDevice} onChange={(e) => setRememberDevice(e.target.checked)}/>}
+                    label={<Typography variant="body2">{t('auth.remember_device', { count: challenge.rememberDays })}</Typography>}/>) : null}
                 <Button fullWidth variant="contained" size="large" disabled={loading || !otp.trim()} onClick={onVerify2fa} sx={{ mt: 2, mb: 1, py: 1.5 }}>
                   {loading ? t('auth.loading_button') : t('auth.twofa_verify')}
                 </Button>

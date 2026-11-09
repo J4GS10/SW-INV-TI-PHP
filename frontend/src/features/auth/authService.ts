@@ -6,8 +6,19 @@ export interface TwoFactorChallenge {
   requires_2fa: true;
   method: 'TOTP' | 'EMAIL';
   challenge_token: string;
+  /** Days this browser can be remembered after a valid code (0 = not offered). */
+  remember_days?: number;
 }
 export type LoginResult = AuthResponse | TwoFactorChallenge;
+
+export interface TrustedDevice {
+  id: number;
+  device: string | null;
+  ip: string | null;
+  created_at: string | null;
+  expires_at: string | null;
+  last_used_at: string | null;
+}
 
 export interface TwoFactorStatus {
   habilitado: boolean;
@@ -47,12 +58,24 @@ export const authService = {
     return response.data;
   },
 
-  async verify2fa(challengeToken: string, code: string): Promise<AuthResponse> {
+  async verify2fa(challengeToken: string, code: string, rememberDevice = false): Promise<AuthResponse> {
     const r = await client.post<AuthResponse>('/login/2fa/verify', {
       challenge_token: challengeToken,
       code,
+      remember_device: rememberDevice,
     });
     return r.data;
+  },
+
+  // --- Remembered devices (MFA code not asked on them) ---
+  async trustedDevices(): Promise<TrustedDevice[]> {
+    return (await client.get<TrustedDevice[]>('/me/trusted-devices')).data;
+  },
+  async forgetTrustedDevice(id: number): Promise<void> {
+    await client.delete(`/me/trusted-devices/${id}`);
+  },
+  async forgetAllTrustedDevices(): Promise<void> {
+    await client.delete('/me/trusted-devices');
   },
 
   // --- Gestión de 2FA del usuario autenticado ---

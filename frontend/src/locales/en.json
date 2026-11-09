@@ -45,7 +45,8 @@
         "toggle_password_visibility": "Show or hide password",
         "or": "or",
         "sso_error": "Could not sign in with the external provider. Please try again or use your username and password.",
-        "password_change_failed": "The password could not be changed."
+        "password_change_failed": "The password could not be changed.",
+        "remember_device": "Remember this device for {{count}} days"
     },
     "common": {
         "unsaved_title": "Discard your changes?",
@@ -1206,6 +1207,20 @@
             "shown_once": "It will not be shown again. Please copy it now and share it through a secure channel.",
             "must_change": "The user must change it at first sign-in. Their open sessions were closed and the account was unlocked.",
             "done": "Done"
+        },
+        "mfa_exemption": {
+            "action": "Exempt from MFA temporarily",
+            "title": "Exempt from MFA",
+            "caption": "{{name}} can sign in without two-step verification until the chosen date (up to {{days}} days). It is audited.",
+            "until": "Until",
+            "reason": "Reason",
+            "reason_help": "For example: no phone yet for the authenticator app.",
+            "save": "Exempt",
+            "saved": "{{name}} is temporarily exempt from MFA.",
+            "chip": "Exempt until {{date}}",
+            "revoke": "Remove the MFA exemption",
+            "revoke_confirm": "{{name}} will have to set up MFA at the next sign-in. Continue?",
+            "revoked": "The MFA exemption of {{name}} was removed."
         }
     },
     "config": {
@@ -2122,7 +2137,12 @@
         "MISSING_ITEM_ALREADY_RESOLVED": "That missing item has already been resolved.",
         "MISSING_ITEM_DECOMMISSION_REASON": "A missing item is written off for loss or theft.",
         "IMPORT_ONLY_BEFORE_FIRST_CLOSE": "Importing ended with the first month-end close. Record new items with a goods receipt.",
-        "CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS": "It cannot be deleted because it has goods receipts."
+        "CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS": "It cannot be deleted because it has goods receipts.",
+        "MFA_EXEMPTION_TOO_LONG": "The exemption cannot last more than 30 days.",
+        "MFA_EXEMPTION_IN_PAST": "Choose a date from today on.",
+        "MFA_ALREADY_ENABLED": "The account already has two-step verification set up.",
+        "MFA_NOT_REQUIRED_FOR_ROLE": "This role does not require two-step verification.",
+        "TRUSTED_DEVICE_NOT_FOUND": "That device is no longer remembered."
     },
     "catalog": {
         "states": {
@@ -2253,6 +2273,19 @@
             "sessions_caption": "Sign out on all your devices, including this one.",
             "close_sessions": "Sign out everywhere",
             "close_sessions_confirm": "Would you like to sign out on all your devices? You will need to sign in again."
+        },
+        "mfa_due": {
+            "message": "Set up two-step verification before {{date}}. After that it will be required to sign in.",
+            "setup": "Set up now"
+        },
+        "devices": {
+            "title": "Remembered devices",
+            "caption": "These browsers do not ask for the verification code until the date shown.",
+            "forget": "Forget",
+            "forget_all": "Forget all",
+            "forget_all_confirm": "Every device will ask for the verification code again. Continue?",
+            "forgotten": "That device will ask for the code again.",
+            "until": "Until {{date}}"
         }
     },
     "suggestions": {

@@ -80,6 +80,8 @@ final readonly class Identidades
         $fecha = static fn (mixed $v): ?string => Reloj::iso(Reloj::desdeBd(null === $v ? null : (string) $v));
         $rol = (string) $u['USU_Rol'];
         $sso = $bool($u['USU_SSO_Habilitado']);
+        $exentoHasta = Reloj::desdeBd(null === $u['USU_MFA_Exento_Hasta'] ? null : (string) $u['USU_MFA_Exento_Hasta']);
+        $exento = null !== $exentoHasta && $exentoHasta > Reloj::ahora();
 
         return [
             'USU_Usuario' => Ident::aTexto((string) $u['USU_Usuario']),
@@ -96,6 +98,9 @@ final readonly class Identidades
             'USU_Intentos_Fallidos' => (int) $u['USU_Intentos_Fallidos'],
             'USU_Password_Cambiada_En' => $fecha($u['USU_Password_Cambiada_En']),
             'mfa_requerido' => $this->mfaRequerido($rol, $sso),
+            // Excepción temporal del MFA (solo si sigue vigente).
+            'mfa_exento_hasta' => $exento ? $fecha($u['USU_MFA_Exento_Hasta']) : null,
+            'mfa_exento_motivo' => $exento ? $u['USU_MFA_Exento_Motivo'] : null,
             'USU_Alcance_Global' => $bool($u['USU_Alcance_Global']),
             'alcance_global_efectivo' => $bool($u['USU_Alcance_Global']) || \in_array($rol, Roles::SIEMPRE_GLOBALES, true),
             'sedes' => array_map(static fn (array $s): array => ['SED_Sede' => (int) $s['SED_Sede'], 'SED_Nombre' => $s['SED_Nombre']], $sedes),

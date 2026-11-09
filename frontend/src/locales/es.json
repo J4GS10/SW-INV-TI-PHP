@@ -45,7 +45,8 @@
         "toggle_password_visibility": "Mostrar u ocultar contraseña",
         "or": "o",
         "sso_error": "No se pudo iniciar sesión con el proveedor externo. Inténtelo de nuevo o utilice su usuario y contraseña.",
-        "password_change_failed": "No se pudo cambiar la contraseña."
+        "password_change_failed": "No se pudo cambiar la contraseña.",
+        "remember_device": "Recordar este equipo durante {{count}} días"
     },
     "common": {
         "unsaved_title": "¿Descartar lo escrito?",
@@ -1206,6 +1207,20 @@
             "shown_once": "No se volverá a mostrar. Cópiela ahora y compártala por un canal seguro.",
             "must_change": "El usuario deberá cambiarla en su primer inicio de sesión. Sus sesiones abiertas se cerraron y la cuenta quedó desbloqueada.",
             "done": "Listo"
+        },
+        "mfa_exemption": {
+            "action": "Eximir del MFA temporalmente",
+            "title": "Eximir del MFA",
+            "caption": "{{name}} podrá entrar sin verificación en dos pasos hasta la fecha elegida (máximo {{days}} días). Queda en la auditoría.",
+            "until": "Hasta",
+            "reason": "Motivo",
+            "reason_help": "Por ejemplo: aún no tiene teléfono para la aplicación autenticadora.",
+            "save": "Eximir",
+            "saved": "{{name}} quedó exento del MFA temporalmente.",
+            "chip": "Exento hasta {{date}}",
+            "revoke": "Quitar la excepción del MFA",
+            "revoke_confirm": "{{name}} deberá configurar el MFA en su próximo ingreso. ¿Continuar?",
+            "revoked": "Se quitó la excepción del MFA de {{name}}."
         }
     },
     "config": {
@@ -2122,7 +2137,12 @@
         "MISSING_ITEM_ALREADY_RESOLVED": "Ese faltante ya se resolvió.",
         "MISSING_ITEM_DECOMMISSION_REASON": "La baja de un faltante es por pérdida o robo.",
         "IMPORT_ONLY_BEFORE_FIRST_CLOSE": "La importación terminó con el primer cierre mensual. Registre lo nuevo con un ingreso a bodega.",
-        "CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS": "No se puede eliminar porque tiene ingresos a bodega asociados."
+        "CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS": "No se puede eliminar porque tiene ingresos a bodega asociados.",
+        "MFA_EXEMPTION_TOO_LONG": "La excepción no puede durar más de 30 días.",
+        "MFA_EXEMPTION_IN_PAST": "Elija una fecha a partir de hoy.",
+        "MFA_ALREADY_ENABLED": "La cuenta ya tiene configurada la verificación en dos pasos.",
+        "MFA_NOT_REQUIRED_FOR_ROLE": "Este rol no requiere verificación en dos pasos.",
+        "TRUSTED_DEVICE_NOT_FOUND": "Ese equipo ya no está recordado."
     },
     "catalog": {
         "states": {
@@ -2253,6 +2273,19 @@
             "sessions_caption": "Cierre la sesión en todos sus dispositivos, incluido este.",
             "close_sessions": "Cerrar todas",
             "close_sessions_confirm": "¿Desea cerrar la sesión en todos sus dispositivos? Tendrá que iniciar sesión de nuevo."
+        },
+        "mfa_due": {
+            "message": "Configure la verificación en dos pasos antes del {{date}}. Después se le pedirá para entrar.",
+            "setup": "Configurar ahora"
+        },
+        "devices": {
+            "title": "Equipos recordados",
+            "caption": "En estos navegadores no se pide el código de verificación hasta la fecha indicada.",
+            "forget": "Olvidar",
+            "forget_all": "Olvidar todos",
+            "forget_all_confirm": "En todos los equipos se volverá a pedir el código de verificación. ¿Continuar?",
+            "forgotten": "El código se volverá a pedir en ese equipo.",
+            "until": "Hasta el {{date}}"
         }
     },
     "suggestions": {

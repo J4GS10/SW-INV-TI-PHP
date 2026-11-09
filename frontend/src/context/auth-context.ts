@@ -10,6 +10,8 @@ export interface AuthContextType {
    * exista, la app muestra la pantalla correspondiente en lugar del sistema.
    */
   restriction: SessionRestriction | null;
+  /** Fecha límite (Unix, segundos) para configurar el MFA durante la gracia o la excepción; null si no aplica. */
+  mfaDue: number | null;
   /** Aplica un access token recién emitido (login, 2FA). */
   login: (accessToken: string, restriction?: SessionRestriction | null) => void;
   refreshSession: () => Promise<boolean>;

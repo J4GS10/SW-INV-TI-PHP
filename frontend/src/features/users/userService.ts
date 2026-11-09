@@ -58,6 +58,14 @@ export const userService = {
     await client.post(`/org/usuarios/${id}/2fa/reset`);
   },
 
+  /** Temporary MFA exemption until the end of `until` (YYYY-MM-DD). */
+  grantMfaExemption: async (id: string, until: string, reason: string): Promise<void> => {
+    await client.put(`/org/usuarios/${id}/mfa-exemption`, { until, reason });
+  },
+  revokeMfaExemption: async (id: string): Promise<void> => {
+    await client.delete(`/org/usuarios/${id}/mfa-exemption`);
+  },
+
   unlock: async (id: string): Promise<void> => {
     await client.post(`/org/usuarios/${id}/unlock`);
   },

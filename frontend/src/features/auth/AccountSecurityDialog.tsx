@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Box, Button, Chip, CircularProgress, DialogActions, DialogContent, DialogTitle, Divider, List, ListItem, ListItemIcon, ListItemText, Stack, Typography } from '@mui/material';
+import ComputerIcon from '@mui/icons-material/Computer';
 import DevicesOtherIcon from '@mui/icons-material/DevicesOther';
 import GppGoodIcon from '@mui/icons-material/GppGood';
 import GppMaybeIcon from '@mui/icons-material/GppMaybe';
@@ -15,7 +16,7 @@ import { getApiErrorMessage } from '../../api/errors';
 import { useConfirm } from '../../components/confirm-context';
 import { useAuth } from '../../context/auth-context';
 import { authService } from './authService';
-import type { TwoFactorStatus } from './authService';
+import type { TrustedDevice, TwoFactorStatus } from './authService';
 import { MfaEnrollment } from './security/MfaEnrollment';
 import { PasswordField } from './security/PasswordField';
 import { RecoveryCodesPanel } from './security/RecoveryCodesPanel';
@@ -56,7 +57,7 @@ const Row = ({ icon, primary, secondary, action }: RowProps) => (
 
 /** Panel personal "Seguridad de la cuenta": MFA, códigos de recuperación, contraseña y sesiones. */
 export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
   const confirm = useConfirm();
   const navigate = useNavigate();
@@ -75,6 +76,15 @@ export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props
       setSessions(await scopeService.mySessions());
     } catch {
       setSessions([]);
+    }
+  }, []);
+
+  const [devices, setDevices] = useState<TrustedDevice[]>([]);
+  const loadDevices = useCallback(async () => {
+    try {
+      setDevices(await authService.trustedDevices());
+    } catch {
+      setDevices([]);
     }
   }, []);
 
@@ -115,7 +125,8 @@ export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props
     setPassword('');
     void loadStatus();
     void loadSessions();
-  }, [open, loadStatus, loadSessions]);
+    void loadDevices();
+  }, [open, loadStatus, loadSessions, loadDevices]);
 
   const backToOverview = () => {
     setView('overview');
@@ -157,6 +168,21 @@ export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props
       enqueueSnackbar(getApiErrorMessage(error, t('common.error_generic')), { variant: 'error' });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const forgetDevice = async (device?: TrustedDevice) => {
+    if (!device && !(await confirm({
+      message: t('security.devices.forget_all_confirm'),
+      confirmText: t('security.devices.forget_all'),
+      destructive: true,
+    }))) return;
+    try {
+      await (device ? authService.forgetTrustedDevice(device.id) : authService.forgetAllTrustedDevices());
+      enqueueSnackbar(t('security.devices.forgotten'), { variant: 'success' });
+      await loadDevices();
+    } catch (error) {
+      enqueueSnackbar(getApiErrorMessage(error, t('common.error_generic')), { variant: 'error' });
     }
   };
 
@@ -242,6 +268,33 @@ export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props
       <Box component="li" sx={{ listStyle: 'none', pl: { xs: 0, sm: 7 }, pb: 1 }}>
         <SessionsList sessions={sessions} onCloseSession={closeSession} busyId={closingId} />
       </Box>
+      {devices.length > 0 ? (<>
+        <Row
+          icon={<ComputerIcon />}
+          primary={t('security.devices.title')}
+          secondary={t('security.devices.caption')}
+          action={(
+            <Button size="small" variant="outlined" color="error" onClick={() => void forgetDevice()}>
+              {t('security.devices.forget_all')}
+            </Button>
+          )}
+        />
+        <Box component="li" sx={{ listStyle: 'none', pl: { xs: 0, sm: 7 }, pb: 1 }}>
+          <Stack spacing={1}>
+            {devices.map((d) => (
+              <Stack key={d.id} direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="body2" noWrap>{d.device ?? t('sessions.unknown_device')}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {t('security.devices.until', { date: d.expires_at ? new Date(d.expires_at).toLocaleDateString(i18n.language) : '—' })}
+                  </Typography>
+                </Box>
+                <Button size="small" color="inherit" onClick={() => void forgetDevice(d)}>{t('security.devices.forget')}</Button>
+              </Stack>
+            ))}
+          </Stack>
+        </Box>
+      </>) : null}
     </List>
   );
 

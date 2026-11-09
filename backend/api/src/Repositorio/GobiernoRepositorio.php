@@ -112,6 +112,8 @@ final readonly class GobiernoRepositorio
             .'WHERE "USU_Usuario" = :u AND "SES_Cerrada_En" IS NULL',
             ['ahora' => $ahora, 'u' => $usuarioHex],
         );
+        // Cerrar todo también olvida los equipos recordados: el siguiente acceso vuelve a pedir el código MFA.
+        $this->conexion->executeStatement('DELETE FROM SYS_TRUSTED_DEVICE WHERE TDV_USER = :u', ['u' => $usuarioHex]);
     }
 
     public function jtiRevocado(string $jti): bool

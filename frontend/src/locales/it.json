@@ -45,7 +45,8 @@
         "toggle_password_visibility": "Mostra o nascondi password",
         "or": "oppure",
         "sso_error": "Impossibile accedere con il provider esterno. Riprovi oppure utilizzi nome utente e password.",
-        "password_change_failed": "Impossibile modificare la password."
+        "password_change_failed": "Impossibile modificare la password.",
+        "remember_device": "Ricorda questo dispositivo per {{count}} giorni"
     },
     "common": {
         "unsaved_title": "Annullare le modifiche?",
@@ -1206,6 +1207,20 @@
             "shown_once": "Non verrà più mostrata. La copi ora e la condivida tramite un canale sicuro.",
             "must_change": "L'utente dovrà cambiarla al primo accesso. Le sue sessioni aperte sono state chiuse e l'account è stato sbloccato.",
             "done": "Fatto"
+        },
+        "mfa_exemption": {
+            "action": "Esonera temporaneamente dalla MFA",
+            "title": "Esonero dalla MFA",
+            "caption": "{{name}} potrà accedere senza verifica in due passaggi fino alla data scelta (massimo {{days}} giorni). Resta nel registro di audit.",
+            "until": "Fino al",
+            "reason": "Motivo",
+            "reason_help": "Per esempio: non ha ancora un telefono per l'app di autenticazione.",
+            "save": "Esonera",
+            "saved": "{{name}} è temporaneamente esonerato dalla MFA.",
+            "chip": "Esonerato fino al {{date}}",
+            "revoke": "Rimuovi l'esonero dalla MFA",
+            "revoke_confirm": "{{name}} dovrà configurare la MFA al prossimo accesso. Continuare?",
+            "revoked": "L'esonero dalla MFA di {{name}} è stato rimosso."
         }
     },
     "config": {
@@ -2122,7 +2137,12 @@
         "MISSING_ITEM_ALREADY_RESOLVED": "Quel mancante è già stato risolto.",
         "MISSING_ITEM_DECOMMISSION_REASON": "Un mancante si dismette per perdita o furto.",
         "IMPORT_ONLY_BEFORE_FIRST_CLOSE": "L'importazione è terminata con la prima chiusura mensile. Registri i nuovi articoli con un'entrata merci.",
-        "CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS": "Non può essere eliminato perché ha entrate merci associate."
+        "CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS": "Non può essere eliminato perché ha entrate merci associate.",
+        "MFA_EXEMPTION_TOO_LONG": "L'esonero non può durare più di 30 giorni.",
+        "MFA_EXEMPTION_IN_PAST": "Scelga una data a partire da oggi.",
+        "MFA_ALREADY_ENABLED": "L'account ha già configurato la verifica in due passaggi.",
+        "MFA_NOT_REQUIRED_FOR_ROLE": "Questo ruolo non richiede la verifica in due passaggi.",
+        "TRUSTED_DEVICE_NOT_FOUND": "Quel dispositivo non è più ricordato."
     },
     "catalog": {
         "states": {
@@ -2253,6 +2273,19 @@
             "sessions_caption": "Esca da tutti i suoi dispositivi, incluso questo.",
             "close_sessions": "Esci ovunque",
             "close_sessions_confirm": "Desidera uscire da tutti i suoi dispositivi? Dovrà accedere di nuovo."
+        },
+        "mfa_due": {
+            "message": "Configuri la verifica in due passaggi entro il {{date}}. Dopo sarà richiesta per accedere.",
+            "setup": "Configura ora"
+        },
+        "devices": {
+            "title": "Dispositivi ricordati",
+            "caption": "Questi browser non chiedono il codice di verifica fino alla data indicata.",
+            "forget": "Dimentica",
+            "forget_all": "Dimentica tutti",
+            "forget_all_confirm": "Tutti i dispositivi chiederanno di nuovo il codice di verifica. Continuare?",
+            "forgotten": "Quel dispositivo chiederà di nuovo il codice.",
+            "until": "Fino al {{date}}"
         }
     },
     "suggestions": {

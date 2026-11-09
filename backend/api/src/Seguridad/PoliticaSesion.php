@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Seguridad;
 
 use App\Config\Ajustes;
+use App\Dominio\Reloj;
 use App\Dominio\Usuario;
 use App\Security\Mfa\MfaRequirementStore;
 
@@ -12,7 +13,8 @@ use App\Security\Mfa\MfaRequirementStore;
  * Restricciones de sesión (claims del JWT) que obligan a completar un paso de
  * seguridad antes de usar el sistema:
  * - pwd_change: contraseña temporal asignada por un administrador.
- * - mfa_enroll: el rol exige MFA y la cuenta no lo tiene configurado.
+ * - mfa_enroll: el rol exige MFA, la cuenta no lo tiene y ya no le queda plazo.
+ * - mfa_due (sin restringir): fecha límite de la gracia o de la excepción.
  * Con cualquiera, solo se admiten los endpoints de autoservicio (/me…).
  */
 final readonly class PoliticaSesion
@@ -47,10 +49,36 @@ final readonly class PoliticaSesion
             $claims['pwd_change'] = true;
         }
         if ($this->rolExigeMfa($u->rol) && !$u->dosFactoresHabilitado) {
-            $claims['mfa_enroll'] = true;
+            // Con gracia o excepción vigente no se bloquea: se avisa con la fecha límite (Unix).
+            $plazo = $this->plazoMfa($u);
+            if (null === $plazo) {
+                $claims['mfa_enroll'] = true;
+            } else {
+                $claims['mfa_due'] = $plazo->getTimestamp();
+            }
         }
 
         return $claims;
+    }
+
+    /**
+     * Hasta cuándo puede la cuenta seguir sin MFA: la excepción del administrador
+     * del sistema o, si no la hay, la gracia desde el alta. Null = ya es obligatorio.
+     */
+    public function plazoMfa(Usuario $u): ?\DateTimeImmutable
+    {
+        $ahora = Reloj::ahora();
+        if (null !== $u->mfaExentoHasta && $u->mfaExentoHasta > $ahora) {
+            return $u->mfaExentoHasta;
+        }
+        if ($this->ajustes->mfaGraciaDias > 0 && null !== $u->creadoEn) {
+            $fin = $u->creadoEn->modify('+'.$this->ajustes->mfaGraciaDias.' days');
+            if ($fin > $ahora) {
+                return $fin;
+            }
+        }
+
+        return null;
     }
 
     /**

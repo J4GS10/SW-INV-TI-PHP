@@ -29,6 +29,7 @@ use App\Seguridad\CodigosSeguridad;
 use App\Seguridad\Contrasenas;
 use App\Seguridad\PoliticaSesion;
 use App\Seguridad\Tokens;
+use App\Security\Mfa\TrustedDevices;
 use App\Seguridad\UsuarioActual;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -61,6 +62,7 @@ final readonly class LoginController
         private Notificador $notificador,
         private CacheAuth $cache,
         private Ajustes $ajustes,
+        private TrustedDevices $equipos,
     ) {
     }
 
@@ -118,7 +120,9 @@ final readonly class LoginController
             $usuario->passwordHash = Contrasenas::hashear($password);
         }
 
-        if ($usuario->dosFactoresHabilitado) {
+        // Equipo recordado tras un código válido: la contraseña basta hasta que venza.
+        $recordado = $usuario->dosFactoresHabilitado && $this->equipos->isTrusted($usuario, $request);
+        if ($usuario->dosFactoresHabilitado && !$recordado) {
             $this->conexion->transactional(function () use ($usuario, $ip, $ua): void {
                 $this->usuarios->guardarEstadoAcceso($usuario);
                 $this->gobierno->registrarAuditoria('2FA_CHALLENGE', 'INV_USUARIO',
@@ -132,18 +136,21 @@ final readonly class LoginController
                 'requires_2fa' => true,
                 'method' => $usuario->dosFactoresMetodo,
                 'challenge_token' => $this->tokens->crearDesafio2fa($usuario->username, $usuario->passwordHash),
+                // Días que se puede recordar este equipo al ingresar el código (0 = no se ofrece).
+                'remember_days' => $this->ajustes->mfaRecordarDias,
             ]));
         }
 
         $this->bloqueo->limpiar($usuario, $ip);
         $usuario->ultimoLogin = $ahora;
         $respuesta = new JsonResponse();
-        $sesion = $this->conexion->transactional(function () use ($usuario, $ip, $ua, $respuesta): array {
+        $sesion = $this->conexion->transactional(function () use ($usuario, $ip, $ua, $respuesta, $recordado): array {
             $this->usuarios->guardarEstadoAcceso($usuario);
             $this->gobierno->registrarAuditoria('LOGIN_SUCCESS', 'INV_USUARIO',
-                ['username' => $usuario->username, 'rol' => $usuario->rol], $usuario->id, $ip, $ua);
+                ['username' => $usuario->username, 'rol' => $usuario->rol, ...($recordado ? ['2fa' => 'trusted_device'] : [])],
+                $usuario->id, $ip, $ua);
 
-            return $this->inicio->iniciar($usuario, $this->politica->claims($usuario), 'password', $ip, $ua, $respuesta);
+            return $this->inicio->iniciar($usuario, $this->politica->claims($usuario), $recordado ? '2fa' : 'password', $ip, $ua, $respuesta);
         });
         $this->inicio->avisarDispositivo($usuario, $sesion['dispositivo_nuevo'], $ip);
 
@@ -162,6 +169,7 @@ final readonly class LoginController
         $entrada = Entrada::json($request);
         $desafioToken = $entrada->texto('challenge_token', min: 10);
         $codigo = $entrada->texto('code', min: 4, max: 20);
+        $recordar = true === $entrada->logico('remember_device');
         $entrada->validar();
 
         $invalido = new ErrorApi(401, 'INVALID_OR_EXPIRED_2FA_CHALLENGE');
@@ -206,6 +214,13 @@ final readonly class LoginController
 
             return $this->inicio->iniciar($usuario, $this->politica->claims($usuario, $viaSso), $viaSso ? 'sso' : '2fa', $ip, $ua, $respuesta);
         });
+        if ($recordar && $this->equipos->enabled()) {
+            $this->conexion->transactional(function () use ($usuario, $respuesta, $ip, $ua): void {
+                $this->equipos->remember($usuario, $respuesta, $ip, SesionRepositorio::etiquetaDispositivo($ua));
+                $this->gobierno->registrarAuditoria('MFA_DEVICE_REMEMBERED', 'INV_USUARIO',
+                    ['username' => $usuario->username, 'dias' => $this->ajustes->mfaRecordarDias], $usuario->id, $ip, $ua);
+            });
+        }
         $this->inicio->avisarDispositivo($usuario, $sesion['dispositivo_nuevo'], $ip);
 
         return InicioSesion::sinCache($respuesta->setData($this->inicio->respuestaTokens($usuario, $sesion['claims'])));

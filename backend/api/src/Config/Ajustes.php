@@ -48,6 +48,12 @@ final readonly class Ajustes
     /** @var list<string> */
     public array $rolesConMfa;
     public bool $mfaPuedeDesactivarse;
+    /** Días desde el alta en que la persona puede dejar el MFA para más tarde (0 = sin gracia). */
+    public int $mfaGraciaDias;
+    /** Días que un equipo recordado no pide el código MFA (0 = no se ofrece). */
+    public int $mfaRecordarDias;
+    /** Máximo de días de una excepción del MFA concedida por el administrador del sistema. */
+    public int $mfaExencionMaxDias;
     public int $historialSesionesDias;
     public bool $avisoDispositivoNuevo;
     public bool $ssoMfaLocal;
@@ -179,6 +185,9 @@ final readonly class Ajustes
         $this->codigosRecuperacion = $entero('TWO_FACTOR_RECOVERY_CODES', 8);
         $this->rolesConMfa = $lista('TWO_FACTOR_REQUIRED_ROLES', 'SUPER_ADMIN,ADMIN_SEGURIDAD,ADMIN_TI');
         $this->mfaPuedeDesactivarse = $logico('MFA_CAN_BE_DISABLED', false);
+        $this->mfaGraciaDias = max(0, min(30, $entero('MFA_ENROLL_GRACE_DAYS', 7)));
+        $this->mfaRecordarDias = max(0, min(90, $entero('MFA_REMEMBER_DAYS', 30)));
+        $this->mfaExencionMaxDias = max(1, min(90, $entero('MFA_EXEMPTION_MAX_DAYS', 30)));
         $this->historialSesionesDias = $entero('SESSION_HISTORY_DAYS', 180);
         $this->avisoDispositivoNuevo = $logico('NEW_DEVICE_ALERT_ENABLED', true);
         $this->ssoMfaLocal = $logico('SSO_MFA_LOCAL', true);

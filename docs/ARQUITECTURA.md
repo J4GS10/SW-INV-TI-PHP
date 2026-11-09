@@ -266,6 +266,14 @@ Si algo falla, la API responde un **código**, no un texto: `{"detail": "SERIAL_
 3. Al vencer, `src/api/axios.ts` lo renueva sin que la persona lo note. Si un refresh ya usado se reutiliza, se trata como robo y se cierra la sesión.
 4. Límites de sesión: 2 horas de inactividad y 12 horas en total (configurables).
 
+**MFA:** lo exigen SUPER_ADMIN, ADMIN_SEGURIDAD y ADMIN_TI (`TWO_FACTOR_REQUIRED_ROLES`), y nadie lo puede apagar (`MFA_CAN_BE_DISABLED=false`). Tiene tres flexibilidades (`Security/Mfa/`):
+
+| Flexibilidad | Cómo funciona | Configuración |
+|---|---|---|
+| Gracia | Durante los primeros días desde el alta, la cuenta entra sin MFA y ve un aviso con la fecha límite; después, lo debe configurar para entrar | `MFA_ENROLL_GRACE_DAYS` (7) |
+| Excepción | El SUPER_ADMIN exime una cuenta hasta una fecha, con motivo, desde *Usuarios y accesos*. Queda en la auditoría | `MFA_EXEMPTION_MAX_DAYS` (30) |
+| Recordar el equipo | Al ingresar el código, la persona marca *Recordar este equipo*: en ese navegador solo se pide la contraseña hasta que vence. Se anula al cambiar la contraseña o el secreto MFA, al cerrar todas las sesiones o desde *Seguridad de mi cuenta* | `MFA_REMEMBER_DAYS` (30); tabla `SYS_TRUSTED_DEVICE` |
+
 ### Roles
 
 Están en `backend/api/src/Dominio/Roles.php`, con espejo en `frontend/src/utils/roles.ts`. El servidor decide; el frontend solo evita mostrar lo que fallaría.

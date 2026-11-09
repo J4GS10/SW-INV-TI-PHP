@@ -36,6 +36,10 @@ final class Usuario
         public readonly bool $ssoHabilitado = false,
         /** Proveedor SSO fijado para la cuenta ('microsoft' | 'google') o null = cualquiera. */
         public readonly ?string $ssoProveedor = null,
+        /** Alta de la cuenta: desde ahí corre la gracia para configurar el MFA. */
+        public readonly ?\DateTimeImmutable $creadoEn = null,
+        /** Excepción temporal del MFA concedida por el administrador del sistema. */
+        public readonly ?\DateTimeImmutable $mfaExentoHasta = null,
     ) {
     }
 
@@ -62,6 +66,8 @@ final class Usuario
             dosFactoresUltimoPaso: isset($fila['USU_2FA_Ultimo_Paso']) ? (int) $fila['USU_2FA_Ultimo_Paso'] : null,
             ssoHabilitado: 1 === (int) ($fila['USU_SSO_Habilitado'] ?? 0),
             ssoProveedor: isset($fila['USU_SSO_Provider']) && '' !== $fila['USU_SSO_Provider'] ? (string) $fila['USU_SSO_Provider'] : null,
+            creadoEn: Reloj::desdeBd($fila['USU_Creado_En'] ?? null),
+            mfaExentoHasta: Reloj::desdeBd($fila['USU_MFA_Exento_Hasta'] ?? null),
         );
     }
 

@@ -127,8 +127,9 @@ foreach ($plan as $username => [$rol, $global, $susSedes, $metodo, $debeCambiar]
         $c->executeStatement(
             'INSERT INTO "INV_USUARIO" ("USU_Usuario", "USU_Username", "USU_Password_Hash", "USU_Rol", "USU_Estado", '
             .'"USU_SSO_Habilitado", "USU_Intentos_Fallidos", "USU_Bloqueos_Consecutivos", "USU_Debe_Cambiar_Password", '
-            .'"USU_2FA_Habilitado", "USU_Alcance_Global", "PER_Persona") '
-            .'VALUES (:id, :u, :h, :rol, 1, 0, 0, 0, 0, 0, 0, :persona)',
+            .'"USU_2FA_Habilitado", "USU_Alcance_Global", "PER_Persona", "USU_Creado_En") '
+            // Sin fecha de alta: sin la gracia del MFA, para que qa_enrolar pruebe el enrolamiento obligatorio.
+            .'VALUES (:id, :u, :h, :rol, 1, 0, 0, 0, 0, 0, 0, :persona, NULL)',
             ['id' => $id, 'u' => $username, 'h' => Contrasenas::hashear($clave), 'rol' => $rol, 'persona' => $persona],
         );
     }
