@@ -144,3 +144,55 @@ Después:
 | Volver a la versión anterior | `git checkout <commit anterior>` y `bash herramientas/desplegar.sh`. Si esa actualización tuvo migración, restaure además el respaldo del despliegue ([arquitectura](ARQUITECTURA.md#respaldos)) |
 | Ver errores | `docker logs inventario-api_php-1 --tail 100` |
 | Mover a otro servidor | Copie `deploy/.env`, `deploy/.env.php`, el último respaldo y los adjuntos; con otras claves los datos cifrados no se leen |
+
+## 11. Seguridad e infraestructura en Proxmox
+
+### Diseño
+
+| Etapa | VM | Contiene |
+|---|---|---|
+| 1 (hoy) | `inv-app` | Todo el stack, como está probado |
+| 2 | `inv-app` | Caddy, frontend, API, worker y Redis: no guarda datos y se reconstruye desde Git |
+| 2 | `inv-datos` | Oracle, MinIO y los respaldos, sin acceso desde la red de usuarios |
+| Siempre | Proxmox Backup Server | Copia diaria de las VM, en otro equipo físico, con sincronización fuera del sitio |
+
+En una sola VM, la seguridad no depende de cuántas máquinas haya, sino de las capas:
+- Solo Caddy publica puertos (443 y 80).
+- La base, Redis y MinIO están en una red de Docker sin salida a Internet.
+- La API entra a Oracle con un usuario que solo lee y escribe filas, y VPD filtra por sede.
+- MFA, TLS, secretos fuera de Git y respaldos verificados.
+
+Lo que una sola VM no protege: quien tome el control de la VM tiene todo. Por eso importa el endurecimiento de abajo. La etapa 2 reduce ese alcance, porque la base deja de compartir máquina con lo que recibe tráfico.
+
+Repartir cada servicio en su propia VM no da alta disponibilidad: Oracle XE no tiene clúster ni Data Guard, así que la base es un punto único de falla en cualquier diseño. La protección real es detectar rápido y recuperar rápido.
+
+### Endurecimiento de la VM
+
+- **Red:** VLAN de servidores. En el firewall de Proxmox, la VM acepta solo 443 y 80 desde la red de usuarios y SSH desde la red de TI. En la etapa 2, `inv-datos` acepta 1521 y 9000 solo desde `inv-app`.
+- **Acceso:** SSH solo con llave, sin contraseña y sin `root`. Solo los administradores en el grupo `docker`, porque equivale a ser `root`. Nunca exponga la API de Docker (puerto 2375).
+- **Parches:** `unattended-upgrades` para el sistema. Las imágenes se actualizan con `desplegar.sh`.
+- **Secretos:** `deploy/.env` y `.env.php` con permisos 600 (los crea así `generar_env.sh`) y una copia en el gestor de contraseñas.
+- **Proxmox:** `qemu-guest-agent` en la VM (respaldos consistentes), discos aparte para los datos y acceso al panel de Proxmox solo desde la red de TI y con 2FA.
+
+### Nombres, no IP
+
+- Los usuarios entran por un nombre del DNS interno (`DOMAIN`). Si la IP cambia, solo se actualiza el registro DNS.
+- Dentro del stack, los servicios se encuentran por su nombre en Docker (`oracle`, `redis`, `minio`, `api_php`). En la etapa 2 se apuntan al nombre DNS de `inv-datos` con `ORACLE_HOST`, `REDIS_HOST` y `S3_ENDPOINT_URL` en `deploy/.env`, sin tocar el código.
+- Dé a cada VM una IP fija o una reserva de DHCP, más su registro DNS.
+
+### Detección de caídas y recuperación
+
+| Falla | Qué pasa solo |
+|---|---|
+| Se cae un contenedor | Docker lo reinicia (`restart: unless-stopped`) |
+| Muere la instancia de Oracle | `vigilante.sh` hace salir al contenedor y Docker lo levanta |
+| Oracle se reinicia | La API y el worker descartan la conexión rota y abren otra. Mientras tanto, la API responde 503 `DATABASE_UNAVAILABLE` con `Retry-After` y `/health` da 503 |
+| La API se reinicia | Caddy retiene cada petición hasta 10 s y la reintenta, en vez de responder 502 |
+| Cae Redis o MinIO | El sistema sigue: límites locales sin Redis; sin MinIO solo fallan los adjuntos |
+| Respaldos, réplica, disco o correo | El worker genera una alerta cada 5 minutos |
+
+Docker no avisa a nadie si cae la VM, la red o el host completo. Para eso hace falta un **monitor externo**, en otra VM o en otro equipo. Se recomienda **Uptime Kuma**, que es gratuito:
+- `https://<DOMAIN>/health` cada minuto: 200 es sano y 503 significa que la base no responde.
+- Vencimiento del certificado.
+- Ping a cada VM.
+- Avisos por correo, Teams o Telegram.

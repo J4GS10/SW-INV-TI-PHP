@@ -1959,6 +1959,7 @@
         "CONSUMABLE_INACTIVE": "The consumable is inactive.",
         "CUENTA_EMAIL_REQUERIDA": "Please enter the sender email account.",
         "DATABASE_ERROR": "A database error occurred. Please try again.",
+        "DATABASE_UNAVAILABLE": "The system is briefly unavailable. Please try again in a few seconds.",
         "FIELD_DECRYPT_FAILED": "A protected value could not be read. Please contact the administrator.",
         "FILE_CONTENT_MISMATCH": "The file content does not match its extension.",
         "FILE_TOO_LARGE_MAX_MB": "The file exceeds the maximum of {{p1}} MB.",

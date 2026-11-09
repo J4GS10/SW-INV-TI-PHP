@@ -8,7 +8,9 @@ use App\Db\ErroresOracle;
 use App\Db\Unicidad;
 use App\Http\ErrorApi;
 use App\Http\ErrorValidacion;
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception as ExcepcionDbal;
+use Doctrine\DBAL\Exception\ConnectionException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -20,7 +22,8 @@ use Symfony\Component\HttpKernel\KernelEvents;
  * Traduce excepciones al contrato JSON del backend anterior (`{"detail": …}`):
  * - ErrorApi                     → su código y detalle;
  * - validación de la entrada     → 422 VALIDATION_ERROR con `errors`;
- * - Oracle: VPD/disparadores     → 403 SEDE_OUT_OF_SCOPE;
+ * - Oracle: conexión perdida     → 503 DATABASE_UNAVAILABLE (se descarta la conexión);
+ *           VPD/disparadores     → 403 SEDE_OUT_OF_SCOPE;
  *           dato rechazado       → 422 INVALID_PARAMETER_VALUE;
  *           integridad           → 409 INTEGRITY_CONSTRAINT_VIOLATED;
  *           otro                 → 500 DATABASE_ERROR (sin SQL ni parámetros en el log);
@@ -29,7 +32,7 @@ use Symfony\Component\HttpKernel\KernelEvents;
 #[AsEventListener(event: KernelEvents::EXCEPTION)]
 final readonly class ErroresListener
 {
-    public function __construct(private LoggerInterface $logger)
+    public function __construct(private LoggerInterface $logger, private Connection $conexion)
     {
     }
 
@@ -63,6 +66,13 @@ final readonly class ErroresListener
     private function deBaseDeDatos(ExcepcionDbal $e, string $ruta): JsonResponse
     {
         $codigo = ErroresOracle::codigo($e);
+        if ($e instanceof ConnectionException || ErroresOracle::esDeConexion($codigo)) {
+            // En modo worker la conexión sobrevive a la petición: rota, se descarta y la siguiente abre otra.
+            $this->conexion->close();
+            $this->logger->warning('db.connection_lost', ['path' => $ruta, 'ora' => $codigo]);
+
+            return new JsonResponse(['detail' => 'DATABASE_UNAVAILABLE'], 503, ['Retry-After' => '5']);
+        }
         if (ErroresOracle::esFueraDeAlcance($codigo)) {
             $this->logger->warning('rls.denied', ['path' => $ruta, 'ora' => $codigo]);
 
