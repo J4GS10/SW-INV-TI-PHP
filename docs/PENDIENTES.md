@@ -6,7 +6,7 @@ Hecho el 2026-11-09: base y adjuntos reinstalados desde cero, solo con el catál
 
 | Ajuste | Hoy | Para el uso real |
 |---|---|---|
-| Cuentas | Solo `sa` | `sa` configura MFA al entrar y crea las cuentas reales: al menos dos ADMIN_TI |
+| Cuentas | `sa` y las cuentas de prueba de [pruebas por rol](PRUEBAS_POR_ROL.md), con una clave sencilla compartida, más sus sedes, departamento y cargo de prueba | Desactivar las cuentas de prueba y crear las reales: al menos dos ADMIN_TI |
 | Empresa | «Prueba Lombardi» | Nombre real en *Configuración* |
 | Dirección | CA privada de Caddy (`TLS_EMISOR=internal`) para `localhost` y las IP de este PC, que cambia con el Wi-Fi (hoy 192.168.7.122) | Nombre interno fijo del servidor formal (DNS) y la raíz de la CA instalada en los equipos ([puesta en marcha](PUESTA_EN_MARCHA.md#6-certificado-con-la-ca-privada)) |
 | Acceso desde otros equipos | El Wi-Fi de este PC es una red *Pública* y la regla «Inventario produccion HTTPS» abre el 443 solo en redes *Dominio* y *Privada*: el teléfono no entra | Cambiar la red a *Privada*, con aprobación. En el servidor formal no aplica |
