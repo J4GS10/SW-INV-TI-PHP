@@ -12,8 +12,9 @@ use League\Flysystem\FilesystemOperator;
 use Symfony\Component\HttpClient\HttpClient;
 
 /**
- * MinIO o S3 (direccionamiento por ruta, como MinIO lo requiere). El cliente se
- * crea al primer uso; un adjunto guardado en otro bucket se lee de ese bucket.
+ * Adjuntos en MinIO, que corre en el propio servidor y se habla con el protocolo S3
+ * (direccionamiento por ruta, como MinIO lo requiere). El cliente se crea al
+ * primer uso; un adjunto guardado en otro bucket se lee de ese bucket.
  */
 final class AlmacenS3 extends AlmacenFlysystem
 {
@@ -58,7 +59,8 @@ final class AlmacenS3 extends AlmacenFlysystem
     private function cliente(): S3Client
     {
         return $this->cliente ??= new S3Client([
-            'endpoint' => $this->ajustes->s3Endpoint ?? 'https://s3.amazonaws.com',
+            // Siempre MinIO: Ajustes exige S3_ENDPOINT_URL; nunca un servicio externo por defecto.
+            'endpoint' => (string) $this->ajustes->s3Endpoint,
             'region' => $this->ajustes->s3Region,
             'accessKeyId' => (string) $this->ajustes->s3Usuario,
             'accessKeySecret' => (string) $this->ajustes->s3Clave,

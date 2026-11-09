@@ -340,6 +340,11 @@ final readonly class Ajustes
         if ('s3' === $this->almacenamiento && (null === $this->s3Usuario || null === $this->s3Clave || '' === $this->s3Bucket)) {
             throw $error('S3_ACCESS_KEY, S3_SECRET_KEY y S3_BUCKET son obligatorios cuando STORAGE_BACKEND=s3.');
         }
+        // «s3» es el protocolo de MinIO, que corre en el propio servidor: sin su dirección no se arranca,
+        // para que ningún adjunto pueda salir hacia un servicio externo.
+        if ('s3' === $this->almacenamiento && (null === $this->s3Endpoint || '' === $this->s3Endpoint)) {
+            throw $error('S3_ENDPOINT_URL es obligatorio cuando STORAGE_BACKEND=s3 (dirección de MinIO).');
+        }
 
         // Coherencia de tiempos: el refresh (inactividad) debe durar más que el access.
         if ($inactividad <= $this->accesoMinutos) {
