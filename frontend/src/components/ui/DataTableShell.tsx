@@ -66,6 +66,17 @@ interface DataTableShellProps<T> {
 }
 
 const SKELETON_ROWS = 6;
+/** Rows per page for lists paged in the browser: short by default, remembered per viewer. */
+const PAGE_SIZE_KEY = 'inv_filas_por_pagina';
+const DEFAULT_PAGE_SIZE = 10;
+const readPageSize = (): number => {
+  try {
+    const saved = Number(window.localStorage.getItem(PAGE_SIZE_KEY));
+    return [10, 25, 50, 100].includes(saved) ? saved : DEFAULT_PAGE_SIZE;
+  } catch {
+    return DEFAULT_PAGE_SIZE;
+  }
+};
 
 /**
  * Shell de tabla de datos estándar.
@@ -100,17 +111,37 @@ export const DataTableShell = <T,>({
 }: DataTableShellProps<T>) => {
   const { t } = useTranslation();
   const theme = useTheme();
-  const showPagination = total !== undefined && onPageChange;
+  const serverPaged = total !== undefined && !!onPageChange;
   const isEmpty = !loading && !error && rows.length === 0;
   const [clientSort, setClientSort] = useState<SortState | null>(null);
   const activeSort = onSortChange ? sort ?? null : clientSort;
+  // Lists loaded in full are paged here, so a long list never pushes the rest of the page down.
+  const [clientPage, setClientPage] = useState(0);
+  const [clientPageSize, setClientPageSize] = useState(readPageSize);
+  // A filter or search that changes how many rows there are starts again at the first page.
+  const [seenCount, setSeenCount] = useState(rows.length);
+  if (rows.length !== seenCount) {
+    setSeenCount(rows.length);
+    setClientPage(0);
+  }
+  const clientPaged = !serverPaged && rows.length > Math.min(...rowsPerPageOptions);
+  const lastPage = Math.max(0, Math.ceil(rows.length / clientPageSize) - 1);
+  const currentClientPage = Math.min(clientPage, lastPage);
 
-  const visibleRows = useMemo(() => {
+  const sortedRows = useMemo(() => {
     const value = clientSort && columns.find((col) => col.key === clientSort.key)?.sortValue;
     return value && clientSort ? sortRows(rows, value, clientSort.direction) : rows;
     // `columns` is rebuilt on every render of the parent: the key identifies the column.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, clientSort]);
+  const pageStart = clientPaged ? currentClientPage * clientPageSize : 0;
+  const visibleRows = clientPaged ? sortedRows.slice(pageStart, pageStart + clientPageSize) : sortedRows;
+  const changeClientPageSize = (size: number) => {
+    setClientPageSize(size);
+    setClientPage(0);
+    try { window.localStorage.setItem(PAGE_SIZE_KEY, String(size)); } catch { /* per-viewer convenience only */ }
+  };
+  const showPagination = serverPaged || clientPaged;
 
   const toggleSort = (key: string) => {
     if (onSortChange) onSortChange(nextSort(activeSort, key));
@@ -212,7 +243,7 @@ export const DataTableShell = <T,>({
                 </TableRow>
               ))
             ) : isEmpty || error ? null : (
-              visibleRows.map((row, index) => renderRow(row, index))
+              visibleRows.map((row, index) => renderRow(row, pageStart + index))
             )}
           </TableBody>
         </Table>
@@ -254,13 +285,15 @@ export const DataTableShell = <T,>({
           )}
           <TablePagination
             component="div"
-            count={total}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            onPageChange={(_, p) => onPageChange(p)}
-            onRowsPerPageChange={(e) =>
-              onRowsPerPageChange?.(parseInt(e.target.value, 10))
-            }
+            count={serverPaged ? total ?? 0 : rows.length}
+            page={serverPaged ? page : currentClientPage}
+            rowsPerPage={serverPaged ? rowsPerPage : clientPageSize}
+            onPageChange={(_, p) => (serverPaged ? onPageChange?.(p) : setClientPage(p))}
+            onRowsPerPageChange={(e) => {
+              const size = parseInt(e.target.value, 10);
+              if (serverPaged) onRowsPerPageChange?.(size);
+              else changeClientPageSize(size);
+            }}
             rowsPerPageOptions={rowsPerPageOptions}
             sx={{ '& .MuiTablePagination-selectLabel, & .MuiTablePagination-input': { display: { xs: 'none', sm: 'flex' } } }}
             labelRowsPerPage={t('common.table.rows_per_page')}

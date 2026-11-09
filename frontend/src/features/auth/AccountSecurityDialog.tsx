@@ -25,6 +25,9 @@ import { scopeService } from '../../api/scopeService';
 import type { SesionActiva } from '../../types/users';
 import { Dialog } from '../../components/ui/Dialog';
 
+/** Sessions shown before "show all": the dialog stays short even with many devices. */
+const SESSIONS_PREVIEW = 5;
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -70,6 +73,7 @@ export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props
   const [busy, setBusy] = useState(false);
   const [sessions, setSessions] = useState<SesionActiva[]>([]);
   const [closingId, setClosingId] = useState<string | null>(null);
+  const [showAllSessions, setShowAllSessions] = useState(false);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -266,7 +270,12 @@ export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props
         )}
       />
       <Box component="li" sx={{ listStyle: 'none', pl: { xs: 0, sm: 7 }, pb: 1 }}>
-        <SessionsList sessions={sessions} onCloseSession={closeSession} busyId={closingId} />
+        <SessionsList sessions={showAllSessions ? sessions : sessions.slice(0, SESSIONS_PREVIEW)} onCloseSession={closeSession} busyId={closingId} />
+        {sessions.length > SESSIONS_PREVIEW && (
+          <Button size="small" onClick={() => setShowAllSessions((v) => !v)} sx={{ mt: 1 }}>
+            {showAllSessions ? t('sessions.show_less') : t('sessions.show_all', { count: sessions.length })}
+          </Button>
+        )}
       </Box>
       {devices.length > 0 ? (<>
         <Row
