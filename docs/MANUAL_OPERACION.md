@@ -58,6 +58,6 @@ El worker revisa cada 5 minutos respaldos, réplica, disco, correos y tomas. Un 
 
 ## Acceso desde la red local
 
-- Dirección: `https://<IP del equipo>`. El navegador avisa del certificado de prueba.
+- Dirección: `https://<IP del equipo>`. El navegador avisa del certificado mientras el equipo no tenga instalada la raíz de la CA privada de Caddy.
 - Si la IP cambia (por ejemplo, de cable a wifi), actualice `DOMAIN`, `BACKEND_CORS_ORIGINS`, `FRONTEND_BASE_URL` y `TLS_DEFAULT_SNI` en `deploy/.env`, y ejecute `bash herramientas/desplegar.sh subir`. `DOMAIN` y `BACKEND_CORS_ORIGINS` admiten varias direcciones.
 - El sistema funciona mientras este equipo y Docker estén encendidos.

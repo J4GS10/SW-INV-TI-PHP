@@ -92,6 +92,7 @@ Después de cambiar un valor de `deploy/.env`, aplique con `bash herramientas/de
 | Aplicar un cambio del Caddyfile | `bash herramientas/desplegar.sh recargar` (sin cortar conexiones) |
 | Ver el acceso y los errores | `docker logs inventario-caddy-1 --tail 100` |
 | Entrar por IP | `TLS_DEFAULT_SNI=<ip>`: quien entra por IP no envía nombre y Caddy necesita saber qué certificado usar |
+| Usar la CA privada (red interna) | Con un nombre interno o una IP, Caddy emite el certificado con su propia CA («Caddy Local Authority», raíz válida 10 años) y lo renueva solo. Exporte la raíz con `docker exec inventario-caddy-1 cat /data/caddy/pki/authorities/local/root.crt > caddy-root.crt` e instálela en los equipos como entidad raíz de confianza (por GPO); así el navegador deja de avisar |
 
 Los certificados viven en el volumen `inventario_caddy_data`. No lo borre: con Let's Encrypt, repetir la emisión puede toparse con su límite.
 
