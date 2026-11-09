@@ -1,128 +1,129 @@
 # Pruebas por rol
 
-Cómo entrar, qué hace cada rol y qué validar antes del uso real. Los roles están descritos en la [arquitectura](ARQUITECTURA.md#roles).
+Qué puede trabajar cada rol, con qué cuentas probarlo y cómo validar cada flujo. Las reglas de cada rol están en la [arquitectura](ARQUITECTURA.md#roles).
 
-## Dónde probar
+## Cuentas de prueba
 
-| Entorno | Dirección | Cuentas | Para qué |
+Dirección: `https://localhost` en el PC del sistema, o `https://<IP o nombre>` desde otro equipo de la red. Todas las cuentas de prueba usan la misma clave, que define el responsable.
+
+| Cuenta | Rol | Sedes | Al entrar por primera vez |
 |---|---|---|---|
-| Pruebas (QA) | `https://localhost:18443`, solo en el equipo que lo corre | Una por rol (abajo), todas con la misma clave y sin MFA | Probar todo con datos inventados |
-| Producción | `https://<DOMAIN>`; hoy `https://localhost` en este PC | Solo `sa`. Su clave temporal es `SUPER_ADMIN_PASSWORD` en `backend/deploy/.env` | Configuración real; **nunca** datos de prueba, porque el historial no se borra |
+| `sa` | SUPER_ADMIN | Todas | Cambia la clave temporal y configura el MFA |
+| `sistema2` | SUPER_ADMIN | Todas | Configura el MFA |
+| `seguridad1` | ADMIN_SEGURIDAD | Todas | Configura el MFA |
+| `adminti1`, `adminti2` | ADMIN_TI | Todas | Configura el MFA |
+| `tecnico1` | TECNICO | Sede Prueba Norte | Entra directo |
+| `tecnico2` | TECNICO | Sede Prueba Sur | Entra directo |
+| `compras1` | COMPRAS | Todas | Entra directo |
+| `auditor1` | AUDITOR | Todas | Entra directo |
+| `consulta1` | CONSULTA | Sede Prueba Norte | Entra directo |
 
-**Levantar QA** (desde `backend/`):
+- **MFA:** use una aplicación autenticadora (Microsoft o Google Authenticator); una sola aplicación guarda varias cuentas. Guarde los códigos de recuperación de cada una.
+- **Datos que crean estas cuentas:** el país Guatemala, las sedes *Sede Prueba Norte* y *Sede Prueba Sur*, el departamento *Pruebas* y el cargo *Colaborador de prueba*.
+- **Sin SMTP no sale ningún correo.** Los avisos se ven en *Mis tareas* y en la campana.
+- **Pruebe en ventanas privadas**, una por cuenta, para tener varias sesiones a la vez.
 
-1. Cree `api/var/qa/usuarios_manuales.json`, que no se versiona, con la clave que usted elija:
+## Matriz de roles
 
-   ```json
-   {
-     "password": "<clave de prueba>",
-     "usuarios": {
-       "sistema_qa":   ["SUPER_ADMIN", true, []],
-       "seguridad_qa": ["ADMIN_SEGURIDAD", true, []],
-       "ti1_qa":       ["ADMIN_TI", true, []],
-       "ti2_qa":       ["ADMIN_TI", true, []],
-       "tecnico_qa":   ["TECNICO", false, ["A"]],
-       "tecnico2_qa":  ["TECNICO", false, ["B"]],
-       "compras_qa":   ["COMPRAS", true, []],
-       "auditor_qa":   ["AUDITOR", true, []],
-       "consulta_qa":  ["CONSULTA", false, ["A"]]
-     }
-   }
-   ```
+**Sí** = lo hace · **Ve** = solo consulta · **—** = no le aparece.
 
-   Cada cuenta lleva el rol, si ve todas las sedes y sus sedes. `A` es «QA Sede Norte» y `B` es «QA Sede Sur».
-2. `bash herramientas/qa/entorno.sh subir`. La primera vez construye las imágenes y copia el último respaldo de producción.
-3. Al terminar: `bash herramientas/qa/entorno.sh bajar` conserva los datos, y `borrar` los elimina. Nunca toca producción.
+| Función | SUPER_ADMIN | ADMIN_SEGURIDAD | ADMIN_TI | TECNICO | COMPRAS | AUDITOR | CONSULTA |
+|---|---|---|---|---|---|---|---|
+| Cuentas: crear, editar, desactivar, restablecer clave | Sí | Ve | — | — | — | — | — |
+| Cerrar las sesiones de una cuenta | Sí | Sí, salvo SUPER_ADMIN y ADMIN_SEGURIDAD | — | — | — | — | — |
+| Configuración: empresa, logo, colores, MFA, correo | Sí | — | — | — | — | — | — |
+| Directorio (Active Directory) | Sí | — | — | — | — | — | — |
+| Auditoría del sistema | Ve | Ve | — | — | — | Ve | — |
+| Mis tareas | — | — | Sí | Sí | Sí | Sí | Sí |
+| Activos: lista, ficha, buscador, escáner | — | — | Sí | Sí | — | Ve | Ve |
+| Nuevo activo sin factura | — | — | Sí | — | — | — | — |
+| Importar activos de Excel (hasta el primer cierre) | — | — | Sí | — | — | — | — |
+| Ingreso a bodega: registrar, editar o cancelar antes de confirmar | — | — | Sí | — | Sí | — | — |
+| Ingreso a bodega: confirmar y clasificar | — | — | Sí | Sí | — | — | — |
+| Ingreso a bodega: aprobar una diferencia | — | — | Sí, si la registró otro | — | — | — | — |
+| Ingreso a bodega: consultar | — | — | Sí | Sí | Sí | Ve | Ve |
+| Por completar: serie, especificaciones, etiqueta | — | — | Sí | Sí | — | — | — |
+| Entregar, devolver, transferir, revertir; actas | — | — | Sí | Sí | — | Ve | Ve |
+| Mantenimiento: abrir y cerrar | — | — | Sí | Sí | — | Ve | Ve |
+| Consumibles: entrada y salida | — | — | Sí | Sí | — | Ve | Ve |
+| Consumibles: crear, ajustar stock | — | — | Sí | — | — | — | — |
+| Toma física: iniciar, leer, cerrar | — | — | Sí | Sí | — | Ve | Ve |
+| Toma física: anular | — | — | Sí | — | — | — | — |
+| Baja (incluye pérdida o robo): solicitar | — | — | Sí | — | — | — | — |
+| Aprobaciones: aprobar o rechazar | — | — | Sí, si lo pidió otro | — | — | Ve | — |
+| Cierre mensual: cerrar | — | — | Sí | — | — | — | — |
+| Cierre mensual: consultar | — | — | Sí | — | Sí | Ve | — |
+| Stock y asignaciones, con valores | — | — | Sí | — | Sí | Ve | — |
+| Proveedores | — | — | Sí | — | Sí | Ve | — |
+| Garantías | — | — | Sí | — | — | Ve | — |
+| Software y licencias | — | — | Sí | — | — | Ve | — |
+| Empleados y departamentos | — | — | Sí | — | — | Ve | — |
+| Alta de empleado (persona y kit) | — | — | Sí | — | — | — | — |
+| Catálogos, marcas, modelos, tipos, ubicaciones | — | — | Sí | — | — | — | — |
+| Trazabilidad (kardex) | — | — | Sí | Ve | — | Ve | Ve |
+| Verificar la integridad del kardex | — | — | Sí | — | — | Sí | — |
+| Exportes de control (kardex, custodia, movimientos, tomas) | — | — | Sí | — | — | Sí | — |
+| Panel de control | — | — | Sí | Ve | — | Ve | Ve |
+| Ve costos y montos | — | — | Sí | — | Sí | Sí | — |
+| Ve datos de las personas | — | — | Sí | Sí | — | Sí | — |
+| Sedes | Todas | Todas | Las asignadas o todas | Las asignadas | Las asignadas o todas | Las asignadas o todas | Las asignadas |
 
-## Recorrido completo
+## Recorrido completo, en orden
 
-Hágalo una vez en orden: cada paso prepara el siguiente y prueba que los roles se pasan el trabajo.
+Cada paso prepara el siguiente. Después del recorrido, revise en *Auditoría* (`auditor1`) que todo quedó registrado.
 
-| # | Cuenta | Qué hace | Qué validar |
+| # | Cuenta | Qué hacer | Qué debe pasar |
 |---|---|---|---|
-| 1 | `ti1_qa` | En *Centro de catálogos*: tipos de activo con prefijo, una marca y un modelo. En *Ubicaciones*: edificio, nivel y área de QA Sede Norte. Además, un departamento y un empleado | Sin escribir dos veces lo mismo; un nombre repetido da un aviso claro |
-| 2 | `compras_qa` | Un proveedor y un ingreso a bodega: factura, dos líneas (3 laptops y 10 cables), costos y la factura adjunta | TI recibe la tarea en *Mis tareas* |
-| 3 | `tecnico_qa` | Confirma el ingreso contando **2** laptops en vez de 3, y clasifica los cables como consumible | Queda *Pendiente de aprobación*: nada entra todavía |
-| 4 | `ti1_qa` | Aprueba la diferencia | La aprueba porque la diferencia la registró otra persona |
-| 5 | `compras_qa` | Descarga el acta de recibido | El PDF trae proveedor, factura, cantidades y firmas |
-| 6 | `tecnico_qa` | En *Por completar*: serie y especificaciones de cada laptop, e imprime la etiqueta | El código empieza con el prefijo del tipo; no se puede repetir una serie |
-| 7 | `tecnico_qa` | Entrega una laptop al empleado; descarga el acta | La ficha muestra *Asignado*, y el kardex y el acta registran la entrega |
-| 8 | `tecnico_qa` | Abre un mantenimiento a esa laptop y lo cierra | Pasa a *En Reparación* y vuelve a *Asignado* |
-| 9 | `ti1_qa` | Inicia una toma física de QA Sede Norte; `tecnico_qa` lee las etiquetas con el escáner, sin una laptop | Lo que no se leyó queda como faltante al cerrar |
-| 10 | `ti1_qa` | Solicita la baja de la otra laptop; `ti2_qa` la aprueba | `ti1_qa` no puede aprobar su propia solicitud |
-| 11 | `auditor_qa` | *Trazabilidad → Verificar kardex* | La cadena queda íntegra y todo lo anterior aparece |
-| 12 | `ti1_qa` | *Cierre mensual* de un mes terminado | Después no cambian sus cifras; `compras_qa` lo ve, pero no lo cierra |
+| 1 | `adminti1` | *Centro de catálogos*: tipo «Laptop» con prefijo `LAP`, una marca y un modelo. *Ubicaciones*: un edificio, un nivel y un área en Sede Prueba Norte. *Empleados*: una persona de esa sede | Un nombre o prefijo repetido muestra un aviso claro |
+| 2 | `compras1` | *Proveedores*: uno nuevo. *Ingresos a bodega → Nuevo ingreso*: factura, 3 laptops y 10 cables, con costo y la factura adjunta | El ingreso queda *Registrado*; `adminti1` y `tecnico1` lo ven en *Mis tareas* |
+| 3 | `tecnico1` | Confirma el ingreso: cuenta **2** laptops y clasifica los cables como consumible | Queda *Pendiente de aprobación* y todavía no entra nada al inventario |
+| 4 | `adminti1` | *Aprobaciones*: aprueba la diferencia | Las 2 laptops entran *por completar* y los cables suman stock |
+| 5 | `compras1` | Descarga el acta de recibido | El PDF trae proveedor, factura, cantidades y espacio para firmas |
+| 6 | `tecnico1` | *Por completar*: serie y especificaciones de cada laptop; imprime las etiquetas | Códigos `LAP-…`; una serie repetida se rechaza |
+| 7 | `tecnico1` | Entrega una laptop a la persona del paso 1 y descarga el acta | La ficha dice *Asignado*; el kardex y el acta registran la entrega |
+| 8 | `tecnico1` | Abre un mantenimiento a esa laptop y luego lo cierra | Pasa a *En Reparación* y vuelve a *Asignado* |
+| 9 | `tecnico1` | *Toma de inventario* de Sede Prueba Norte: lee la etiqueta de una sola laptop y cierra la toma | La otra queda como faltante |
+| 10 | `adminti1` | Solicita la baja por pérdida de la laptop faltante | La solicitud aparece en *Aprobaciones*, pero `adminti1` no puede aprobarla |
+| 11 | `adminti2` | La aprueba | La laptop queda en *Baja* y el kardex lo registra |
+| 12 | `auditor1` | *Trazabilidad → Verificar kardex* | La cadena está íntegra |
+| 13 | `adminti1` | *Cierre mensual* del mes anterior | Sus cifras quedan congeladas; `compras1` lo ve, pero no lo puede cerrar |
 
-## Qué validar en cada rol
+> **Antes del paso 13:** un mes cerrado no se puede reabrir, y después del primer cierre *Importar activos* deja de estar disponible. Si piensa cargar el inventario real desde Excel en esta instalación, salte ese paso hasta después de la carga.
 
-En todos: lo que el rol no puede trabajar **no aparece**. Si escribe a mano la dirección de una pantalla ajena (por ejemplo `/activos` o `/usuarios`), el sistema no se la muestra.
+## Qué validar con cada cuenta
 
-### SUPER_ADMIN (`sistema_qa`, en producción `sa`): administra el sistema
+Regla general: lo que un rol no puede trabajar **no aparece**. Para comprobarlo, escriba a mano una dirección ajena (`/activos`, `/usuarios`, `/aprobaciones`): el sistema no la muestra.
 
-- **Menú:** *Usuarios y accesos*, *Auditoría*, *Directorio y notificaciones* y *Configuración*.
-- **Hace:** crear, editar y desactivar cuentas; asignar rol, sedes o alcance global; restablecer claves; nombre, logo, idioma y correo de la empresa; Active Directory.
-- **No debe:** ver activos, costos, empleados ni ingresos. Tampoco apagar el MFA en producción.
-- **Validar:**
-  - una cuenta nueva recibe una clave temporal y debe cambiarla al entrar;
-  - un ADMIN_TI nuevo debe configurar su MFA antes de usar el sistema;
-  - desactivar una cuenta la saca de inmediato.
-
-### ADMIN_SEGURIDAD (`seguridad_qa`): vigila los accesos
-
-- **Menú:** *Usuarios y accesos* (consulta) y *Auditoría*.
-- **Hace:** revisar cuentas, sesiones y la auditoría; cerrar las sesiones de una cuenta ante un incidente.
-- **No debe:** crear ni editar cuentas, ni ver datos de negocio. Tampoco cerrar las sesiones de SUPER_ADMIN ni de otro ADMIN_SEGURIDAD.
-- **Validar:** no hay botones para editar; al cerrar las sesiones de `tecnico_qa`, este queda fuera en su siguiente acción.
-
-### ADMIN_TI (`ti1_qa`, `ti2_qa`): administra el inventario
-
-- **Menú:** todo el inventario: activos, movimientos, mantenimiento, consumibles, tomas, aprobaciones, cierre mensual, garantías, software, empleados, departamentos, catálogos, ubicaciones e importación.
-- **Hace:** catálogos, *Nuevo activo* (solo equipos sin factura), *Importar activos* (hasta el primer cierre), confirmar ingresos, aprobar lo que pidió otra persona, bajas, tomas, cerrar el mes, licencias y alta de empleado.
-- **No debe:** aprobar lo que pidió él mismo, ni administrar cuentas.
-- **Validar:**
-  - en *Aprobaciones*, lo propio no se puede aprobar;
-  - la importación desaparece después del primer cierre;
-  - las claves de licencia se ven solo al pedirlas.
-
-### TECNICO (`tecnico_qa`, `tecnico2_qa`): opera el inventario
-
-- **Menú:** *Mis tareas*, *Por completar*, *Activos*, *Escáner QR*, *Movimientos*, *Mantenimiento*, *Consumibles*, *Panel de control*, *Trazabilidad*, *Toma de inventario* e *Ingresos a bodega*.
-- **Hace:** confirmar ingresos, completar series y etiquetas, entregar, devolver y transferir, mantenimiento y lecturas de toma.
-- **No debe:** ver costos o montos en ninguna pantalla, ficha ni exporte; ver *Aprobaciones*, catálogos ni *Nuevo activo*; ver activos de otras sedes.
-- **Validar:**
-  - `tecnico2_qa` (Sede Sur) no ve las laptops de Sede Norte, ni en la lista, ni en el buscador, ni abriendo su dirección;
+- **`sa` y `sistema2`:**
+  - en *Usuarios y accesos*, desactivar `consulta1` lo saca de inmediato, y reactivarlo le permite entrar de nuevo;
+  - al restablecer la clave de `tecnico2`, él debe cambiarla al entrar;
+  - el MFA no se puede apagar;
+  - no hay menú de activos ni de empleados.
+- **`seguridad1`:**
+  - ve las cuentas y sus sesiones, pero no hay botones para editar;
+  - al cerrar las sesiones de `tecnico1`, este queda fuera en su siguiente clic;
+  - no puede cerrar las de `sa`.
+- **`adminti1` y `adminti2`:** el recorrido completo. Además, la importación de Excel desaparece después del primer cierre, y una clave de licencia solo se ve al pedirla y queda en la auditoría.
+- **`tecnico1` y `tecnico2`:**
+  - ningún costo aparece en pantallas, fichas ni exportes;
+  - `tecnico2` (Sede Sur) no ve las laptops de Sede Norte: ni en la lista, ni en el buscador, ni abriendo la dirección de su ficha;
   - el escáner funciona desde un teléfono.
-
-### COMPRAS (`compras_qa`): compras y contabilidad
-
-- **Menú:** *Mis tareas*, *Ingresos a bodega*, *Proveedores*, *Stock y asignaciones* y *Cierre mensual*.
-- **Hace:** registrar ingresos con su factura, mantener proveedores, cancelar un ingreso que TI aún no confirmó, descargar el acta, consultar valores y exportarlos.
-- **No debe:** operar el inventario (activos, movimientos, tomas) ni cerrar el mes.
-- **Validar:**
-  - un ingreso se registra con pocos clics y sin escribir dos veces lo mismo;
-  - no se puede cancelar ni cambiar un ingreso ya confirmado;
+- **`compras1`:**
+  - solo ve *Mis tareas*, *Ingresos a bodega*, *Proveedores*, *Stock y asignaciones* y *Cierre mensual*;
+  - registra un ingreso con pocos clics;
+  - no puede cambiar ni cancelar un ingreso ya confirmado;
   - los exportes abren bien en Excel.
+- **`auditor1`:**
+  - ve todo lo del recorrido, con costos, y no encuentra ningún botón para crear, editar, aprobar o borrar;
+  - en *Auditoría*, cada paso aparece con quién, cuándo y desde qué IP.
+- **`consulta1`:** ve los activos de Sede Norte, sin costos y sin datos de las personas; no hay botones de acción.
 
-### AUDITOR (`auditor_qa`): revisa sin modificar
-
-- **Menú:** activos, panel, trazabilidad, tomas, aprobaciones, cierre, auditoría, ingresos, stock, proveedores, garantías, software, empleados y departamentos, con costos.
-- **Hace:** consultar, verificar el kardex y exportar.
-- **No debe:** encontrar ningún botón para crear, editar, aprobar o borrar.
-- **Validar:** todo lo del recorrido completo aparece en *Auditoría* con quién, cuándo y desde qué IP.
-
-### CONSULTA (`consulta_qa`): solo mira
-
-- **Menú:** activos, escáner, movimientos, mantenimiento, consumibles, panel, trazabilidad, tomas e ingresos, en lectura.
-- **No debe:** ver costos, datos de personas ni otras sedes, ni modificar nada.
-- **Validar:** en la ficha de un activo asignado no aparecen los datos del custodio; no hay botones de acción.
-
-## Comunes a todos los roles
-
-- **Sesión:** clave errada varias veces, bloqueo temporal y aviso claro. Cambio de clave. Cerrar sesión. Tras 2 horas sin actividad, el sistema pide entrar de nuevo.
-- **Idiomas:** cambiar entre español, inglés e italiano, sin textos sin traducir.
-- **Teléfono:** menú, tablas y formularios usables a lo ancho del teléfono.
-- **Errores:** todo error muestra un mensaje entendible. Si no, anote el código o `request_id` que aparece.
+En todas las cuentas:
+- **Accesos:** varias claves erradas bloquean la cuenta por un tiempo, con un aviso claro.
+- **Idiomas:** cambiar entre español, inglés e italiano no deja textos sin traducir.
+- **Teléfono:** menús, tablas y formularios se usan bien a lo ancho del teléfono.
+- **Errores:** todo error muestra un mensaje entendible.
 
 ## Cómo reportar un fallo
 
-Anote **cuenta, pantalla, pasos, qué esperaba y qué pasó**, y el `request_id` si aparece. Con eso se encuentra en `docker logs inventario-api_php-1`.
+Anote **cuenta, pantalla, pasos, qué esperaba y qué pasó**, y el `request_id` si aparece en el mensaje. Con eso se encuentra en `docker logs inventario-api_php-1`.
