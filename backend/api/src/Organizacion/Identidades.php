@@ -15,6 +15,7 @@ use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Dominio\Usuario;
 use App\Http\ErrorApi;
+use App\ProfilePhoto\Domain\ProfilePhoto;
 use App\Repositorio\CredencialesRepositorio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\SesionRepositorio;
@@ -58,17 +59,34 @@ final readonly class Identidades
 
     // ---- Lectura -----------------------------------------------------------
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * Todas las cuentas en tres consultas (cuentas, personas y sedes), sin importar cuántas sean.
+     *
+     * @return list<array<string, mixed>>
+     */
     public function listar(): array
     {
-        return array_map(fn (string $id): array => (array) $this->respuesta($id),
-            array_map('strval', $this->conexion->fetchFirstColumn('SELECT "USU_Usuario" FROM "INV_USUARIO" ORDER BY "USU_Creado_En", "USU_Username"')));
+        $cuentas = $this->conexion->fetchAllAssociative('SELECT u.*, f."UFO_Fecha_Modificacion" AS "FOTO_EN" FROM "INV_USUARIO" u '
+            .'LEFT JOIN "INV_USUARIO_FOTO" f ON f."USU_Usuario" = u."USU_Usuario" ORDER BY u."USU_Creado_En", u."USU_Username"');
+        $personas = [];
+        foreach ($this->conexion->fetchAllAssociative('SELECT '.Entidades::persona()->columnasSelect().' FROM "INV_PERSONA" t '
+            .'WHERE t."PER_Persona" IN (SELECT "PER_Persona" FROM "INV_USUARIO")') as $p) {
+            $personas[(string) $p['PER_Persona']] = $p;
+        }
+        $sedes = [];
+        foreach ($this->conexion->fetchAllAssociative('SELECT us."USU_Usuario", s."SED_Sede", s."SED_Nombre" FROM "INV_SEDE" s '
+            .'JOIN "INV_USUARIO_SEDE" us ON us."SED_Sede" = s."SED_Sede" ORDER BY s."SED_Nombre"') as $s) {
+            $sedes[(string) $s['USU_Usuario']][] = $s;
+        }
+
+        return array_map(fn (array $u): array => $this->armar($u, $personas[(string) $u['PER_Persona']] ?? false, $sedes[(string) $u['USU_Usuario']] ?? []), $cuentas);
     }
 
     /** @return array<string, mixed>|null representación de la API (UsuarioResponse) */
     public function respuesta(string $idHex): ?array
     {
-        $u = $this->conexion->fetchAssociative('SELECT * FROM "INV_USUARIO" WHERE "USU_Usuario" = :id', ['id' => $idHex]);
+        $u = $this->conexion->fetchAssociative('SELECT u.*, f."UFO_Fecha_Modificacion" AS "FOTO_EN" FROM "INV_USUARIO" u '
+            .'LEFT JOIN "INV_USUARIO_FOTO" f ON f."USU_Usuario" = u."USU_Usuario" WHERE u."USU_Usuario" = :id', ['id' => $idHex]);
         if (false === $u) {
             return null;
         }
@@ -76,6 +94,19 @@ final readonly class Identidades
         $sedes = $this->conexion->fetchAllAssociative(
             'SELECT s."SED_Sede", s."SED_Nombre" FROM "INV_SEDE" s JOIN "INV_USUARIO_SEDE" us ON us."SED_Sede" = s."SED_Sede" '
             .'WHERE us."USU_Usuario" = :id ORDER BY s."SED_Nombre"', ['id' => $idHex]);
+
+        return $this->armar($u, $persona, $sedes);
+    }
+
+    /**
+     * @param array<string, mixed>             $u       fila de INV_USUARIO (con FOTO_EN)
+     * @param array<string, mixed>|false       $persona
+     * @param list<array<string, mixed>>       $sedes
+     *
+     * @return array<string, mixed>
+     */
+    private function armar(array $u, array|false $persona, array $sedes): array
+    {
         $bool = static fn (mixed $v): bool => 1 === (int) $v;
         $fecha = static fn (mixed $v): ?string => Reloj::iso(Reloj::desdeBd(null === $v ? null : (string) $v));
         $rol = (string) $u['USU_Rol'];
@@ -106,6 +137,7 @@ final readonly class Identidades
             'sedes' => array_map(static fn (array $s): array => ['SED_Sede' => (int) $s['SED_Sede'], 'SED_Nombre' => $s['SED_Nombre']], $sedes),
             'USU_Creado_En' => $fecha($u['USU_Creado_En']),
             'persona' => false === $persona ? null : Esquema::aApi(Entidades::persona(), $persona),
+            'foto_url' => ProfilePhoto::url('/api/v1/org/usuarios/'.Ident::aTexto((string) $u['USU_Usuario']).'/foto', $u['FOTO_EN'] ?? null),
         ];
     }
 

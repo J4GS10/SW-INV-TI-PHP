@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Avatar, Box, ButtonBase, Collapse, Divider, Drawer, IconButton, List, ListItem, ListItemButton,
+  Box, ButtonBase, Collapse, Divider, Drawer, IconButton, List, ListItem, ListItemButton,
   ListItemIcon, ListItemText, ListSubheader, Menu, MenuItem, Tooltip, Typography, alpha, useTheme,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
@@ -33,6 +33,9 @@ import { useWorkspace } from '../context/workspace-context';
 import { normalizeLanguage } from '../types/language';
 import { ChangePasswordDialog } from '../features/auth/ChangePasswordDialog';
 import { AccountSecurityDialog } from '../features/auth/AccountSecurityDialog';
+import { ProfilePhotoMenu } from '../features/profile/ProfilePhotoMenu';
+import { useMyPhoto } from '../features/profile/useMyPhoto';
+import { UserAvatar } from './ui/UserAvatar';
 
 export const DRAWER_WIDTH = 256;
 
@@ -95,7 +98,7 @@ export const Sidebar = ({ variant, collapsed = false, onToggleCollapse, open = f
     ? NAVIGATION_ITEMS.filter((item) => !item.hiddenInMenu && item.allowedRoles.includes(user.role))
     : [];
   const currentLanguage = normalizeLanguage(i18n.resolvedLanguage);
-  const initial = user?.sub ? user.sub.charAt(0).toUpperCase() : '?';
+  const [photoUrl, setPhotoUrl] = useMyPhoto(user?.sub);
 
   const go = (path: string) => {
     navigate(path);
@@ -286,12 +289,7 @@ export const Sidebar = ({ variant, collapsed = false, onToggleCollapse, open = f
               '&:hover': { bgcolor: 'action.hover' },
             }}
           >
-            <Avatar sx={{
-              width: 32, height: 32, fontSize: '0.875rem', fontWeight: 700,
-              bgcolor: alpha(theme.palette.primary.main, 0.15), color: 'primary.main',
-            }}>
-              {initial}
-            </Avatar>
+            <UserAvatar name={user?.sub ?? '?'} photoUrl={photoUrl} size={32} />
             {!rail && (
               <>
                 <Box sx={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
@@ -315,6 +313,13 @@ export const Sidebar = ({ variant, collapsed = false, onToggleCollapse, open = f
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         slotProps={{ paper: { sx: { minWidth: 240 } } }}
       >
+        <ProfilePhotoMenu
+          name={user?.sub ?? ''}
+          subtitle={user?.role ? t(`users.roles.${user.role}`, user.role) : ''}
+          photoUrl={photoUrl}
+          onPhotoChange={setPhotoUrl}
+          onDone={closeMenu}
+        />
         <ListSubheader sx={{ bgcolor: 'transparent', lineHeight: 2.5, typography: 'overline', fontSize: '0.68rem' }}>
           {t('common.language')}
         </ListSubheader>

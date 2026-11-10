@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import '@fontsource-variable/manrope';
 import './index.css';
-import './i18n'; 
+import { i18nReady } from './i18n';
 
 // Tras un despliegue, los chunks con hash de la versión anterior ya no
 // existen: una pestaña abierta fallaría al navegar a una página lazy. Se
@@ -25,8 +25,11 @@ window.addEventListener('load', () => {
   }, 10_000);
 });
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+// Se pinta con el idioma ya cargado (sin claves sueltas); si la descarga falla, igual arranca.
+void i18nReady.catch(() => undefined).then(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+});

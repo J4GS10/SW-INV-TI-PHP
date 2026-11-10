@@ -34,39 +34,50 @@ import {
     ADMIN_READER_ROLES, AUDIT_READER_ROLES, IAM_ROLES, INVENTORY_ADMIN_ROLES, INVENTORY_ROLES, PURCHASE_READ_ROLES,
     SOFTWARE_PAGE_ROLES, STOCK_ROLES, FINANCE_EXPORT_ROLES, WARRANTY_ROLES, DIRECTORY_ROLES, GOODS_RECEIPT_ROLES, OPERATOR_ROLES, PURCHASE_WRITE_ROLES,
 } from './utils/roles';
-// Páginas
-const LoginPage = lazy(() => import('./features/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
-const ResetPasswordPage = lazy(() => import('./features/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
-const SsoCallbackPage = lazy(() => import('./features/auth/SsoCallbackPage').then((m) => ({ default: m.SsoCallbackPage })));
-const DashboardPage = lazy(() => import('./features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
-const AssetsPage = lazy(() => import('./features/assets/AssetsPage').then((m) => ({ default: m.AssetsPage })));
-const ScannerPage = lazy(() => import('./features/scanner/ScannerPage').then((m) => ({ default: m.ScannerPage })));
-const UsersPage = lazy(() => import('./features/users/UsersPage').then((m) => ({ default: m.UsersPage })));
-const MovementsPage = lazy(() => import('./features/operations/MovementsPage').then((m) => ({ default: m.MovementsPage })));
-const SoftwarePage = lazy(() => import('./features/software/SoftwarePage').then((m) => ({ default: m.SoftwarePage })));
-const ConsumablesPage = lazy(() => import('./features/consumables/ConsumablesPage').then((m) => ({ default: m.ConsumablesPage })));
-const ProvidersPage = lazy(() => import('./features/procurement/ProvidersPage').then((m) => ({ default: m.ProvidersPage })));
-const GoodsReceiptsPage = lazy(() => import('./features/goods-receipts/GoodsReceiptsPage').then((m) => ({ default: m.GoodsReceiptsPage })));
-const GoodsReceiptFormPage = lazy(() => import('./features/goods-receipts/GoodsReceiptFormPage').then((m) => ({ default: m.GoodsReceiptFormPage })));
-const GoodsReceiptDetailPage = lazy(() => import('./features/goods-receipts/GoodsReceiptDetailPage').then((m) => ({ default: m.GoodsReceiptDetailPage })));
-const PendingUnitsPage = lazy(() => import('./features/goods-receipts/PendingUnitsPage').then((m) => ({ default: m.PendingUnitsPage })));
-const StockReportPage = lazy(() => import('./features/reports/StockReportPage').then((m) => ({ default: m.StockReportPage })));
-const WarrantiesPage = lazy(() => import('./features/procurement/WarrantiesPage').then((m) => ({ default: m.WarrantiesPage })));
-const MaintenancePage = lazy(() => import('./features/maintenance/MaintenancePage').then((m) => ({ default: m.MaintenancePage })));
-const ConfigPage = lazy(() => import('./features/config/ConfigPage').then((m) => ({ default: m.ConfigPage })));
-const PersonsPage = lazy(() => import('./features/persons/PersonsPage').then((m) => ({ default: m.PersonsPage })));
-const DepartmentsPage = lazy(() => import('./features/departments/DepartmentsPage').then((m) => ({ default: m.DepartmentsPage })));
-const DirectoryPage = lazy(() => import('./features/directory/DirectoryPage').then((m) => ({ default: m.DirectoryPage })));
-const SecurityGate = lazy(() => import('./features/auth/security/SecurityGate').then((m) => ({ default: m.SecurityGate })));
-const TrazabilidadPage = lazy(() => import('./features/traceability/TrazabilidadPage').then((m) => ({ default: m.TrazabilidadPage })));
-const TomasPage = lazy(() => import('./features/inventory-count/TomasPage').then((m) => ({ default: m.TomasPage })));
-const CierreMensualPage = lazy(() => import('./features/accounting/CierreMensualPage').then((m) => ({ default: m.CierreMensualPage })));
-const AprobacionesPage = lazy(() => import('./features/approvals/AprobacionesPage').then((m) => ({ default: m.AprobacionesPage })));
-const AuditPage = lazy(() => import('./features/audit/AuditPage').then((m) => ({ default: m.AuditPage })));
-const OnboardingPage = lazy(() => import('./features/onboarding/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
-const CatalogCenterPage = lazy(() => import('./features/catalogs/center/CatalogCenterPage').then((m) => ({ default: m.CatalogCenterPage })));
-const PersonFilePage = lazy(() => import('./features/persons/PersonFilePage').then((m) => ({ default: m.PersonFilePage })));
-const ImportAssetsPage = lazy(() => import('./features/import/ImportAssetsPage').then((m) => ({ default: m.ImportAssetsPage })));
+// Páginas: cada una en su fragmento. Con la sesión abierta se descargan todas en segundo plano,
+// así abrir cualquier pantalla no espera la red.
+const pageLoaders: Array<() => Promise<unknown>> = [];
+const page: typeof lazy = (load) => {
+    pageLoaders.push(load);
+    return lazy(load);
+};
+const prefetchPages = () => {
+    const run = () => pageLoaders.forEach((load) => { load().catch(() => undefined); });
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(run, { timeout: 3000 });
+    else setTimeout(run, 1500);
+};
+const LoginPage = page(() => import('./features/auth/LoginPage').then((m) => ({ default: m.LoginPage })));
+const ResetPasswordPage = page(() => import('./features/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })));
+const SsoCallbackPage = page(() => import('./features/auth/SsoCallbackPage').then((m) => ({ default: m.SsoCallbackPage })));
+const DashboardPage = page(() => import('./features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const AssetsPage = page(() => import('./features/assets/AssetsPage').then((m) => ({ default: m.AssetsPage })));
+const ScannerPage = page(() => import('./features/scanner/ScannerPage').then((m) => ({ default: m.ScannerPage })));
+const UsersPage = page(() => import('./features/users/UsersPage').then((m) => ({ default: m.UsersPage })));
+const MovementsPage = page(() => import('./features/operations/MovementsPage').then((m) => ({ default: m.MovementsPage })));
+const SoftwarePage = page(() => import('./features/software/SoftwarePage').then((m) => ({ default: m.SoftwarePage })));
+const ConsumablesPage = page(() => import('./features/consumables/ConsumablesPage').then((m) => ({ default: m.ConsumablesPage })));
+const ProvidersPage = page(() => import('./features/procurement/ProvidersPage').then((m) => ({ default: m.ProvidersPage })));
+const GoodsReceiptsPage = page(() => import('./features/goods-receipts/GoodsReceiptsPage').then((m) => ({ default: m.GoodsReceiptsPage })));
+const GoodsReceiptFormPage = page(() => import('./features/goods-receipts/GoodsReceiptFormPage').then((m) => ({ default: m.GoodsReceiptFormPage })));
+const GoodsReceiptDetailPage = page(() => import('./features/goods-receipts/GoodsReceiptDetailPage').then((m) => ({ default: m.GoodsReceiptDetailPage })));
+const PendingUnitsPage = page(() => import('./features/goods-receipts/PendingUnitsPage').then((m) => ({ default: m.PendingUnitsPage })));
+const StockReportPage = page(() => import('./features/reports/StockReportPage').then((m) => ({ default: m.StockReportPage })));
+const WarrantiesPage = page(() => import('./features/procurement/WarrantiesPage').then((m) => ({ default: m.WarrantiesPage })));
+const MaintenancePage = page(() => import('./features/maintenance/MaintenancePage').then((m) => ({ default: m.MaintenancePage })));
+const ConfigPage = page(() => import('./features/config/ConfigPage').then((m) => ({ default: m.ConfigPage })));
+const PersonsPage = page(() => import('./features/persons/PersonsPage').then((m) => ({ default: m.PersonsPage })));
+const DepartmentsPage = page(() => import('./features/departments/DepartmentsPage').then((m) => ({ default: m.DepartmentsPage })));
+const DirectoryPage = page(() => import('./features/directory/DirectoryPage').then((m) => ({ default: m.DirectoryPage })));
+const SecurityGate = page(() => import('./features/auth/security/SecurityGate').then((m) => ({ default: m.SecurityGate })));
+const TrazabilidadPage = page(() => import('./features/traceability/TrazabilidadPage').then((m) => ({ default: m.TrazabilidadPage })));
+const TomasPage = page(() => import('./features/inventory-count/TomasPage').then((m) => ({ default: m.TomasPage })));
+const CierreMensualPage = page(() => import('./features/accounting/CierreMensualPage').then((m) => ({ default: m.CierreMensualPage })));
+const AprobacionesPage = page(() => import('./features/approvals/AprobacionesPage').then((m) => ({ default: m.AprobacionesPage })));
+const AuditPage = page(() => import('./features/audit/AuditPage').then((m) => ({ default: m.AuditPage })));
+const OnboardingPage = page(() => import('./features/onboarding/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
+const CatalogCenterPage = page(() => import('./features/catalogs/center/CatalogCenterPage').then((m) => ({ default: m.CatalogCenterPage })));
+const PersonFilePage = page(() => import('./features/persons/PersonFilePage').then((m) => ({ default: m.PersonFilePage })));
+const ImportAssetsPage = page(() => import('./features/import/ImportAssetsPage').then((m) => ({ default: m.ImportAssetsPage })));
 const PageFallback = () => (<Box role="status" aria-live="polite" sx={{
         display: 'flex',
         alignItems: 'center',
@@ -111,6 +122,7 @@ const DashboardLayout = () => {
     const { t } = useTranslation();
     const { config } = useConfig();
     const { isAuthenticated, isLoading, restriction } = useAuth();
+    useEffect(() => { if (isAuthenticated) prefetchPages(); }, [isAuthenticated]);
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
     const [mobileOpen, setMobileOpen] = useState(false);

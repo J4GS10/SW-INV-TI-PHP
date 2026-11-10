@@ -18,6 +18,8 @@ use App\Http\Entrada;
 use App\Http\ErrorApi;
 use App\Http\ErrorValidacion;
 use App\Http\Limite;
+use App\ProfilePhoto\Domain\ProfilePhoto;
+use App\ProfilePhoto\Infrastructure\ProfilePhotoRepository;
 use App\Repositorio\CredencialesRepositorio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\SesionRepositorio;
@@ -63,6 +65,7 @@ final readonly class LoginController
         private CacheAuth $cache,
         private Ajustes $ajustes,
         private TrustedDevices $equipos,
+        private ProfilePhotoRepository $fotos,
     ) {
     }
 
@@ -474,6 +477,7 @@ final readonly class LoginController
             'active' => $u->activo,
             'person_id' => Ident::aTexto($u->personaId),
             'scope' => ['global' => $u->esGlobal(), 'sedes' => $u->sedes],
+            'foto_url' => ProfilePhoto::url('/api/v1/me/foto', $this->fotos->updatedAt($u->id)),
         ]);
     }
 

@@ -1,9 +1,6 @@
-import i18n from 'i18next';
+import i18n, { type BackendModule, type ResourceKey } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
-import en from './locales/en.json';
-import es from './locales/es.json';
-import it from './locales/it.json';
 import { normalizeLanguage, SUPPORTED_LANGUAGES, type SupportedLanguage } from './types/language';
 
 function initialLanguage(): SupportedLanguage {
@@ -14,22 +11,37 @@ function initialLanguage(): SupportedLanguage {
   }
 }
 
-i18n
+/** Only the language in use is downloaded (each one is ~200 KB); the others come when chosen. */
+const bundles: Record<SupportedLanguage, () => Promise<{ default: ResourceKey }>> = {
+  es: () => import('./locales/es.json'),
+  en: () => import('./locales/en.json'),
+  it: () => import('./locales/it.json'),
+};
+
+const lazyLocales: BackendModule = {
+  type: 'backend',
+  init: () => undefined,
+  read: (language, _namespace, callback) => {
+    const load = bundles[normalizeLanguage(language)];
+    load().then((bundle) => callback(null, bundle.default), (error: Error) => callback(error, false));
+  },
+};
+
+/** Resolves once the first language is loaded: the app renders after it, never with bare keys. */
+export const i18nReady = i18n
+  .use(lazyLocales)
   .use(initReactI18next)
   .init({
-    resources: {
-      es: { translation: es },
-      en: { translation: en },
-      it: { translation: it },
-    },
     lng: initialLanguage(),
     fallbackLng: 'es',
     supportedLngs: [...SUPPORTED_LANGUAGES],
     nonExplicitSupportedLngs: true,
+    load: 'languageOnly',
     returnNull: false,
     interpolation: {
       escapeValue: false,
     },
+    react: { useSuspense: false },
   });
 
 i18n.on('languageChanged', (language) => {

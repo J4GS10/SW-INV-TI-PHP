@@ -55,6 +55,13 @@ exigir_salud() {
   exit 1
 }
 
+# Tras reiniciar, cada proceso de la API abre su conexión a Oracle en la primera petición (~1 s):
+# se hace aquí, en paralelo, para que la primera persona que entra no la espere.
+calentar() {
+  "${stack[@]}" exec -T api_php sh -c 'for i in 1 2 3 4 5 6 7 8; do php -r "@file_get_contents(\"http://127.0.0.1:8000/health/full\");" & done; wait' >/dev/null 2>&1 || true
+  echo "API en caliente: conexiones a la base abiertas."
+}
+
 # Respaldo Data Pump inmediato con el servicio de respaldos en marcha, verificado por su log.
 respaldar() {
   local salida
@@ -95,6 +102,7 @@ case "${1:-subir}" in
     "${stack[@]}" logs --no-log-prefix migrador | tail -12
     humo
     exigir_salud
+    calentar
     ;;
   estado)
     "${stack[@]}" ps

@@ -11,3 +11,4 @@ export { MoneyField } from './MoneyField';
 export { KardexTimeline } from './KardexTimeline';
 export { PageTabs } from './PageTabs';
 export type { PageTab } from './PageTabs';
+export { UserAvatar } from './UserAvatar';

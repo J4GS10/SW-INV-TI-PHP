@@ -58,6 +58,8 @@ export interface UsuarioSistema {
   mfa_exento_motivo?: string | null;
   /** Alcance global otorgado (solo lo concede un SUPER_ADMIN). */
   USU_Alcance_Global?: boolean;
+  /** Dirección de la foto de perfil en la API; null si la cuenta no tiene. */
+  foto_url?: string | null;
   /** Ve todas las sedes: por rol de gobierno o por alcance global. */
   alcance_global_efectivo?: boolean;
   sedes?: { SED_Sede: number; SED_Nombre: string }[];

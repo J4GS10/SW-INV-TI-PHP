@@ -2148,7 +2148,9 @@
         "MFA_NOT_REQUIRED_FOR_ROLE": "Questo ruolo non richiede la verifica in due passaggi.",
         "TRUSTED_DEVICE_NOT_FOUND": "Quel dispositivo non è più ricordato.",
         "MFA_SKIP_ALREADY_USED": "Ha già saltato la verifica in due passaggi una volta: ora deve configurarla.",
-        "MFA_SKIP_NOT_AVAILABLE": "Questo account non può saltare la verifica in due passaggi."
+        "MFA_SKIP_NOT_AVAILABLE": "Questo account non può saltare la verifica in due passaggi.",
+        "PHOTO_MUST_BE_AN_IMAGE": "La foto deve essere un'immagine JPG, PNG, WebP o GIF.",
+        "PHOTO_NOT_FOUND": "Questo account non ha una foto profilo."
     },
     "catalog": {
         "states": {
@@ -3780,5 +3782,13 @@
             "description": "I tipi (laptop, monitor…) definiscono le specifiche richieste da ogni asset.",
             "action": "Crea tipo"
         }
+    },
+    "profile": {
+        "add_photo": "Aggiungi foto profilo",
+        "change_photo": "Cambia foto profilo",
+        "remove_photo": "Rimuovi foto",
+        "photo_saved": "Foto profilo aggiornata.",
+        "photo_removed": "Foto profilo rimossa.",
+        "photo_too_large": "La foto supera i 5 MB. Scegli un'immagine più leggera."
     }
 }

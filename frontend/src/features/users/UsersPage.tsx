@@ -18,7 +18,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useSnackbar } from 'notistack';
 import { useTranslation } from 'react-i18next';
 import { SearchInput } from '../../components/SearchInput';
-import { PageHeader, DataTableShell, PageTabs, StatusChip } from '../../components/ui';
+import { PageHeader, DataTableShell, PageTabs, StatusChip, UserAvatar } from '../../components/ui';
 import { usePageTab } from '../../hooks/usePageTab';
 import { CollapsibleToolbar } from '../../components/CollapsibleToolbar';
 import { useConfirm } from '../../components/confirm-context';
@@ -347,13 +347,18 @@ export const UsersPage = () => {
         renderRow={(u) => (
           <TableRow key={u.USU_Usuario} hover>
             <TableCell>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="body2" fontWeight={700}>{fullName(u)}</Typography>
-                {isSelf(u) && <Chip size="small" label={t('users.table.you')} sx={{ height: 20 }} />}
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <UserAvatar name={fullName(u)} photoUrl={u.foto_url} size={36} />
+                <Box sx={{ minWidth: 0 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="body2" fontWeight={700}>{fullName(u)}</Typography>
+                    {isSelf(u) && <Chip size="small" label={t('users.table.you')} sx={{ height: 20 }} />}
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    {[u.USU_Username, u.persona?.PER_Email_Corporativo].filter(Boolean).join(' · ')}
+                  </Typography>
+                </Box>
               </Stack>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                {[u.USU_Username, u.persona?.PER_Email_Corporativo].filter(Boolean).join(' · ')}
-              </Typography>
             </TableCell>
             <TableCell>
               <Chip size="small" label={t(`users.roles.${u.USU_Rol}`, u.USU_Rol)} color={roleChipColor(u.USU_Rol)} />

@@ -2,7 +2,7 @@ import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } fro
 
 import { isSessionRestriction } from '../types/auth';
 
-import { apiCache } from './cache';
+import { apiCache, GET_TTL_MS } from './cache';
 import { CLIENT_ID } from './liveUpdates';
 import { refreshAccessToken } from './refresh';
 import { sessionEvents } from './sessionEvents';
@@ -18,6 +18,29 @@ const client = axios.create({
   // Envía la cookie HttpOnly del refresh token (rtk) en login/refresh/logout.
   withCredentials: true,
 });
+
+// =========================================================================
+// LECTURAS EN CACHÉ: volver a una pantalla muestra sus datos al instante.
+// Toda escritura y todo aviso en vivo vacían la caché (ver cache.ts). Quedan
+// fuera la sesión (/me, /login) y las descargas (archivos, imágenes).
+// =========================================================================
+const sendRequest = axios.getAdapter(client.defaults.adapter);
+const cacheable = (config: InternalAxiosRequestConfig): boolean => {
+  if ((config.method ?? 'get').toLowerCase() !== 'get') return false;
+  if (config.responseType && config.responseType !== 'json') return false;
+  // Una lectura que se puede cancelar (búsqueda mientras se escribe) no se comparte.
+  if (config.signal) return false;
+  const url = config.url ?? '';
+  return !/^\/?(me|login)(\/|\?|$)/.test(url);
+};
+client.defaults.adapter = (config) => {
+  if (!cacheable(config)) return sendRequest(config);
+  // La clave lleva el token: otra cuenta en la misma pestaña nunca ve lo que leyó la anterior.
+  const key = `GET ${client.getUri(config)} ${String(config.headers.Authorization ?? '')}`;
+  return apiCache.get(key, () => sendRequest(config), GET_TTL_MS)
+    // Cada pantalla recibe su propia copia: si la modifica, no altera la guardada.
+    .then((response) => ({ ...response, config, data: structuredClone(response.data) }));
+};
 
 // =========================================================================
 // REQUEST: inyectar Authorization

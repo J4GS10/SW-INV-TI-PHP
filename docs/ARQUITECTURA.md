@@ -201,6 +201,7 @@ Lo que cambia una persona lo ven las demás al instante, sin recargar la página
 - **En el navegador:** cada pantalla que carga datos usa `useLiveRefresh(cargar)` o `useLiveTick()`. Varios avisos seguidos causan una sola recarga; en una pestaña oculta, la recarga espera a que vuelva a verse. Un formulario con cambios sin guardar no se pisa. Tras un corte de conexión, todas las pantallas recargan una vez.
 - **Si el hub falla:** la escritura no se afecta (se registra `realtime.publish_failed`). El chequeo de sesión cada 30 s sigue funcionando como respaldo.
 - **Clave:** `MERCURE_JWT_SECRET` en `deploy/.env` (la crea `generar_env.sh`).
+- **Lecturas en memoria:** el navegador guarda hasta 60 s cada lectura de la API (`frontend/src/api/cache.ts`), así volver a una pantalla es instantáneo. Toda escritura propia y todo aviso en vivo la vacían, de modo que nunca se muestra un dato viejo después de un cambio. No se guardan `/me`, `/login` ni las descargas.
 
 ### Correo (SMTP o Microsoft Graph)
 
@@ -374,7 +375,7 @@ erDiagram
 | Software | `INV_SOFTWARE`, `INV_LICENCIA`, `INV_LICENCIA_CLAVE` | Cupos, claves y cuentas |
 | Control | `INV_KARDEX`, `INV_KARDEX_SELLO`, `INV_APROBACION`, `INV_AUDITORIA_SISTEMA`, `TRC_MONTH_END_CLOSE` | Historial, aprobaciones, auditoría, cierres |
 | Tomas | `INV_TOMA_INVENTARIO`, `INV_TOMA_LECTURA`, `INV_FALTANTE` | Conteo físico |
-| Sistema | `INV_USUARIO`, `SYS_SESION`, `SYS_EMAIL_OUTBOX`, `SYS_CONFIGURACION`, `SYS_IDEMPOTENCY_KEY`, `SYS_OPERATIONAL_ALERT` | Cuentas y operación |
+| Sistema | `INV_USUARIO`, `INV_USUARIO_FOTO`, `SYS_SESION`, `SYS_EMAIL_OUTBOX`, `SYS_CONFIGURACION`, `SYS_IDEMPOTENCY_KEY`, `SYS_OPERATIONAL_ALERT` | Cuentas y operación |
 
 `INV_ORDEN_COMPRA` y `INV_RECEPCION` siguen en la base, vacías y sin uso, porque se retiró ese módulo (ver [pendientes](PENDIENTES.md)).
 

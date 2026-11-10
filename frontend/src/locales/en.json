@@ -2148,7 +2148,9 @@
         "MFA_NOT_REQUIRED_FOR_ROLE": "This role does not require two-step verification.",
         "TRUSTED_DEVICE_NOT_FOUND": "That device is no longer remembered.",
         "MFA_SKIP_ALREADY_USED": "You already skipped two-step verification once: now you must set it up.",
-        "MFA_SKIP_NOT_AVAILABLE": "This account cannot skip two-step verification."
+        "MFA_SKIP_NOT_AVAILABLE": "This account cannot skip two-step verification.",
+        "PHOTO_MUST_BE_AN_IMAGE": "The photo must be a JPG, PNG, WebP or GIF image.",
+        "PHOTO_NOT_FOUND": "This account has no profile photo."
     },
     "catalog": {
         "states": {
@@ -3780,5 +3782,13 @@
             "description": "Types (laptop, monitor…) define which specifications each asset requires.",
             "action": "Create type"
         }
+    },
+    "profile": {
+        "add_photo": "Add profile photo",
+        "change_photo": "Change profile photo",
+        "remove_photo": "Remove photo",
+        "photo_saved": "Profile photo updated.",
+        "photo_removed": "Profile photo removed.",
+        "photo_too_large": "The photo is larger than 5 MB. Choose a lighter image."
     }
 }

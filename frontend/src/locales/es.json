@@ -2148,7 +2148,9 @@
         "MFA_NOT_REQUIRED_FOR_ROLE": "Este rol no requiere verificación en dos pasos.",
         "TRUSTED_DEVICE_NOT_FOUND": "Ese equipo ya no está recordado.",
         "MFA_SKIP_ALREADY_USED": "Ya omitió la verificación en dos pasos una vez: ahora debe configurarla.",
-        "MFA_SKIP_NOT_AVAILABLE": "Esta cuenta no puede omitir la verificación en dos pasos."
+        "MFA_SKIP_NOT_AVAILABLE": "Esta cuenta no puede omitir la verificación en dos pasos.",
+        "PHOTO_MUST_BE_AN_IMAGE": "La foto debe ser una imagen JPG, PNG, WebP o GIF.",
+        "PHOTO_NOT_FOUND": "Esta cuenta no tiene foto de perfil."
     },
     "catalog": {
         "states": {
@@ -3780,5 +3782,13 @@
             "description": "Los tipos (laptop, monitor…) definen qué especificaciones pide cada activo.",
             "action": "Crear tipo"
         }
+    },
+    "profile": {
+        "add_photo": "Agregar foto de perfil",
+        "change_photo": "Cambiar foto de perfil",
+        "remove_photo": "Quitar foto",
+        "photo_saved": "Foto de perfil actualizada.",
+        "photo_removed": "Foto de perfil quitada.",
+        "photo_too_large": "La foto supera los 5 MB. Elige una imagen más liviana."
     }
 }
