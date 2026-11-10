@@ -1222,6 +1222,9 @@
             "revoke": "Remove the MFA exemption",
             "revoke_confirm": "{{name}} will have to set up MFA at the next sign-in. Continue?",
             "revoked": "The MFA exemption of {{name}} was removed."
+        },
+        "tabs": {
+            "accounts": "Accounts"
         }
     },
     "config": {
@@ -2367,7 +2370,15 @@
         "show_all_other": "Show all {{count}} sessions",
         "show_less": "Show less",
         "other": "Other",
-        "unknown": "Unknown"
+        "unknown": "Unknown",
+        "search_placeholder": "Search by user, device or IP…",
+        "close_for": "Sign out {{user}} on {{device}}",
+        "table": {
+            "device": "Device",
+            "method": "Method",
+            "last_activity": "Last activity",
+            "ip": "IP"
+        }
     },
     "password_violations": {
         "too_common": "The password is too common.",

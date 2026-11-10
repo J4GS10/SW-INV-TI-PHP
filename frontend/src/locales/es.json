@@ -1222,6 +1222,9 @@
             "revoke": "Quitar la excepción del MFA",
             "revoke_confirm": "{{name}} deberá configurar el MFA en su próximo ingreso. ¿Continuar?",
             "revoked": "Se quitó la excepción del MFA de {{name}}."
+        },
+        "tabs": {
+            "accounts": "Cuentas"
         }
     },
     "config": {
@@ -2367,7 +2370,15 @@
         "show_all_other": "Ver las {{count}} sesiones",
         "show_less": "Ver menos",
         "other": "Otro",
-        "unknown": "Desconocido"
+        "unknown": "Desconocido",
+        "search_placeholder": "Buscar por usuario, dispositivo o IP…",
+        "close_for": "Cerrar la sesión de {{user}} en {{device}}",
+        "table": {
+            "device": "Dispositivo",
+            "method": "Método",
+            "last_activity": "Última actividad",
+            "ip": "IP"
+        }
     },
     "password_violations": {
         "too_common": "Es una contraseña demasiado común.",

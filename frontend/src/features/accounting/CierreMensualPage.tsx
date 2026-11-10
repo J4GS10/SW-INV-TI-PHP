@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Box, Button, Card, CardContent, Grid, MenuItem, Skeleton, Stack, Table, TableBody, TableCell, TableHead,
-  TableRow, TextField, Typography, Chip, alpha, useTheme, type Theme,
-} from '@mui/material';
+import { Box, Button, Chip, MenuItem, Skeleton, Stack, TableCell, TableRow, TextField } from '@mui/material';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
-import { PageHeader } from '../../components/ui';
+import { DataTableShell, PageHeader, PageTabs } from '../../components/ui';
+import { usePageTab } from '../../hooks/usePageTab';
 import { inventarioService } from '../../api/inventarioService';
 import { getApiErrorMessage } from '../../api/errors';
 import { useSedes } from '../../hooks/useSedes';
@@ -25,21 +23,8 @@ interface Cierre {
   mantenimiento: Fila[];
 }
 
-/** Shadow on the side that still has columns to scroll to: it fades as the table reaches that edge. */
-const scrollHintSx = (theme: Theme) => {
-  const paper = theme.palette.background.paper;
-  const shadow = alpha(theme.palette.text.primary, 0.28);
-  return {
-    overflowX: 'auto',
-    '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 2 },
-    background: [
-      `linear-gradient(to right, ${paper} 40%, ${alpha(paper, 0)}) left center / 40px 100% no-repeat local`,
-      `linear-gradient(to left, ${paper} 40%, ${alpha(paper, 0)}) right center / 40px 100% no-repeat local`,
-      `radial-gradient(farthest-side at 0 50%, ${shadow}, transparent) left center / 14px 100% no-repeat scroll`,
-      `radial-gradient(farthest-side at 100% 50%, ${shadow}, transparent) right center / 14px 100% no-repeat scroll`,
-    ].join(', '),
-  };
-};
+const VISTAS = ['activos', 'altas', 'bajas', 'consumibles', 'mantenimiento', 'licencias'] as const;
+type Vista = (typeof VISTAS)[number];
 
 /**
  * Cierre mensual para Contabilidad: valor del inventario al inicio y al cierre
@@ -48,7 +33,6 @@ const scrollHintSx = (theme: Theme) => {
  */
 export const CierreMensualPage = () => {
   const { t, i18n } = useTranslation();
-  const theme = useTheme();
   const confirm = useConfirm();
   const { enqueueSnackbar } = useSnackbar();
   const { sedes } = useSedes();
@@ -58,6 +42,7 @@ export const CierreMensualPage = () => {
   const [mes, setMes] = useState(hoy.getMonth() + 1);
   const [sede, setSede] = useState<number | ''>('');
   const [datos, setDatos] = useState<Cierre | null>(null);
+  const [vista, setVista] = usePageTab(VISTAS);
   const [cargando, setCargando] = useState(true);
 
   const cargar = useCallback(async () => {
@@ -97,33 +82,49 @@ export const CierreMensualPage = () => {
   const exportar = () => inventarioService.cierreMensualXlsx(anio, mes, sede === '' ? undefined : sede, normalizeLanguage(i18n.language))
     .catch((err) => enqueueSnackbar(getApiErrorMessage(err, t('common.error_generic')), { variant: 'error' }));
 
-  const tabla = (titulo: string, columnas: { k: string; label: string; dinero?: boolean; derecha?: boolean; fecha?: boolean }[], filas: Fila[]) => (
-    <Card variant="outlined">
-      <CardContent>
-        <Typography variant="subtitle1" gutterBottom>{titulo}</Typography>
-        {filas.length === 0 ? <Typography variant="body2" color="text.secondary">{t('month_end.empty')}</Typography> : (
-          <Box tabIndex={0} role="region" aria-label={titulo} sx={scrollHintSx(theme)}>
-            <Table size="small" sx={{ '& th, & td': { px: 1 } }}>
-              <TableHead>
-                <TableRow>{columnas.map((c) => <TableCell key={c.k} align={c.dinero || c.derecha ? 'right' : 'left'} sx={{ verticalAlign: 'bottom', lineHeight: 1.25 }}>{c.label}</TableCell>)}</TableRow>
-              </TableHead>
-              <TableBody>
-                {filas.map((f, i) => (
-                  <TableRow key={i}>
-                    {columnas.map((c) => (
-                      <TableCell key={c.k} align={c.dinero || c.derecha ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap' }}>
-                        {c.dinero ? dinero(f[c.k], f.moneda) : c.fecha ? formatDate(f[c.k] == null ? null : String(f[c.k]), i18n.language) : (f[c.k] ?? '—')}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  );
+  type Columna = { k: string; label: string; dinero?: boolean; derecha?: boolean; fecha?: boolean };
+  const tablas: Record<Vista, { columnas: Columna[]; filas: Fila[] }> | null = datos && {
+    activos: { filas: datos.activos, columnas: [
+      { k: 'sede', label: t('inventory_count.site') }, { k: 'moneda', label: t('month_end.currency') },
+      { k: 'inicial_cantidad', label: t('month_end.opening_qty'), derecha: true }, { k: 'inicial_valor', label: t('month_end.opening'), dinero: true },
+      { k: 'altas_cantidad', label: t('month_end.additions_qty'), derecha: true }, { k: 'altas_valor', label: t('month_end.additions'), dinero: true },
+      { k: 'bajas_cantidad', label: t('month_end.disposals_qty'), derecha: true }, { k: 'bajas_valor', label: t('month_end.disposals'), dinero: true },
+      { k: 'final_cantidad', label: t('month_end.closing_qty'), derecha: true }, { k: 'final_valor', label: t('month_end.closing'), dinero: true },
+      { k: 'final_sin_costo', label: t('month_end.no_cost'), derecha: true },
+    ] },
+    altas: { filas: datos.altas, columnas: [
+      { k: 'codigo', label: t('assets.table.code') }, { k: 'tipo', label: t('assets.table.type') },
+      { k: 'fecha_compra', label: t('assets.dialog.purchase_date'), fecha: true }, { k: 'factura', label: t('month_end.invoice') },
+      { k: 'costo', label: t('assets.dialog.cost'), dinero: true },
+    ] },
+    bajas: { filas: datos.bajas, columnas: [
+      { k: 'codigo', label: t('assets.table.code') }, { k: 'tipo', label: t('assets.table.type') },
+      { k: 'fecha_baja', label: t('month_end.disposal_date'), fecha: true }, { k: 'motivo_baja', label: t('decommission.reason') },
+      { k: 'costo', label: t('assets.dialog.cost'), dinero: true },
+    ] },
+    consumibles: { filas: datos.consumibles, columnas: [
+      { k: 'nombre', label: t('consumables.field_name') }, { k: 'sede', label: t('inventory_count.site') },
+      { k: 'inicial_cantidad', label: t('month_end.opening_qty'), derecha: true }, { k: 'inicial_valor', label: t('month_end.opening'), dinero: true },
+      { k: 'entradas_cantidad', label: t('month_end.in_qty'), derecha: true }, { k: 'entradas_valor', label: t('month_end.in_value'), dinero: true },
+      { k: 'salidas_cantidad', label: t('month_end.out_qty'), derecha: true }, { k: 'salidas_valor', label: t('month_end.out_value'), dinero: true },
+      { k: 'ajustes_cantidad', label: t('month_end.adjustments'), derecha: true },
+      { k: 'final_cantidad', label: t('month_end.closing_qty'), derecha: true }, { k: 'final_valor', label: t('month_end.closing'), dinero: true },
+    ] },
+    mantenimiento: { filas: datos.mantenimiento, columnas: [
+      { k: 'sede', label: t('inventory_count.site') }, { k: 'tickets', label: t('month_end.tickets'), derecha: true },
+      { k: 'valor', label: t('month_end.value'), dinero: true },
+    ] },
+    licencias: { filas: datos.licencias, columnas: [
+      { k: 'software', label: t('software.col_software') }, { k: 'cantidad', label: t('month_end.quantity'), derecha: true },
+      { k: 'vencimiento', label: t('month_end.expiry'), fecha: true }, { k: 'costo', label: t('assets.dialog.cost'), dinero: true },
+    ] },
+  };
+  const titulos: Record<Vista, string> = {
+    activos: t('month_end.assets'), altas: t('month_end.additions_detail'), bajas: t('month_end.disposals_detail'),
+    consumibles: t('month_end.consumables'), mantenimiento: t('month_end.maintenance'), licencias: t('month_end.licenses'),
+  };
+  const actual = tablas?.[vista];
+  const aLaDerecha = (c: Columna) => !!(c.dinero || c.derecha);
 
   const meses = Array.from({ length: 12 }, (_, i) => i + 1);
   return (
@@ -145,43 +146,26 @@ export const CierreMensualPage = () => {
           {sedes.map((s) => <MenuItem key={s.SED_Sede} value={s.SED_Sede}>{s.SED_Nombre}</MenuItem>)}
         </TextField>
       </Stack>
-      {cargando || !datos ? <Stack spacing={2}>{[0, 1, 2].map((i) => <Skeleton key={i} variant="rounded" height={160}/>)}</Stack> : (
-        <Grid container spacing={2}>
-          <Grid size={12}>{tabla(t('month_end.assets'), [
-            { k: 'sede', label: t('inventory_count.site') }, { k: 'moneda', label: t('month_end.currency') },
-            { k: 'inicial_cantidad', label: t('month_end.opening_qty'), derecha: true }, { k: 'inicial_valor', label: t('month_end.opening'), dinero: true },
-            { k: 'altas_cantidad', label: t('month_end.additions_qty'), derecha: true }, { k: 'altas_valor', label: t('month_end.additions'), dinero: true },
-            { k: 'bajas_cantidad', label: t('month_end.disposals_qty'), derecha: true }, { k: 'bajas_valor', label: t('month_end.disposals'), dinero: true },
-            { k: 'final_cantidad', label: t('month_end.closing_qty'), derecha: true }, { k: 'final_valor', label: t('month_end.closing'), dinero: true },
-            { k: 'final_sin_costo', label: t('month_end.no_cost'), derecha: true },
-          ], datos.activos)}</Grid>
-          <Grid size={{ xs: 12, md: 6 }}>{tabla(t('month_end.additions_detail'), [
-            { k: 'codigo', label: t('assets.table.code') }, { k: 'tipo', label: t('assets.table.type') },
-            { k: 'fecha_compra', label: t('assets.dialog.purchase_date'), fecha: true }, { k: 'factura', label: t('month_end.invoice') },
-            { k: 'costo', label: t('assets.dialog.cost'), dinero: true },
-          ], datos.altas)}</Grid>
-          <Grid size={{ xs: 12, md: 6 }}>{tabla(t('month_end.disposals_detail'), [
-            { k: 'codigo', label: t('assets.table.code') }, { k: 'tipo', label: t('assets.table.type') },
-            { k: 'fecha_baja', label: t('month_end.disposal_date'), fecha: true }, { k: 'motivo_baja', label: t('decommission.reason') },
-            { k: 'costo', label: t('assets.dialog.cost'), dinero: true },
-          ], datos.bajas)}</Grid>
-          <Grid size={12}>{tabla(t('month_end.consumables'), [
-            { k: 'nombre', label: t('consumables.field_name') }, { k: 'sede', label: t('inventory_count.site') },
-            { k: 'inicial_cantidad', label: t('month_end.opening_qty'), derecha: true }, { k: 'inicial_valor', label: t('month_end.opening'), dinero: true },
-            { k: 'entradas_cantidad', label: t('month_end.in_qty'), derecha: true }, { k: 'entradas_valor', label: t('month_end.in_value'), dinero: true },
-            { k: 'salidas_cantidad', label: t('month_end.out_qty'), derecha: true }, { k: 'salidas_valor', label: t('month_end.out_value'), dinero: true },
-            { k: 'ajustes_cantidad', label: t('month_end.adjustments'), derecha: true },
-            { k: 'final_cantidad', label: t('month_end.closing_qty'), derecha: true }, { k: 'final_valor', label: t('month_end.closing'), dinero: true },
-          ], datos.consumibles)}</Grid>
-          <Grid size={{ xs: 12, md: 6 }}>{tabla(t('month_end.maintenance'), [
-            { k: 'sede', label: t('inventory_count.site') }, { k: 'tickets', label: t('month_end.tickets'), derecha: true },
-            { k: 'valor', label: t('month_end.value'), dinero: true },
-          ], datos.mantenimiento)}</Grid>
-          <Grid size={12}>{tabla(t('month_end.licenses'), [
-            { k: 'software', label: t('software.col_software') }, { k: 'cantidad', label: t('month_end.quantity'), derecha: true },
-            { k: 'vencimiento', label: t('month_end.expiry'), fecha: true }, { k: 'costo', label: t('assets.dialog.cost'), dinero: true },
-          ], datos.licencias)}</Grid>
-        </Grid>
+      <PageTabs
+        value={vista}
+        onChange={setVista}
+        tabs={VISTAS.map((v) => ({ value: v, label: titulos[v], count: tablas?.[v].filas.length }))}
+      />
+      {cargando || !actual ? <Skeleton variant="rounded" height={240}/> : (
+        <DataTableShell
+          columns={actual.columnas.map((c) => ({ key: c.k, label: c.label, align: aLaDerecha(c) ? 'right' as const : 'left' as const }))}
+          rows={actual.filas}
+          emptyTitle={t('month_end.empty')}
+          renderRow={(f, i) => (
+            <TableRow key={i} hover>
+              {actual.columnas.map((c) => (
+                <TableCell key={c.k} align={aLaDerecha(c) ? 'right' : 'left'} sx={aLaDerecha(c) ? { fontVariantNumeric: 'tabular-nums' } : undefined}>
+                  {c.dinero ? dinero(f[c.k], f.moneda) : c.fecha ? formatDate(f[c.k] == null ? null : String(f[c.k]), i18n.language) : (f[c.k] ?? '—')}
+                </TableCell>
+              ))}
+            </TableRow>
+          )}
+        />
       )}
     </Box>
   );

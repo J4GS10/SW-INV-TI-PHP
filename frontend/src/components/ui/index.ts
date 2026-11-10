@@ -9,3 +9,5 @@ export { SuggestionHint, ContextCaption } from './SuggestionHint';
 export { SedeField } from './SedeField';
 export { MoneyField } from './MoneyField';
 export { KardexTimeline } from './KardexTimeline';
+export { PageTabs } from './PageTabs';
+export type { PageTab } from './PageTabs';

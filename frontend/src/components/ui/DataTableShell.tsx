@@ -66,6 +66,8 @@ interface DataTableShellProps<T> {
 }
 
 const SKELETON_ROWS = 6;
+/** Columnas de botones: en el teléfono van al final de la tarjeta, sin nombre. */
+const ACTION_KEYS = new Set(['actions', 'acciones', 'acc']);
 /** Rows per page for lists paged in the browser: short by default, remembered per viewer. */
 const PAGE_SIZE_KEY = 'inv_filas_por_pagina';
 const DEFAULT_PAGE_SIZE = 10;
@@ -152,7 +154,8 @@ export const DataTableShell = <T,>({
   columns.forEach((col, i) => {
     const selector = `& tbody td:nth-of-type(${i + 1})`;
     if (hiddenColumns?.has(col.key)) phoneCards[selector] = { display: 'none' };
-    else if (col.align === 'right') phoneCards[selector] = { justifyContent: 'flex-end' };
+    // Acciones: botones al final de la tarjeta, sin etiqueta. Un dato alineado a la derecha sí lleva su nombre.
+    else if (col.align === 'right' && ACTION_KEYS.has(col.key)) phoneCards[selector] = { justifyContent: 'flex-end' };
     else if (typeof col.label === 'string' && col.label) {
       phoneCards[`${selector}::before`] = {
         content: JSON.stringify(col.label),

@@ -4,6 +4,7 @@ import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import { useTranslation } from 'react-i18next';
 
 import type { SesionActiva } from '../../../types/users';
+import { deviceLabel, isMobile } from './sessionDevice';
 
 interface Props {
   sessions: SesionActiva[];
@@ -13,16 +14,6 @@ interface Props {
   /** Muestra el titular de cada sesión (panel de administración). */
   showOwner?: boolean;
 }
-
-const isMobile = (device: string | null) => !!device && /Android|iOS/.test(device);
-
-/** El backend describe el dispositivo como "Navegador · Sistema"; se traducen las partes genéricas. */
-const deviceLabel = (device: string | null, t: (key: string) => string) => {
-  if (!device) return t('sessions.unknown_device');
-  return device.split(' · ')
-    .map((part) => (part === 'Otro' ? t('sessions.other') : part === 'Desconocido' ? t('sessions.unknown') : part))
-    .join(' · ');
-};
 
 const formatDateTime = (value: string | null, locale: string) => {
   if (!value) return '—';

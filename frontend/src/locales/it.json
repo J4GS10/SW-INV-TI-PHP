@@ -1222,6 +1222,9 @@
             "revoke": "Rimuovi l'esonero dalla MFA",
             "revoke_confirm": "{{name}} dovrà configurare la MFA al prossimo accesso. Continuare?",
             "revoked": "L'esonero dalla MFA di {{name}} è stato rimosso."
+        },
+        "tabs": {
+            "accounts": "Account"
         }
     },
     "config": {
@@ -2367,7 +2370,15 @@
         "show_all_other": "Mostra tutte le {{count}} sessioni",
         "show_less": "Mostra meno",
         "other": "Altro",
-        "unknown": "Sconosciuto"
+        "unknown": "Sconosciuto",
+        "search_placeholder": "Cerca per utente, dispositivo o IP…",
+        "close_for": "Chiudi la sessione di {{user}} su {{device}}",
+        "table": {
+            "device": "Dispositivo",
+            "method": "Metodo",
+            "last_activity": "Ultima attività",
+            "ip": "IP"
+        }
     },
     "password_violations": {
         "too_common": "La password è troppo comune.",

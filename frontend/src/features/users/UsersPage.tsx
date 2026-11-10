@@ -18,7 +18,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useSnackbar } from 'notistack';
 import { useTranslation } from 'react-i18next';
 import { SearchInput } from '../../components/SearchInput';
-import { PageHeader, DataTableShell, StatusChip } from '../../components/ui';
+import { PageHeader, DataTableShell, PageTabs, StatusChip } from '../../components/ui';
+import { usePageTab } from '../../hooks/usePageTab';
 import { CollapsibleToolbar } from '../../components/CollapsibleToolbar';
 import { useConfirm } from '../../components/confirm-context';
 import { useAuth } from '../../context/auth-context';
@@ -29,7 +30,7 @@ import { formatDateTime, formatRelativeDate, formatTimeOrDateTime, parseApiDate 
 import { ALL_ROLES, canManageRole, roleChipColor } from '../../utils/roles';
 import { userService } from './userService';
 import { UserDialog } from './UserDialog';
-import { SecurityOverview } from './SecurityOverview';
+import { SecurityOverview, SecurityPolicy } from './SecurityOverview';
 import { ActiveSessionsPanel } from './ActiveSessionsPanel';
 import { TemporaryPasswordDialog } from './TemporaryPasswordDialog';
 import { MfaExemptionDialog } from './MfaExemptionDialog';
@@ -37,6 +38,7 @@ import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 type MfaFilter = '' | 'enabled' | 'pending' | 'none';
 type StatusFilter = '' | 'active' | 'inactive';
+const VIEWS = ['cuentas', 'sesiones', 'politica'] as const;
 
 const fullName = (u: UsuarioSistema) => (u.persona
   ? [u.persona.PER_Primer_Nombre, u.persona.PER_Primer_Apellido].filter(Boolean).join(' ')
@@ -72,6 +74,7 @@ export const UsersPage = () => {
   const [menu, setMenu] = useState<{ anchor: HTMLElement; row: UsuarioSistema } | null>(null);
   const [tempPassword, setTempPassword] = useState<{ value: string; name: string } | null>(null);
   const [exemptUser, setExemptUser] = useState<{ id: string; name: string } | null>(null);
+  const [view, setView] = usePageTab(VIEWS);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -242,7 +245,6 @@ export const UsersPage = () => {
       <PageHeader
         title={t('users.title')}
         subtitle={t('users.subtitle')}
-        badge={filtered.length}
         actions={(
           <>
             <Tooltip title={t('users.refresh')}>
@@ -261,12 +263,27 @@ export const UsersPage = () => {
         )}
       />
 
-      <SecurityOverview summary={summary} loading={loading} />
+      <SecurityOverview
+        summary={summary}
+        loading={loading}
+        onShowSessions={() => setView('sesiones')}
+        onShowMfaPending={() => { setMfaFilter('pending'); setView('cuentas'); }}
+      />
 
-      <Box sx={{ mb: 2 }}>
-        <ActiveSessionsPanel refreshKey={summary?.sesiones_activas} />
-      </Box>
+      <PageTabs
+        value={view}
+        onChange={setView}
+        tabs={[
+          { value: 'cuentas', label: t('users.tabs.accounts'), count: usuarios.length },
+          { value: 'sesiones', label: t('sessions.panel_title'), count: summary?.sesiones_activas },
+          { value: 'politica', label: t('users.policy.title') },
+        ]}
+      />
 
+      {view === 'sesiones' && <ActiveSessionsPanel refreshKey={summary?.sesiones_activas} />}
+      {view === 'politica' && summary && <SecurityPolicy summary={summary} />}
+
+      {view === 'cuentas' && (<>
       <CollapsibleToolbar
         storageKey="users"
         search={<SearchInput value={search} onChange={setSearch} placeholder={t('users.search_placeholder')} />}
@@ -357,6 +374,7 @@ export const UsersPage = () => {
           </TableRow>
         )}
       />
+      </>)}
 
       <Menu
         anchorEl={menu?.anchor}

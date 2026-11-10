@@ -15,6 +15,10 @@ import type { ResumenSeguridad } from '../../types/users';
 interface Props {
   summary: ResumenSeguridad | null;
   loading: boolean;
+  /** Abre la pestaña de sesiones. */
+  onShowSessions?: () => void;
+  /** Filtra las cuentas con MFA obligatoria pendiente. */
+  onShowMfaPending?: () => void;
 }
 
 const PolicyItem = ({ label, children }: { label: string; children: ReactNode }) => (
@@ -24,26 +28,19 @@ const PolicyItem = ({ label, children }: { label: string; children: ReactNode })
   </Box>
 );
 
-/** Indicadores de seguridad y política vigente (solo lectura, definida en el servidor). */
-export const SecurityOverview = ({ summary, loading }: Props) => {
+/** Indicadores de seguridad de las cuentas; los de sesiones y MFA pendiente llevan a su detalle. */
+export const SecurityOverview = ({ summary, loading, onShowSessions, onShowMfaPending }: Props) => {
   const { t } = useTranslation();
 
   if (loading && !summary) {
     return (
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' }, gap: 2, mb: 2 }}>
-        {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} variant="rounded" height={88} />)}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)', lg: 'repeat(7, 1fr)' }, gap: 2, mb: 2 }}>
+        {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} variant="rounded" height={104} />)}
       </Box>
     );
   }
   if (!summary) return null;
 
-  const p = summary.politica;
-  const requirements = [
-    p.password_mayuscula && t('users.policy.upper'),
-    p.password_minuscula && t('users.policy.lower'),
-    p.password_digito && t('users.policy.digit'),
-    p.password_simbolo && t('users.policy.symbol'),
-  ].filter(Boolean).join(' · ');
   const totalActive = summary.usuarios_activos;
 
   return (
@@ -69,6 +66,7 @@ export const SecurityOverview = ({ summary, loading }: Props) => {
           icon={GppMaybeIcon}
           tone={summary.mfa_pendiente_obligatorio > 0 ? 'warning' : 'success'}
           subtitle={t('users.kpi.mfa_pending_detail')}
+          onClick={summary.mfa_pendiente_obligatorio > 0 ? onShowMfaPending : undefined}
         />
         <KpiCard
           title={t('users.kpi.locked')}
@@ -90,6 +88,7 @@ export const SecurityOverview = ({ summary, loading }: Props) => {
           icon={DevicesIcon}
           tone="info"
           subtitle={t('users.kpi.sessions_detail')}
+          onClick={onShowSessions}
         />
         <KpiCard
           title={t('users.kpi.no_scope')}
@@ -105,7 +104,22 @@ export const SecurityOverview = ({ summary, loading }: Props) => {
         </Typography>
       )}
 
-      <Box sx={{ mb: 2 }}>
+    </>
+  );
+};
+
+/** Política de seguridad vigente (solo lectura, definida en el servidor). */
+export const SecurityPolicy = ({ summary }: { summary: ResumenSeguridad }) => {
+  const { t } = useTranslation();
+  const p = summary.politica;
+  const requirements = [
+    p.password_mayuscula && t('users.policy.upper'),
+    p.password_minuscula && t('users.policy.lower'),
+    p.password_digito && t('users.policy.digit'),
+    p.password_simbolo && t('users.policy.symbol'),
+  ].filter(Boolean).join(' · ');
+
+  return (
         <SectionCard title={t('users.policy.title')} subtitle={t('users.policy.subtitle')} icon={<PolicyIcon fontSize="small" />}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
             <PolicyItem label={t('users.policy.passwords')}>
@@ -166,7 +180,5 @@ export const SecurityOverview = ({ summary, loading }: Props) => {
             </PolicyItem>
           </Box>
         </SectionCard>
-      </Box>
-    </>
   );
 };

@@ -1,43 +1,58 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Button, Stack } from '@mui/material';
-import DevicesIcon from '@mui/icons-material/Devices';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Box, Chip, IconButton, Stack, TableCell, TableRow, Tooltip, Typography } from '@mui/material';
+import ComputerIcon from '@mui/icons-material/Computer';
+import LogoutIcon from '@mui/icons-material/Logout';
+import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 
 import { getApiErrorMessage } from '../../api/errors';
 import { useConfirm } from '../../components/confirm-context';
-import { SectionCard } from '../../components/ui';
+import { SearchInput } from '../../components/SearchInput';
+import { DataTableShell } from '../../components/ui';
 import type { SesionActiva } from '../../types/users';
-import { SessionsList } from '../auth/security/SessionsList';
+import { formatDateTime, formatRelativeDate, parseApiDate } from '../../utils/dates';
+import { deviceLabel, isMobile } from '../auth/security/sessionDevice';
 import { userService } from './userService';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
-const PREVIEW = 8;
-
-/** Sesiones activas de todas las cuentas; cierre individual según la jerarquía de roles. */
+/** Sesiones activas de todas las cuentas, en una tabla paginada; cierre individual según la jerarquía de roles. */
 export const ActiveSessionsPanel = ({ refreshKey }: { refreshKey?: number }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language;
   const { enqueueSnackbar } = useSnackbar();
   const confirm = useConfirm();
   const [sessions, setSessions] = useState<SesionActiva[]>([]);
-  const [showAll, setShowAll] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       setSessions(await userService.getActiveSessions());
+      setError(false);
     } catch {
-      setSessions([]);
+      setError(true);
+    } finally {
+      setLoading(false);
     }
   }, []);
   useLiveRefresh(load);
 
   useEffect(() => { void load(); }, [load, refreshKey]);
 
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return sessions;
+    return sessions.filter((s) => [s.nombre, s.username, deviceLabel(s.dispositivo, t), s.ip]
+      .filter(Boolean).join(' ').toLowerCase().includes(term));
+  }, [sessions, search, t]);
+
   const close = async (session: SesionActiva) => {
     if (!(await confirm({
       message: t('sessions.close_other_confirm', {
-        device: session.dispositivo?.replace(/Otro|Desconocido/g, (w) => (w === 'Otro' ? t('sessions.other') : t('sessions.unknown'))) ?? t('sessions.unknown_device'),
+        device: deviceLabel(session.dispositivo, t),
         user: session.nombre ?? session.username ?? '',
       }),
       confirmText: t('sessions.close'),
@@ -48,28 +63,83 @@ export const ActiveSessionsPanel = ({ refreshKey }: { refreshKey?: number }) => 
       await userService.closeSession(session.usuario_id, session.id);
       enqueueSnackbar(t('sessions.closed'), { variant: 'success' });
       await load();
-    } catch (error) {
-      enqueueSnackbar(getApiErrorMessage(error, t('common.error_generic')), { variant: 'error' });
+    } catch (err) {
+      enqueueSnackbar(getApiErrorMessage(err, t('common.error_generic')), { variant: 'error' });
     } finally {
       setBusyId(null);
     }
   };
 
-  const visible = showAll ? sessions : sessions.slice(0, PREVIEW);
+  const now = new Date();
+  const lastActivity = (s: SesionActiva) => parseApiDate(s.ultima_actividad)?.getTime() ?? 0;
+
   return (
-    <SectionCard
-      title={t('sessions.panel_title')}
-      subtitle={t('sessions.panel_subtitle', { count: sessions.length })}
-      icon={<DevicesIcon fontSize="small" />}
-    >
-      <Stack spacing={1.5}>
-        <SessionsList sessions={visible} onCloseSession={close} busyId={busyId} showOwner />
-        {sessions.length > PREVIEW && (
-          <Button size="small" onClick={() => setShowAll((v) => !v)} sx={{ alignSelf: 'flex-start' }}>
-            {showAll ? t('sessions.show_less') : t('sessions.show_all', { count: sessions.length })}
-          </Button>
-        )}
-      </Stack>
-    </SectionCard>
+    <DataTableShell
+      toolbar={<SearchInput value={search} onChange={setSearch} placeholder={t('sessions.search_placeholder')} />}
+      columns={[
+        { key: 'user', label: t('users.table.user'), sortValue: (s) => s.nombre ?? s.username ?? '' },
+        { key: 'device', label: t('sessions.table.device'), sortValue: (s) => deviceLabel(s.dispositivo, t) },
+        { key: 'method', label: t('sessions.table.method') },
+        { key: 'activity', label: t('sessions.table.last_activity'), sortValue: lastActivity },
+        { key: 'ip', label: t('sessions.table.ip') },
+        { key: 'actions', label: '', align: 'right' },
+      ]}
+      rows={filtered}
+      loading={loading}
+      error={error}
+      onRetry={() => void load()}
+      emptyTitle={sessions.length > 0 ? t('users.empty_filtered') : t('sessions.empty')}
+      renderRow={(s) => {
+        const Icon = isMobile(s.dispositivo) ? PhoneIphoneIcon : ComputerIcon;
+        const date = parseApiDate(s.ultima_actividad);
+        return (
+          <TableRow key={s.id} hover selected={s.actual}>
+            <TableCell>
+              <Typography variant="body2" fontWeight={600}>{s.nombre ?? s.username}</Typography>
+              {s.nombre && s.username && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{s.username}</Typography>
+              )}
+            </TableCell>
+            <TableCell>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Box sx={{ display: 'flex', color: 'text.secondary' }}><Icon fontSize="small" /></Box>
+                <Typography variant="body2">{deviceLabel(s.dispositivo, t)}</Typography>
+                {s.actual && <Chip size="small" color="primary" label={t('sessions.current')} sx={{ height: 20 }} />}
+              </Stack>
+            </TableCell>
+            <TableCell>
+              <Chip size="small" variant="outlined" label={t(`sessions.method.${s.metodo}`)} sx={{ height: 22 }} />
+            </TableCell>
+            <TableCell>
+              {date ? (
+                <Tooltip title={formatDateTime(date, locale)}>
+                  <Typography variant="body2" color="text.secondary" component="span">{formatRelativeDate(date, locale, now)}</Typography>
+                </Tooltip>
+              ) : '—'}
+            </TableCell>
+            <TableCell>
+              <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>{s.ip ?? '—'}</Typography>
+            </TableCell>
+            <TableCell align="right">
+              {!s.actual && s.gestionable !== false && (
+                <Tooltip title={t('sessions.close')}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => void close(s)}
+                      disabled={busyId === s.id}
+                      aria-label={t('sessions.close_for', { user: s.nombre ?? s.username ?? '', device: deviceLabel(s.dispositivo, t) })}
+                    >
+                      <LogoutIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
+            </TableCell>
+          </TableRow>
+        );
+      }}
+    />
   );
 };
