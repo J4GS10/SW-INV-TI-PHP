@@ -74,14 +74,20 @@ final readonly class CatalogosController
             $sub = Entrada::de(\is_array($item) ? $item : []);
             [, $tes] = $sub->campo(Campo::entero('TES_Tipo_Especificacion', true), true);
             [, $obligatoria] = $sub->campo(Campo::logico('obligatoria'), false);
-            $valores = $sub->lista('valores', 50) ?? [];
+            // Valores permitidos: textos de hasta 255 caracteres (lo que guarda la tabla), nunca listas ni números.
+            $valores = $sub->textos('valores', 50) ?? [];
+            foreach ($valores as $j => $v) {
+                if (mb_strlen(trim($v)) > 255) {
+                    $sub->errorDeTipo('string_too_long', "valores.{$j}", 'String should have at most 255 characters', mb_substr($v, 0, 100), ['max_length' => 255]);
+                }
+            }
             try {
                 $sub->validar();
             } catch (\App\Http\ErrorValidacion $e) {
                 throw new \App\Http\ErrorValidacion(array_map(static fn (array $x): array => [...$x, 'loc' => ['body', 'items', $i, ...\array_slice($x['loc'], 1)]], $e->errores));
             }
             $items[] = ['TES_Tipo_Especificacion' => (int) $tes, 'obligatoria' => (bool) $obligatoria,
-                'valores' => array_values(array_filter(array_map(static fn ($v): string => trim((string) $v), $valores), static fn (string $v): bool => '' !== $v))];
+                'valores' => array_values(array_filter(array_map(trim(...), $valores), static fn (string $v): bool => '' !== $v))];
         }
         $entrada->validar();
         if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $tipo])) {

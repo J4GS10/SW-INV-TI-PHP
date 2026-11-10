@@ -13,6 +13,7 @@ use App\GoodsReceipt\Domain\GoodsReceiptStatus;
 use App\GoodsReceipt\Domain\SpecificationValue;
 use App\GoodsReceipt\Infrastructure\GoodsReceiptRepository;
 use App\Http\ErrorApi;
+use App\Http\ErrorValidacion;
 use App\Inventario\Activos;
 use App\Inventario\EstadosActivo;
 use App\Inventario\Kardex;
@@ -157,11 +158,8 @@ final readonly class GoodsReceiptService
 
                 return $this->present($id);
             }
-            $reason = trim((string) ($input['difference_reason'] ?? ''));
-            if ('' === $reason) {
-                throw new ErrorApi(400, 'GOODS_RECEIPT_DIFFERENCE_REQUIRES_REASON');
-            }
-            $reason = mb_substr($reason, 0, 500);
+            $reason = self::optionalText($input['difference_reason'] ?? null, 500, 'difference_reason')
+                ?? throw new ErrorApi(400, 'GOODS_RECEIPT_DIFFERENCE_REQUIRES_REASON');
             $approval = $this->approvals->crear('RECEPCION_DIFERENCIA', ['goods_receipt' => $id, 'differences' => $differences], $user,
                 "Ingreso {$receipt['GRC_CODE']}: diferencia en lo recibido", $reason, sede: (int) $receipt['GRC_SED_SITE'], ip: $ip);
             $this->receipts->updateHeader($id, ['GRC_STATUS' => GoodsReceiptStatus::PendingApproval->value, 'GRC_DIFFERENCE_REASON' => $reason, 'GRC_APR_APPROVAL' => $approval]);
@@ -214,7 +212,7 @@ final readonly class GoodsReceiptService
             if ($this->serialExists($serial, $asset)) {
                 throw new ErrorApi(409, 'SERIAL_NUMBER_ALREADY_EXISTS');
             }
-            $hostname = self::optionalText($input['hostname'] ?? null, 100);
+            $hostname = self::optionalText($input['hostname'] ?? null, 100, 'hostname');
             if (null !== $hostname && $this->hostnameExists($hostname, $asset)) {
                 throw new ErrorApi(409, 'HOSTNAME_ALREADY_EXISTS');
             }
@@ -435,11 +433,14 @@ final readonly class GoodsReceiptService
      */
     private function validHeader(array $input): array
     {
-        $supplier = (int) ($input['supplier_id'] ?? 0);
+        $supplier = self::integer($input['supplier_id'] ?? null) ?? 0;
         if (false === $this->connection->fetchOne('SELECT 1 FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :p AND "PRV_Activo" = 1', ['p' => $supplier])) {
             throw new ErrorApi(404, 'SUPPLIER_NOT_FOUND');
         }
-        $date = (string) ($input['received_date'] ?? $this->today());
+        $date = $input['received_date'] ?? $this->today();
+        if (!\is_string($date)) {
+            throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_DATE');
+        }
         $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
         if (false === $parsed || $parsed->format('Y-m-d') !== $date) {
             throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_DATE');
@@ -447,13 +448,13 @@ final readonly class GoodsReceiptService
         if ($date > $this->today()) {
             throw new ErrorApi(400, 'GOODS_RECEIPT_DATE_IN_THE_FUTURE');
         }
-        $currency = (string) ($input['currency'] ?? 'GTQ');
+        $currency = $input['currency'] ?? 'GTQ';
         if (!\in_array($currency, self::CURRENCIES, true)) {
             throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_CURRENCY');
         }
 
         return ['supplier_id' => $supplier, 'document_number' => self::requiredText($input['document_number'] ?? null, 60, 'GOODS_RECEIPT_REQUIRES_DOCUMENT'), 'received_date' => $date,
-            'site_id' => isset($input['site_id']) ? (int) $input['site_id'] : null, 'currency' => $currency, 'notes' => self::optionalText($input['notes'] ?? null, 500)];
+            'site_id' => self::optionalId($input['site_id'] ?? null, 'site_id'), 'currency' => $currency, 'notes' => self::optionalText($input['notes'] ?? null, 500, 'notes')];
     }
 
     /** @return list<array{item: string, quantity: int, cost: string, warranty: ?int}> */
@@ -464,18 +465,23 @@ final readonly class GoodsReceiptService
         }
         $valid = [];
         foreach (array_values($lines) as $line) {
-            $quantity = filter_var($line['quantity'] ?? null, \FILTER_VALIDATE_INT);
-            $cost = (string) ($line['unit_cost'] ?? '');
+            if (!\is_array($line)) {
+                throw new ErrorApi(400, 'GOODS_RECEIPT_REQUIRES_LINES');
+            }
+            $quantity = self::integer($line['quantity'] ?? null);
+            $cost = $line['unit_cost'] ?? '';
+            $cost = \is_int($cost) ? (string) $cost : $cost;
             $warranty = $line['warranty_months'] ?? null;
-            if (false === $quantity || $quantity <= 0) {
+            if (null === $quantity || $quantity <= 0) {
                 throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_QUANTITY');
             }
-            if (1 !== preg_match('/^\d{1,12}(\.\d{1,2})?$/', $cost)) {
+            if (!\is_string($cost) || 1 !== preg_match('/^\d{1,12}(\.\d{1,2})?$/', $cost)) {
                 throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_COST');
             }
-            if (null !== $warranty && (false === filter_var($warranty, \FILTER_VALIDATE_INT) || (int) $warranty < 0 || (int) $warranty > 600)) {
+            if (null !== $warranty && '' !== $warranty && (null === ($warranty = self::integer($warranty)) || $warranty > 600)) {
                 throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_WARRANTY');
             }
+            $warranty = '' === $warranty ? null : $warranty;
             $valid[] = ['item' => self::requiredText($line['item_text'] ?? null, 255, 'GOODS_RECEIPT_LINE_REQUIRES_ITEM'), 'quantity' => $quantity, 'cost' => $cost, 'warranty' => null === $warranty ? null : (int) $warranty];
         }
 
@@ -496,14 +502,17 @@ final readonly class GoodsReceiptService
     {
         $byId = [];
         foreach (\is_array($input) ? $input : [] as $line) {
-            $byId[(int) ($line['id'] ?? 0)] = $line;
+            if (!\is_array($line) || null === ($lineId = self::integer($line['id'] ?? null))) {
+                throw new ErrorApi(400, 'GOODS_RECEIPT_ALL_LINES_REQUIRED');
+            }
+            $byId[$lineId] = $line;
         }
         $differences = [];
         foreach ($this->receipts->lines($id) as $line) {
             $lineId = (int) $line['GRL_GOODS_RECEIPT_LINE'];
             $given = $byId[$lineId] ?? throw new ErrorApi(400, 'GOODS_RECEIPT_ALL_LINES_REQUIRED');
-            $received = filter_var($given['received_quantity'] ?? null, \FILTER_VALIDATE_INT);
-            if (false === $received || $received < 0) {
+            $received = self::integer($given['received_quantity'] ?? null);
+            if (null === $received) {
                 throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_QUANTITY');
             }
             $this->receipts->updateLine($lineId, [...$this->classification($given), 'GRL_QUANTITY_RECEIVED' => $received, 'GRL_USU_CLASSIFIED_BY' => $user]);
@@ -522,8 +531,8 @@ final readonly class GoodsReceiptService
      */
     private function classification(array $given): array
     {
-        $type = (string) ($given['line_type'] ?? '');
-        if (!\in_array($type, self::LINE_TYPES, true)) {
+        $type = $given['line_type'] ?? '';
+        if (!\is_string($type) || !\in_array($type, self::LINE_TYPES, true)) {
             throw new ErrorApi(400, 'GOODS_RECEIPT_LINE_REQUIRES_CLASSIFICATION');
         }
         $empty = ['GRL_LINE_TYPE' => $type, 'GRL_TAC_ASSET_TYPE' => null, 'GRL_MOD_MODEL' => null, 'GRL_CON_CONSUMABLE' => null, 'GRL_CONSUMABLE_NAME' => null, 'GRL_CONSUMABLE_UNIT' => null,
@@ -532,8 +541,8 @@ final readonly class GoodsReceiptService
         return match ($type) {
             'ASSET' => [...$empty, ...$this->assetClassification($given)],
             'CONSUMABLE' => [...$empty, ...$this->consumableClassification($given)],
-            'LICENSE' => [...$empty, 'GRL_SOF_SOFTWARE' => (int) ($given['software_id'] ?? 0) ?: throw new ErrorApi(400, 'GOODS_RECEIPT_LINE_REQUIRES_SOFTWARE'),
-                'GRL_TLI_LICENSE_TYPE' => isset($given['license_type_id']) ? (int) $given['license_type_id'] : null],
+            'LICENSE' => [...$empty, 'GRL_SOF_SOFTWARE' => self::integer($given['software_id'] ?? null) ?: throw new ErrorApi(400, 'GOODS_RECEIPT_LINE_REQUIRES_SOFTWARE'),
+                'GRL_TLI_LICENSE_TYPE' => self::optionalId($given['license_type_id'] ?? null, 'lines.license_type_id')],
             default => $empty,
         };
     }
@@ -545,8 +554,8 @@ final readonly class GoodsReceiptService
      */
     private function assetClassification(array $given): array
     {
-        $assetType = (int) ($given['asset_type_id'] ?? 0);
-        $model = (int) ($given['model_id'] ?? 0);
+        $assetType = self::integer($given['asset_type_id'] ?? null) ?? 0;
+        $model = self::integer($given['model_id'] ?? null) ?? 0;
         if (0 === $assetType || 0 === $model) {
             throw new ErrorApi(400, 'GOODS_RECEIPT_LINE_REQUIRES_MODEL');
         }
@@ -562,13 +571,13 @@ final readonly class GoodsReceiptService
      */
     private function consumableClassification(array $given): array
     {
-        $existing = isset($given['consumable_id']) ? (int) $given['consumable_id'] : null;
-        $name = self::optionalText($given['consumable_name'] ?? null, 100);
+        $existing = self::optionalId($given['consumable_id'] ?? null, 'lines.consumable_id');
+        $name = self::optionalText($given['consumable_name'] ?? null, 100, 'lines.consumable_name');
         if (null === $existing && null === $name) {
             throw new ErrorApi(400, 'GOODS_RECEIPT_LINE_REQUIRES_CONSUMABLE');
         }
 
-        return ['GRL_CON_CONSUMABLE' => $existing, 'GRL_CONSUMABLE_NAME' => $name, 'GRL_CONSUMABLE_UNIT' => self::optionalText($given['unit'] ?? null, 20) ?? 'unidad'];
+        return ['GRL_CON_CONSUMABLE' => $existing, 'GRL_CONSUMABLE_NAME' => $name, 'GRL_CONSUMABLE_UNIT' => self::optionalText($given['unit'] ?? null, 20, 'lines.unit') ?? 'unidad'];
     }
 
     private function enterInventory(int $id, string $user, ?string $ip, ?int $approval): void
@@ -707,7 +716,12 @@ final readonly class GoodsReceiptService
     {
         $values = [];
         foreach (\is_array($given) ? $given : [] as $spec) {
-            $values[(int) ($spec['type_id'] ?? 0)] = (string) ($spec['value'] ?? '');
+            $type = \is_array($spec) ? self::integer($spec['type_id'] ?? null) : null;
+            $value = \is_array($spec) ? ($spec['value'] ?? '') : null;
+            if (null === $type || !(\is_string($value) || \is_int($value) || \is_float($value)) || mb_strlen((string) $value) > 255) {
+                throw self::invalid('specifications', $spec);
+            }
+            $values[$type] = (string) $value;
         }
         $missing = [];
         foreach ($this->receipts->specificationsFor((int) $asset['TAC_Tipo_Activo'], (int) $asset['MOD_Modelo'], $id) as $spec) {
@@ -790,10 +804,44 @@ final readonly class GoodsReceiptService
         return $text;
     }
 
-    private static function optionalText(mixed $value, int $max): ?string
+    /** Texto opcional: null o vacío = sin valor; otro tipo o más largo que `$max` = 422 (nunca se recorta en silencio). */
+    private static function optionalText(mixed $value, int $max, string $field = 'text'): ?string
     {
-        $text = \is_string($value) ? trim($value) : '';
+        if (null === $value) {
+            return null;
+        }
+        if (!\is_string($value) || mb_strlen(trim($value)) > $max) {
+            throw self::invalid($field, $value);
+        }
+        $text = trim($value);
 
-        return '' === $text ? null : mb_substr($text, 0, $max);
+        return '' === $text ? null : $text;
+    }
+
+    /** Entero no negativo (número entero o texto de dígitos); cualquier otra cosa = null. */
+    private static function integer(mixed $value): ?int
+    {
+        return match (true) {
+            \is_int($value) => $value >= 0 ? $value : null,
+            \is_string($value) && 1 === preg_match('/^\d{1,18}$/', trim($value)) => (int) trim($value),
+            default => null,
+        };
+    }
+
+    /** Identificador opcional: null = sin valor; si viene, entero positivo o 422. */
+    private static function optionalId(mixed $value, string $field): ?int
+    {
+        if (null === $value) {
+            return null;
+        }
+        $id = self::integer($value);
+
+        return null === $id || 0 === $id ? throw self::invalid($field, $value) : $id;
+    }
+
+    private static function invalid(string $field, mixed $value): ErrorValidacion
+    {
+        return new ErrorValidacion([['type' => 'value_error', 'loc' => ['body', ...explode('.', $field)], 'msg' => 'Value error, INVALID_PARAMETER_VALUE',
+            'input' => \is_string($value) && \strlen($value) > 100 ? mb_substr($value, 0, 100).'…' : $value, 'ctx' => ['error' => 'INVALID_PARAMETER_VALUE']]]);
     }
 }

@@ -31,10 +31,48 @@ final class Entrada
     {
     }
 
+    /** Caracteres de control (salvo tabulador y saltos de línea): nadie los escribe en un formulario. */
+    private const string CONTROL = '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/';
+
     /** Parámetros de la URL (?a=1&b=2). Los valores llegan como texto. */
     public static function consulta(Request $request): self
     {
-        return new self($request->query->all(), 'query');
+        $datos = $request->query->all();
+        self::exigirTextoLimpio($datos, 'query');
+
+        return new self($datos, 'query');
+    }
+
+    /**
+     * 422 si algún texto (a cualquier profundidad) trae caracteres de control o no es UTF-8:
+     * se guardarían invisibles y romperían búsquedas, exportes y comparaciones.
+     *
+     * @param array<array-key, mixed> $datos
+     */
+    public static function exigirTextoLimpio(array $datos, string $ubicacion = 'body'): void
+    {
+        $errores = [];
+        self::buscarControl($datos, [$ubicacion], $errores);
+        if ([] !== $errores) {
+            throw new ErrorValidacion($errores);
+        }
+    }
+
+    /**
+     * @param array<array-key, mixed>    $datos
+     * @param list<string|int>           $loc
+     * @param list<array<string, mixed>> $errores
+     */
+    private static function buscarControl(array $datos, array $loc, array &$errores): void
+    {
+        foreach ($datos as $k => $v) {
+            if (\is_string($v) && (!mb_check_encoding($v, 'UTF-8') || 1 === preg_match(self::CONTROL, $v))) {
+                $errores[] = ['type' => 'string_pattern_mismatch', 'loc' => [...$loc, $k], 'msg' => 'String should not contain control characters',
+                    'input' => mb_scrub((string) preg_replace(self::CONTROL, '?', $v), 'UTF-8')];
+            } elseif (\is_array($v)) {
+                self::buscarControl($v, [...$loc, $k], $errores);
+            }
+        }
     }
 
     /** Parámetros de la ruta (/recurso/{id}). */
@@ -96,6 +134,7 @@ final class Entrada
             throw new ErrorValidacion([['type' => 'model_attributes_type', 'loc' => ['body'],
                 'msg' => 'Input should be a valid dictionary or object to extract fields from', 'input' => $datos]]);
         }
+        self::exigirTextoLimpio($datos);
 
         return new self($datos);
     }
@@ -472,7 +511,7 @@ final class Entrada
     {
         $texto = match (true) {
             \is_int($valor) => (string) $valor,
-            \is_float($valor) && is_finite($valor) => $entero && floor($valor) === $valor ? (string) (int) $valor : rtrim(rtrim(\sprintf('%.10F', $valor), '0'), '.'),
+            \is_float($valor) && is_finite($valor) => $entero && floor($valor) === $valor && abs($valor) < 1e18 ? (string) (int) $valor : rtrim(rtrim(\sprintf('%.10F', $valor), '0'), '.'),
             \is_string($valor) => trim($valor),
             default => null,
         };

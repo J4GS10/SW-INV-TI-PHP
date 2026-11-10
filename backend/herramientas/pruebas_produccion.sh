@@ -13,6 +13,8 @@
 #
 #   CONFIRMAR=SI bash herramientas/pruebas_produccion.sh                 # toda la suite
 #   CONFIRMAR=SI bash herramientas/pruebas_produccion.sh --filter Login  # argumentos extra para PHPUnit
+#   CONFIRMAR=SI SONDEO=SI bash herramientas/pruebas_produccion.sh       # además, datos mal escritos en cada petición:
+#                                                                        # 5xx y aceptados quedan en api/var/sondeo-entradas.jsonl
 set -uo pipefail
 export MSYS_NO_PATHCONV=1
 [ "${CONFIRMAR:-}" = "SI" ] || { echo "Detiene el sistema y restaura la base al terminar. Defina CONFIRMAR=SI." >&2; exit 2; }
@@ -123,7 +125,10 @@ umask 077
   echo "ORACLE_APP_PASSWORD=$(leer ORACLE_APP_PASSWORD)"
   # Las claves de producción: los datos cifrados que ya existen se leen igual que en la API.
   for k in SECRET_KEY HMAC_KEYS FIELD_ENCRYPTION_KEY; do echo "$k=$(leer "$k")"; done
+  # SONDEO=SI: cada petición de la suite va precedida de sus variantes con datos mal escritos (tests/Soporte/Sondeo.php).
+  [ "${SONDEO:-}" = SI ] && echo "SONDEO_ENTRADAS=/repo/api/var/sondeo-entradas.jsonl"
 } > "$TMP/suite.env"
+[ "${SONDEO:-}" = SI ] && rm -f "$RAIZ/api/var/sondeo-entradas.jsonl"
 fase=suite
 exencion quitar && echo "==> Dueño sin EXEMPT ACCESS POLICY durante la suite: el VPD lo filtra igual que a la aplicación."
 docker rm -f "$SUITE" >/dev/null 2>&1 || true

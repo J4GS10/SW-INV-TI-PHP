@@ -58,6 +58,13 @@ when@test:
             resource: '../src/'
             exclude: *excluir
 
+        # Cliente HTTP de las pruebas, con el sondeo de entradas mal escritas (SONDEO_ENTRADAS).
+        test.client:
+            class: App\Tests\Soporte\ClienteSondeo
+            arguments: ['@kernel', '%test.client.parameters%', '@test.client.history', '@test.client.cookiejar']
+            shared: false
+            public: true
+
         App\Config\Ajustes:
             factory: ['App\Config\Ajustes', 'desdeEntorno']
 

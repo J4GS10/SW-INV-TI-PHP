@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Crud\Campo;
 use App\Documentos\Idioma;
 use App\Dominio\Ident;
 use App\Dominio\Roles;
@@ -48,6 +49,7 @@ final readonly class GoodsReceiptController
         if (!\is_array($body)) {
             throw new ErrorApi(400, 'INVALID_JSON_BODY');
         }
+        Entrada::exigirTextoLimpio($body);
 
         return $body;
     }
@@ -120,7 +122,10 @@ final readonly class GoodsReceiptController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function licenseKeys(int $line, Request $request): JsonResponse
     {
-        $keys = array_values(array_filter(array_map(static fn (mixed $k): string => trim((string) $k), (array) (self::body($request)['keys'] ?? [])), static fn (string $k): bool => '' !== $k));
+        $e = Entrada::de(self::body($request));
+        $lista = $e->textos('keys', 500) ?? [];
+        $e->validar();
+        $keys = array_values(array_filter(array_map(trim(...), $lista), static fn (string $k): bool => '' !== $k));
 
         return new JsonResponse($this->service->completeLicenseKeys($line, $keys, $this->user(), ClienteHttp::ip($request)));
     }
@@ -129,8 +134,12 @@ final readonly class GoodsReceiptController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function createModel(Request $request): JsonResponse
     {
-        $body = self::body($request);
-        $result = $this->service->createModel((int) ($body['asset_type_id'] ?? 0), (string) ($body['brand'] ?? ''), (string) ($body['model'] ?? ''), $this->user(), ClienteHttp::ip($request));
+        $e = Entrada::de(self::body($request));
+        [, $tipo] = $e->campo(Campo::entero('asset_type_id', true, minimo: 1), true);
+        $marca = $e->texto('brand', 1, 100);
+        $modelo = $e->texto('model', 1, 150);
+        $e->validar();
+        $result = $this->service->createModel((int) $tipo, (string) $marca, (string) $modelo, $this->user(), ClienteHttp::ip($request));
 
         return new JsonResponse($result, $result['created'] ? 201 : 200);
     }
@@ -146,7 +155,23 @@ final readonly class GoodsReceiptController
     #[Autenticado(roles: Roles::ADMIN)]
     public function modelDefaults(int $model, Request $request): JsonResponse
     {
-        $this->service->setModelDefaults($model, array_map('strval', (array) (self::body($request)['values'] ?? [])), $this->user(), ClienteHttp::ip($request));
+        $e = Entrada::de(self::body($request));
+        $valores = [];
+        // {"<id del tipo de especificación>": valor}: el valor es texto o número, nunca lista, objeto ni sí/no.
+        $crudos = $e->crudo('values') ?? [];
+        if (!\is_array($crudos)) {
+            $e->errorDeTipo('model_attributes_type', 'values', 'Input should be a valid dictionary', $crudos);
+            $crudos = [];
+        }
+        foreach ($crudos as $tipo => $valor) {
+            if (1 !== preg_match('/^\d{1,9}$/', (string) $tipo) || !(\is_string($valor) || \is_int($valor) || \is_float($valor)) || mb_strlen((string) $valor) > 255) {
+                $e->errorDeTipo('value_error', "values.{$tipo}", 'Value error, INVALID_SPECIFICATION_VALUE', $valor);
+                continue;
+            }
+            $valores[(int) $tipo] = (string) $valor;
+        }
+        $e->validar();
+        $this->service->setModelDefaults($model, $valores, $this->user(), ClienteHttp::ip($request));
 
         return new JsonResponse(['status' => 'success']);
     }
@@ -168,7 +193,11 @@ final readonly class GoodsReceiptController
     #[Autenticado(roles: self::REGISTRARS)]
     public function cancel(int $id, Request $request): JsonResponse
     {
-        return new JsonResponse($this->service->cancel($id, (string) (self::body($request)['reason'] ?? ''), $this->user(), ClienteHttp::ip($request)));
+        $e = Entrada::de(self::body($request));
+        $motivo = $e->texto('reason', max: 500, opcional: true) ?? '';
+        $e->validar();
+
+        return new JsonResponse($this->service->cancel($id, $motivo, $this->user(), ClienteHttp::ip($request)));
     }
 
     #[Route('/{id}/confirm', methods: ['POST'])]
@@ -192,6 +221,6 @@ final readonly class GoodsReceiptController
     {
         $asset = $request->query->get('except');
 
-        return null === $asset || '' === $asset ? null : Ident::aHex((string) $asset);
+        return \is_string($asset) && Ident::esValido($asset) ? Ident::aHex($asset) : null;
     }
 }

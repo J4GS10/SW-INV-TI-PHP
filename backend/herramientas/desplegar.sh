@@ -34,6 +34,12 @@ humo() {
     printf '  %-32s %s\n' "$ruta" "$(curl -sk -o /dev/null -w '%{http_code}' "$url$ruta")"
   done
   printf '  %-32s %s\n' "worker_php" "$("${stack[@]}" ps --format '{{.Health}}' worker_php 2>/dev/null || echo '-')"
+  # Dependencias vistas por la API (desde dentro: /health/full está cerrado en el borde).
+  local salud
+  salud="$("${stack[@]}" exec -T api_php php -r 'echo @file_get_contents("http://127.0.0.1:8000/health/full");' 2>/dev/null || true)"
+  for c in database redis storage; do
+    printf '  %-32s %s\n' "$c (API)" "$(echo "$salud" | grep -oE "\"$c\":\"[a-z]+\"" | cut -d'"' -f4 || true)"
+  done
 }
 
 # Un despliegue con la API caída no termina en éxito (fase 8): /health debe responder 200.

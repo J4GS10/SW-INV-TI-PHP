@@ -544,6 +544,7 @@ Todo corre en Docker: en el equipo solo hace falta Docker y Git Bash.
 | Desplegar | `cd backend && bash herramientas/desplegar.sh` |
 | Ver el estado | `bash herramientas/desplegar.sh estado` |
 | Pruebas del backend en producción | `CONFIRMAR=SI bash herramientas/pruebas_produccion.sh`: detiene la API y el worker, hace un respaldo verificado y toma una huella de la base. Corre la suite con el VPD activo, restaura el respaldo, exige la misma huella y vuelve a levantar todo (unos 15 minutos sin servicio) |
+| Sondeo de entradas | `SONDEO=SI` en el mismo ciclo: cada petición de la suite se repite cambiando un solo dato por uno inválido (letras en fechas y montos, fechas imposibles, números enormes, listas por texto, 5000 caracteres, caracteres de control, ids basura en la ruta y la consulta). Toda respuesta 500 y todo cambio aceptado con un dato inválido queda en `api/var/sondeo-entradas.jsonl`. Las fallas de la suite en este modo son esperables (el sondeo cambia el estado); la regresión se mide con el ciclo normal |
 | Pruebas del backend | `bash herramientas/pruebas.sh` (Oracle real, en un contenedor aparte) |
 | Una parte | `bash herramientas/pruebas.sh --filter ActivosTest` |
 | Pruebas del frontend | `cd frontend && bash test-support/run.sh` |
