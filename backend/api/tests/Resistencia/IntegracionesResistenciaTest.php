@@ -70,7 +70,9 @@ final class IntegracionesResistenciaTest extends KernelTestCase
             array_push($resultados, ...$this->rafaga($lote));
         }
         $segundos = microtime(true) - $inicio;
-        self::assertSame([200 => 210], self::porEstado($resultados));
+        self::assertSame([200 => 210], self::porEstado($resultados), json_encode(array_values(array_map(
+            static fn (array $r): array => ['estado' => $r['estado'], 'ruta' => $r['ruta'], 'error' => $r['error'], 'ms' => (int) $r['ms']],
+            array_filter($resultados, static fn (array $r): bool => 200 !== $r['estado']))), \JSON_THROW_ON_ERROR));
         $tiempos = array_column($resultados, 'ms');
         sort($tiempos);
         fwrite(\STDERR, \sprintf("\n  carga fase 5: 210 peticiones en %.1f s (%.0f req/s), p95 %.0f ms\n", $segundos, 210 / $segundos, $tiempos[(int) (0.95 * \count($tiempos))]));

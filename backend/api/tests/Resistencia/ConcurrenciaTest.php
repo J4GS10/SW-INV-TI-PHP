@@ -181,7 +181,8 @@ final class ConcurrenciaTest extends KernelTestCase
         self::assertSame(0, $errores, 'Sin errores 5xx ni conexiones caídas bajo carga.');
         self::assertLessThan(5000.0, $p(0.95), 'p95 bajo 5 s con 50 peticiones simultáneas.');
         self::assertTrue(I::cadenaKardexIntegra(), 'El sellado del kardex sigue íntegro tras la carga.');
-        $jefe = $this->tokenDe(D::crearUsuario(['rol' => 'SUPER_ADMIN', 'global' => true]));
+        // Verifica quien tiene ese permiso (ADMIN_TI o AUDITOR): el SUPER_ADMIN no ve datos de negocio.
+        $jefe = $this->tokenDe(D::crearUsuario(['rol' => 'AUDITOR', 'global' => true]));
         $v = $this->rafaga([['GET', '/api/v1/inventario/kardex/verificar', null, $jefe]])[0];
         self::assertSame([200, true], [$v['estado'], $v['cuerpo']['integro'] ?? null], json_encode($v['cuerpo']['problemas'] ?? null));
     }

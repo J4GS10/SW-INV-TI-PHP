@@ -20,7 +20,7 @@
         "phpoffice/phpword": "^1.4",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
-        "symfony/flex": "^2",
+        "symfony/flex": "^2.12",
         "symfony/framework-bundle": "8.1.*",
         "symfony/http-client": "8.1.*",
         "symfony/lock": "8.1.*",

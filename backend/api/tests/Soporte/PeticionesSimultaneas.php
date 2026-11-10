@@ -17,7 +17,7 @@ trait PeticionesSimultaneas
      * @param list<array{0: string, 1: string, 2?: array<string, mixed>|null, 3?: string, 4?: array<string, mixed>}> $peticiones
      *     [método, ruta, cuerpo JSON, token, formulario multipart]
      *
-     * @return list<array{estado: int, cuerpo: mixed, ms: float}>
+     * @return list<array{estado: int, cuerpo: mixed, ms: float, ruta: string|null, error: string|null}>
      */
     private function rafaga(array $peticiones): array
     {
@@ -43,9 +43,10 @@ trait PeticionesSimultaneas
             }
         } while ($activos > 0 && \CURLM_OK === $estado);
         $salida = [];
-        foreach ($handles as $h) {
+        foreach ($handles as $i => $h) {
+            // Ruta y error de red: un estado 0 (conexión cortada) debe decir dónde y por qué.
             $salida[] = ['estado' => (int) curl_getinfo($h, \CURLINFO_HTTP_CODE), 'cuerpo' => json_decode((string) curl_multi_getcontent($h), true),
-                'ms' => 1000 * (float) curl_getinfo($h, \CURLINFO_TOTAL_TIME)];
+                'ms' => 1000 * (float) curl_getinfo($h, \CURLINFO_TOTAL_TIME), 'ruta' => $peticiones[$i][1] ?? null, 'error' => curl_error($h) ?: null];
             curl_multi_remove_handle($multi, $h);
         }
         curl_multi_close($multi);
