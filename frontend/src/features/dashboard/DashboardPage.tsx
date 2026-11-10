@@ -16,6 +16,7 @@ import type { PanelProps } from '../../types/ui';
 import { formatMoneyTotals } from '../../utils/currency';
 import { usePermissions } from '../../hooks/usePermissions';
 import { DataQualityCard } from './DataQualityCard';
+import { useLiveTick } from '../../hooks/useLiveRefresh';
 interface DashboardDistributionItem {
     label: string;
     total: number;
@@ -107,12 +108,13 @@ export const DashboardPage = () => {
     const { canSeeCosts, canSeeSoftware, canAdminInventory } = usePermissions();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loading, setLoading] = useState(true);
+    const liveTick = useLiveTick();
     useEffect(() => {
         client.get('/stats/dashboard')
             .then(({ data }) => setStats(data))
             .catch(() => setStats({}))
             .finally(() => setLoading(false));
-    }, []);
+    }, [liveTick]);
     if (loading) {
         return (<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <CircularProgress aria-label={t('common.loading')} sx={{ color: 'primary.main' }}/>

@@ -60,6 +60,9 @@ x-entorno-php: &entorno_php
   ORACLE_SCHEMA_OWNER: ${ORACLE_SCHEMA_OWNER:-INVENTARIO}
   DB_RLS_ENABLED: "true"
   SECRET_KEY: ${SECRET_KEY:?definir SECRET_KEY}
+  # Avisos en vivo: la API y el worker publican en el hub Mercure de api_php.
+  MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:?definir MERCURE_JWT_SECRET}
+  MERCURE_HUB_URL: ${MERCURE_HUB_URL:-http://api_php:8000/.well-known/mercure}
   HMAC_KEYS: ${HMAC_KEYS:?definir HMAC_KEYS}
   FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?definir FIELD_ENCRYPTION_KEY}
   ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}

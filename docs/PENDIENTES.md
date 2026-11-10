@@ -26,6 +26,7 @@ Hecho el 2026-11-09: base y adjuntos reinstalados desde cero, solo con el catál
 | Media | Listas cerradas | Sistema Operativo y Tarjeta Gráfica se escriben a mano | Lista cerrada, al menos para Sistema Operativo |
 | Media | Oracle XE | Sin Data Guard; réplica por archivos con hasta 1 hora de pérdida | Confirmar la fecha de soporte de 21c |
 | Media | Separar los datos | Todo en una VM ([puesta en marcha](PUESTA_EN_MARCHA.md#11-seguridad-e-infraestructura-en-proxmox)) | Etapa 2 con `inv-app` e `inv-datos` cuando el servidor formal esté listo; falta dividir el compose y que el worker lea el estado de los respaldos sin montar su carpeta |
+| Alta | Pruebas automáticas y un solo entorno | Hay un solo entorno: producción (QA se retiró el 2026-11-10). La suite del backend (`pruebas.sh`, `resistencia.sh`, `migraciones.sh vacia`) usa una Oracle propia que se crea y se borra en cada corrida, porque sus pruebas borran y crean datos a propósito; correrla sobre producción los destruiría. La suite de navegador (`herramientas/qa/e2e`, `persistencia.sh`) dependía de QA y hoy no corre | Decidir: conservar esa base temporal solo para la suite del código, o retirarla. Adaptar las pruebas de navegador a producción con las cuentas de prueba, sin restablecerlas ni borrar datos |
 | Baja | Anunciar lo que viene | Compras registra el ingreso cuando la mercadería ya llegó | Estado «En camino» en el ingreso, si Compras conoce los pedidos antes |
 | Baja | Tablas de órdenes de compra | Sin uso desde que se retiró el módulo, con 0 filas: `INV_ORDEN_COMPRA`, sus líneas y `INV_RECEPCION` | Borrarlas con una migración cuando se confirme que no vuelve |
 
@@ -35,7 +36,8 @@ Hecho el 2026-11-09: base y adjuntos reinstalados desde cero, solo con el catál
 
 - Recorrido completo y validación de cada rol según [pruebas por rol](PRUEBAS_POR_ROL.md), con una persona real de cada rol.
 - Reportar pérdida o robo hasta aprobarlo: se comprobó el formulario, no la aprobación desde la pantalla.
-- Lector de códigos en un teléfono físico, y E2E en todos los navegadores y en móvil. `ui/ingreso.spec.ts` debe escribir en la unidad recién creada, no en la primera de la lista.
+- Lector de códigos en un teléfono físico, y pruebas de navegador en todos los navegadores y en móvil, en producción. `ui/ingreso.spec.ts` debe escribir en la unidad recién creada, no en la primera de la lista.
+- Actualización en vivo: probada con pruebas automáticas; falta verla con dos personas a la vez (una cambia el color, otra lo ve sin recargar; cerrar la sesión de alguien y que salga solo).
 - Monitor externo (Uptime Kuma) en el servidor formal: hoy nadie se entera si cae la VM o la red.
 - Sin SMTP no hay recuperación de clave por correo: solo el SUPER_ADMIN puede restablecerla.
 
@@ -44,6 +46,7 @@ Hecho el 2026-11-09: base y adjuntos reinstalados desde cero, solo con el catál
 - Volumen: tomas probadas con 501 activos. Salvo Activos, Auditoría y Trazabilidad, los listados cargan todo de una vez; paginar en el servidor los que crecen (ingresos, movimientos, mantenimiento).
 - Prueba de resistencia en el servidor formal, y revisión independiente de código y seguridad.
 - Un 503 de un adjunto tras una caída de MinIO, sin causa conocida.
+- 1 de 210 peticiones sin respuesta (conexión cortada) en la prueba de resistencia del 2026-11-09, sin causa conocida. No se repitió en 2520 peticiones simultáneas contra producción el 2026-11-10. Desde entonces, una lectura cortada se reintenta sola una vez.
 
 ### Baja
 

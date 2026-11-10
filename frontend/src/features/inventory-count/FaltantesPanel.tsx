@@ -9,6 +9,7 @@ import { getApiErrorMessage } from '../../api/errors';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDateTimeValue } from '../../utils/dates';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 type AreaRuta = { ARE_Area: number; ruta: string };
 type Accion = { tipo: 'nota' | 'localizado' | 'baja'; faltante: Faltante } | null;
@@ -49,6 +50,7 @@ export const FaltantesPanel = ({ areas }: { areas: AreaRuta[] }) => {
   }, [abiertos, enqueueSnackbar, t]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useLiveRefresh(cargar);
 
   const abrir = (tipo: 'nota' | 'localizado' | 'baja', faltante: Faltante) => {
     setNota('');

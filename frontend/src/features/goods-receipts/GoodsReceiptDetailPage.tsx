@@ -13,6 +13,7 @@ import { softwareService } from '../software/softwareService';
 import { goodsReceiptService, statusColor } from './goodsReceiptService';
 import type { ClassifiedLine, GoodsReceipt, GoodsReceiptLine, LineType } from './goodsReceiptService';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 interface Draft {
   received: string;
@@ -59,6 +60,7 @@ export const GoodsReceiptDetailPage = () => {
     setDrafts(initial);
     return data;
   }, [receiptId]);
+  useLiveRefresh(load);
 
   const canConfirm = !!receipt && receipt.status === 'REGISTERED' && canOperate && !receipt.mine;
 

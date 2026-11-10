@@ -14,6 +14,7 @@ import type { Aprobacion, EstadoAprobacion } from '../../types/aprobaciones';
 import { formatDateTimeValue } from '../../utils/dates';
 import { approvalSummaryLabel } from '../../utils/catalogLabels';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 const COLOR: Record<EstadoAprobacion, 'warning' | 'success' | 'error' | 'default'> = {
   PENDIENTE: 'warning', APROBADA: 'success', RECHAZADA: 'error', ANULADA: 'default',
@@ -51,6 +52,7 @@ export const AprobacionesPage = () => {
   }, [enqueueSnackbar, t, vista]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useLiveRefresh(cargar);
 
   const resolver = async () => {
     if (!accion) return;

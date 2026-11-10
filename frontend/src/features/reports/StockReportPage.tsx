@@ -9,6 +9,7 @@ import { downloadCsv } from '../../api/downloadCsv';
 import { reportsService } from './reportsService';
 import type { AssetStockRow, AssignmentRow, ConsumableStockRow, EntryRow } from './reportsService';
 import { DateField } from '../../components/ui/DateField';
+import { useLiveTick } from '../../hooks/useLiveRefresh';
 
 type TabKey = 'stock' | 'entries' | 'assignments';
 
@@ -33,6 +34,7 @@ export const StockReportPage = () => {
     return !texto || campos.some((c) => (c ?? '').toLowerCase().includes(texto));
   };
 
+  const liveTick = useLiveTick();
   useEffect(() => {
     let active = true;
     const periodo = { desde: desde || undefined, hasta: hasta || undefined };
@@ -54,7 +56,7 @@ export const StockReportPage = () => {
       .catch(() => enqueueSnackbar(t('common.error_loading'), { variant: 'error' }))
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [tab, desde, hasta, enqueueSnackbar, t]);
+  }, [tab, desde, hasta, enqueueSnackbar, t, liveTick]);
 
   return (<Box>
       <PageHeader title={t('stock_report.title')} subtitle={t('stock_report.subtitle')} actions={<ExportMenuButton onExport={(lang) => downloadCsv(`/reports/${tab === 'stock' ? 'stock' : tab === 'entries' ? 'entries' : 'assignments'}.csv?${new URLSearchParams(Object.entries(tab === 'stock' ? {} : { desde, hasta }).filter(([, v]) => v !== '')).toString()}`, `${tab}.csv`, lang)}/>}/>

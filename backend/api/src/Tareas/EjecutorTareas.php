@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tareas;
 
+use App\Realtime\UpdatePublisher;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -26,6 +27,7 @@ final readonly class EjecutorTareas
         private Cerrojo $cerrojo,
         private LatidoWorker $latido,
         private LoggerInterface $logger,
+        private ?UpdatePublisher $tiempoReal = null,
     ) {
         $porNombre = [];
         foreach ($tareas as $tarea) {
@@ -66,6 +68,8 @@ final readonly class EjecutorTareas
             $resultado = $tarea->ejecutar();
             if (null !== $resultado) {
                 $this->logger->info('job.done', ['job' => $nombre, 'result' => $resultado]);
+                // Lo que hizo la tarea (sincronización del AD, cierres, alertas) se ve al instante en los navegadores.
+                $this->tiempoReal?->changed('tareas/'.$nombre);
             }
 
             return ['ejecutada' => true, 'resultado' => $resultado, 'error' => null];

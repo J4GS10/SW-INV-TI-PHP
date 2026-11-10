@@ -48,7 +48,7 @@ final readonly class CorsListener
             'Content-Type' => 'text/plain; charset=utf-8',
             'Vary' => 'Origin',
             'Access-Control-Allow-Methods' => self::METODOS,
-            'Access-Control-Allow-Headers' => 'Accept, Authorization, Content-Type, Idempotency-Key, X-Request-ID',
+            'Access-Control-Allow-Headers' => 'Accept, Authorization, Content-Type, Idempotency-Key, X-Client-Id, X-Request-ID',
             'Access-Control-Max-Age' => '600',
         ]);
         if ($permitido) {

@@ -33,6 +33,7 @@ import { SecurityOverview } from './SecurityOverview';
 import { ActiveSessionsPanel } from './ActiveSessionsPanel';
 import { TemporaryPasswordDialog } from './TemporaryPasswordDialog';
 import { MfaExemptionDialog } from './MfaExemptionDialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 type MfaFilter = '' | 'enabled' | 'pending' | 'none';
 type StatusFilter = '' | 'active' | 'inactive';
@@ -86,6 +87,7 @@ export const UsersPage = () => {
   }, [enqueueSnackbar, t]);
 
   useEffect(() => { void load(); }, [load]);
+  useLiveRefresh(load);
 
   const now = new Date();
 

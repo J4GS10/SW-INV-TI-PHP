@@ -14,6 +14,7 @@ import { AtomicValuesField } from '../../../components/AtomicValuesField';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { typeLabel } from '../../../utils/catalogLabels';
 import type { TipoActivo, TipoEspecificacion } from '../../../types/catalogs';
+import { useLiveTick } from '../../../hooks/useLiveRefresh';
 
 interface Fila {
   TES_Tipo_Especificacion: number;
@@ -37,11 +38,12 @@ export const SpecsByTypePanel = () => {
   const [original, setOriginal] = useState('[]');
   const [guardando, setGuardando] = useState(false);
 
+  const liveTick = useLiveTick();
   useEffect(() => {
     Promise.all([catalogService.getTiposActivo(), catalogService.getTiposEspecificacion()])
       .then(([a, b]) => { setTipos(a); setEspecificaciones(b); })
       .catch((err) => enqueueSnackbar(getApiErrorMessage(err, t('common.error_loading')), { variant: 'error' }));
-  }, [enqueueSnackbar, t]);
+  }, [enqueueSnackbar, t, liveTick]);
 
   useEffect(() => {
     if (tipo === '') return;

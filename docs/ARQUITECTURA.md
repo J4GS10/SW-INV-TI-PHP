@@ -188,6 +188,20 @@ Es la misma imagen que la API, pero ejecuta `messenger:consume scheduler_tareas`
 
 Para ejecutar una a mano: `docker exec inventario-worker_php-1 php bin/console app:tareas:ejecutar <nombre>`.
 
+### Actualización en vivo (Mercure)
+
+**Archivos:** `backend/api/src/Realtime/`, `backend/docker/Caddyfile`, `frontend/src/api/liveUpdates.ts`, `frontend/src/hooks/useLiveRefresh.ts`.
+
+Lo que cambia una persona lo ven las demás al instante, sin recargar la página.
+
+- **Quién avisa:** al terminar con éxito cualquier escritura de la API (POST, PUT, PATCH o DELETE), ya confirmada la transacción, la API publica qué ruta cambió (por ejemplo `core/activos/…`). También avisan las tareas del worker que hicieron algo, como la sincronización con el AD. El aviso no lleva datos: cada navegador vuelve a pedir lo que muestra por la API, con sus propios permisos y su sede.
+- **El hub:** Mercure, incluido en FrankenPHP (gratuito, sin servicio externo), atiende `/.well-known/mercure` dentro de `api_php`. Caddy le pasa esa ruta.
+- **Quién escucha:** solo quien tiene sesión. La API entrega una cookie `HttpOnly` al iniciar sesión y en cada renovación. Esa cookie permite escuchar el tema general y el tema propio de la persona.
+- **Tema propio:** cerrar las sesiones de alguien, cambiarle el rol o darle una excepción de MFA le llega a sus pestañas abiertas. Estas comprueban la sesión en el acto; si ya no vale, salen.
+- **En el navegador:** cada pantalla que carga datos usa `useLiveRefresh(cargar)` o `useLiveTick()`. Varios avisos seguidos causan una sola recarga; en una pestaña oculta, la recarga espera a que vuelva a verse. Un formulario con cambios sin guardar no se pisa. Tras un corte de conexión, todas las pantallas recargan una vez.
+- **Si el hub falla:** la escritura no se afecta (se registra `realtime.publish_failed`). El chequeo de sesión cada 30 s sigue funcionando como respaldo.
+- **Clave:** `MERCURE_JWT_SECRET` en `deploy/.env` (la crea `generar_env.sh`).
+
 ### Correo (SMTP o Microsoft Graph)
 
 El código escribe en la cola `SYS_EMAIL_OUTBOX` **después** de confirmar la transacción, y el worker envía. Si el correo falla, reintenta (`OUTBOX_MAX_ATTEMPTS`) y el negocio no se detiene. Los códigos de un solo uso (MFA, recuperación de clave) no pasan por la cola, para no guardarlos.
@@ -533,7 +547,7 @@ Todo corre en Docker: en el equipo solo hace falta Docker y Git Bash.
 | Una parte | `bash herramientas/pruebas.sh --filter ActivosTest` |
 | Pruebas del frontend | `cd frontend && bash test-support/run.sh` |
 | Análisis de PHP | PHPStan, en el CI de GitHub |
-| Pruebas de punta a punta | `bash herramientas/qa/entorno.sh subir`, luego `herramientas/qa/e2e.sh` y `entorno.sh borrar`. Nunca contra producción |
+| Pruebas funcionales | En producción, con las cuentas de prueba por rol (`docs/PRUEBAS_POR_ROL.md`). Hay un solo entorno: no se levanta QA ni otra copia |
 
 **Qué hace `desplegar.sh`:**
 1. Respaldo verificado; si falla, se detiene.
@@ -549,8 +563,8 @@ Todo corre en Docker: en el equipo solo hace falta Docker y Git Bash.
 | Nivel | Dónde | Cuenta |
 |---|---|---|
 | Backend, unitarias e integración | `backend/api/tests/` | Más de 270, con Oracle real |
-| Frontend | `frontend/src/**/*.test.*` | 36 |
-| Punta a punta | `backend/herramientas/qa/e2e/` | Playwright, en QA temporal |
+| Frontend | `frontend/src/**/*.test.*` | 41 |
+| Funcionales | `docs/PRUEBAS_POR_ROL.md` | En producción, por rol |
 | Resistencia | `backend/herramientas/resistencia.sh` | Concurrencia y durabilidad |
 
 ### Diagnóstico rápido

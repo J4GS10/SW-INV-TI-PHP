@@ -12,6 +12,7 @@ import { getApiErrorMessage } from '../../api/errors';
 import { usePermissions } from '../../hooks/usePermissions';
 import { goodsReceiptService, statusColor } from './goodsReceiptService';
 import type { GoodsReceipt, GoodsReceiptStatus } from './goodsReceiptService';
+import { useLiveTick } from '../../hooks/useLiveRefresh';
 
 const STATUSES: GoodsReceiptStatus[] = ['REGISTERED', 'PENDING_APPROVAL', 'CONFIRMED', 'COMPLETED', 'CANCELLED'];
 
@@ -25,6 +26,7 @@ export const GoodsReceiptsPage = () => {
   const [rows, setRows] = useState<GoodsReceipt[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const liveTick = useLiveTick();
   useEffect(() => {
     let active = true;
     goodsReceiptService.list(status || undefined)
@@ -32,7 +34,7 @@ export const GoodsReceiptsPage = () => {
       .catch((error: unknown) => enqueueSnackbar(getApiErrorMessage(error, t('common.error_loading')), { variant: 'error' }))
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [status, enqueueSnackbar, t]);
+  }, [status, enqueueSnackbar, t, liveTick]);
 
   return (<Box>
       <PageHeader title={t('goods_receipt.title')} subtitle={t('goods_receipt.subtitle')} badge={rows.length}

@@ -6,6 +6,7 @@ import { useSnackbar } from 'notistack';
 import { getApiErrorMessage } from '../../api/errors';
 import { SectionCard } from '../../components/ui';
 import { configService } from './configService';
+import { useLiveTick } from '../../hooks/useLiveRefresh';
 
 /** Interruptor del MFA obligatorio: se guarda al instante y queda en la bitácora. */
 export const MfaRequirementCard = () => {
@@ -14,13 +15,14 @@ export const MfaRequirementCard = () => {
     const [required, setRequired] = useState<boolean | null>(null);
     const [saving, setSaving] = useState(false);
 
+    const liveTick = useLiveTick();
     useEffect(() => {
         let active = true;
         configService.getMfaRequirement()
             .then((value) => { if (active) setRequired(value); })
             .catch(() => enqueueSnackbar(t('common.error_loading'), { variant: 'error' }));
         return () => { active = false; };
-    }, [enqueueSnackbar, t]);
+    }, [enqueueSnackbar, t, liveTick]);
 
     const change = async (next: boolean) => {
         setSaving(true);

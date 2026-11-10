@@ -19,6 +19,7 @@ import { ExportMenuButton } from '../../components/ExportMenuButton';
 import { downloadCsv } from '../../api/downloadCsv';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatMoney } from '../../utils/currency';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 export const MaintenancePage = () => {
     const { t, i18n } = useTranslation();
     const { canOperate, canAdminInventory, canExport } = usePermissions();
@@ -39,6 +40,7 @@ export const MaintenancePage = () => {
             .catch(() => enqueueSnackbar(t('common.error_loading'), { variant: 'error' }))
             .finally(() => setLoading(false));
     }, [enqueueSnackbar, t]);
+    useLiveRefresh(loadData);
     useEffect(() => { void Promise.resolve().then(loadData); }, [loadData]);
     const handleView = (row: Mantenimiento) => { setSelected(row); setDetailOpen(true); };
     const handleDelete = async (row: Mantenimiento) => {

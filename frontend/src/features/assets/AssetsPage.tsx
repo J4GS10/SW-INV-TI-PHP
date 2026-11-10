@@ -47,6 +47,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import HistoryIcon from '@mui/icons-material/History';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 /** Parámetros de la URL que forman una vista (la página no cuenta). */
 const CLAVES_VISTA = ['q', 'tipo', 'estado'];
@@ -170,6 +171,7 @@ export const AssetsPage = () => {
     }, [q, tipoFilter, estadoFilter, page, rowsPerPage, orden, enqueueSnackbar, t]);
 
     useEffect(() => { loadActivos(); }, [loadActivos]);
+    useLiveRefresh(loadActivos);
 
     // ── Ficha con dirección propia: /activos/LAP-00001 ──────────────────────
     useEffect(() => {

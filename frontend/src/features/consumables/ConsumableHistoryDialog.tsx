@@ -11,6 +11,7 @@ import { useSnackbar } from 'notistack';
 import { consumableService } from './consumableService';
 import { Consumible, MovimientoConsumible } from '../../types/consumables';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 interface Props {
     open: boolean;
     consumible: Consumible | null;
@@ -58,6 +59,7 @@ export const ConsumableHistoryDialog = ({ open, consumible, onClose }: Props) =>
         }
     }, [consumible, enqueueSnackbar, open, t]);
     useEffect(() => { load(); }, [load]);
+    useLiveRefresh(load);
     const entriesTotal = items
         .filter((item) => item.MOC_Tipo === 'ENTRADA')
         .reduce((total, item) => total + item.MOC_Cantidad, 0);

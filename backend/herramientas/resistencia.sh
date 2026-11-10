@@ -16,6 +16,8 @@ RAIZ="$(cd "$AQUI/.." && (pwd -W 2>/dev/null || pwd))"
 RED="${RED_PRUEBAS:-inv_php_pruebas}"
 API=inv_php_api_resistencia
 WORKERS=(inv_php_worker_resistencia_1 inv_php_worker_resistencia_2)
+# Al terminar (bien o mal) no queda nada encendido.
+trap 'docker rm -f "$API" "${WORKERS[@]}" inv_php_oracle_test mailpit minio-pruebas redis-pruebas samba-ad-pruebas >/dev/null 2>&1 || true' EXIT
 # Red con inspección TLS: CA_CORPORATIVA=<ruta del .pem> se pasa al build como secreto (no queda en la imagen).
 secreto=()
 [ -n "${CA_CORPORATIVA:-}" ] && secreto=(--secret "id=ca_corporativa,src=$CA_CORPORATIVA")
@@ -33,6 +35,7 @@ ENV_TMP="$RAIZ/api/var/resistencia.env"
 grep -E '^[A-Z_]+=' "$AQUI/../api/.env.test" | grep -vE '^(KERNEL_CLASS|APP_SECRET|REDIS_URL)=' | sed -E "s/^([A-Z_]+)='(.*)'$/\1=\2/" > "$ENV_TMP"
 comunes=(--network "$RED" --env-file "$ENV_TMP" -e APP_ENV=prod -e APP_DEBUG=0 -e APP_SECRET=resistencia_secreto_de_pruebas
   -e REDIS_URL=redis://redis-pruebas:6379/0 -e LOG_LEVEL=WARNING -e OUTBOX_POLL_SECONDS=2
+  -e MERCURE_JWT_SECRET="$(openssl rand -hex 32)" -e MERCURE_HUB_URL="http://$API:8000/.well-known/mercure"
   -v "$RAIZ/api/var/samba-ad-ca.pem:/app/var/samba-ad-ca.pem:ro"
   --cap-drop ALL --security-opt no-new-privileges:true --memory 1g --cpus 2)
 docker rm -f "$API" "${WORKERS[@]}" >/dev/null 2>&1 || true

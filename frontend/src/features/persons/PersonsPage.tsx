@@ -25,6 +25,7 @@ import { PersonDetailDialog } from './PersonDetailDialog';
 import { PersonDialog } from './PersonDialog';
 import { OffboardingDialog } from './OffboardingDialog';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 export const PersonsPage = () => {
     const { t } = useTranslation();
     const { canAdminInventory, canOperate , canExport } = usePermissions();
@@ -59,6 +60,7 @@ export const PersonsPage = () => {
             setLoading(false);
         }
     }, [enqueueSnackbar, t]);
+    useLiveRefresh(load);
     useEffect(() => {
         load();
     }, [load]);

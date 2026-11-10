@@ -31,6 +31,7 @@ import { SearchInput } from '../../components/SearchInput';
 import { CollapsibleToolbar } from '../../components/CollapsibleToolbar';
 import { useConfirm } from '../../components/confirm-context';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 const formatDate = (value?: string | null) => {
     if (!value)
         return '-';
@@ -86,6 +87,7 @@ const Row = ({ row, onAddLicense, onEdit, onDelete, onEditLicense, onDeleteLicen
             setLoading(false);
         }
     }, [open, row.SOF_Software]);
+    useLiveRefresh(loadLicencias);
     useEffect(() => {
         void Promise.resolve().then(loadLicencias);
     }, [loadLicencias, refreshKey]);
@@ -282,6 +284,7 @@ export const SoftwarePage = () => {
         })
             .finally(() => setLoading(false));
     }, [enqueueSnackbar, t]);
+    useLiveRefresh(loadData);
     useEffect(() => { void Promise.resolve().then(loadData); }, [loadData]);
     const handleEdit = (soft: Software) => {
         setSoftwareToEdit(soft);

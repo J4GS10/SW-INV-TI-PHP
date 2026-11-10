@@ -3,7 +3,8 @@
 # o Let's Encrypt con un correo), cabeceras de seguridad y enrutamiento:
 #
 #   /metrics, /health/full      403 (operativos: solo por la red interna)
-#   /api/* y /health            API PHP (api_php:8000): toda la API
+#   /api/*, /health y
+#   /.well-known/mercure       API PHP (api_php:8000): toda la API y los avisos en vivo (SSE)
 #   todo lo demás               frontend (Nginx: la aplicación React)
 #
 # =========================================================================
@@ -49,7 +50,7 @@
         respond "Forbidden" 403
     }
 
-    @api path /api /api/* /health
+    @api path /api /api/* /health /.well-known/mercure
     handle @api {
         reverse_proxy api_php:8000 {
             # Si la API se reinicia (despliegue o caída), espera hasta 10 s en vez de

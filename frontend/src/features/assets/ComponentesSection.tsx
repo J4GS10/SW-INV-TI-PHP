@@ -15,6 +15,7 @@ import { assetService } from './assetService';
 import { EmptyState, KardexTimeline } from '../../components/ui';
 import type { Activo } from '../../types/inventory';
 import type { ComponentesActivo } from '../../types/kardex';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 interface Props {
   activoId: string;
@@ -64,6 +65,7 @@ export const ComponentesSection = ({ activoId, canOperate, onChanged, tipoEquipo
   }, [activoId, enqueueSnackbar, t]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useLiveRefresh(cargar);
 
   useEffect(() => {
     const q = busqueda.trim();

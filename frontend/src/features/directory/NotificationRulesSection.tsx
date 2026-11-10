@@ -23,6 +23,7 @@ import { isForbidden } from './directoryUtils';
 import { RuleEditDialog } from './RuleEditDialog';
 import { NOTIFICATION_EVENTS } from './types';
 import type { NotificationRule, NotificationRuleInput } from './types';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 type ToggleField = 'activa' | 'notificar_afectado' | 'notificar_jefe' | 'copiar_admins';
 
@@ -65,6 +66,7 @@ export const NotificationRulesSection = () => {
       setLoading(false);
     }
   }, [enqueueSnackbar, t]);
+  useLiveRefresh(load);
 
   useEffect(() => {
     load();

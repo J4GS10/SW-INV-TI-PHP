@@ -27,6 +27,7 @@ import { PageHeader, StatusChip, DataTableShell } from '../../components/ui';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import { useSearchParams } from 'react-router-dom';
 import { useAccionPagina, useWorkspace } from '../../context/workspace-context';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 const SELECTION_COLUMN = new Set(['select']);
 
 export const MovementsPage = () => {
@@ -75,6 +76,7 @@ export const MovementsPage = () => {
             setLoading(false);
         }
     }, [enqueueSnackbar, t]);
+    useLiveRefresh(loadData);
     useEffect(() => {
         loadData();
     }, [loadData]);

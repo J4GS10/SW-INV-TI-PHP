@@ -19,6 +19,7 @@ import { getApiErrorMessage } from '../../api/errors';
 import { Mantenimiento, DetalleMantenimiento, DetalleCreate } from '../../types/maintenance';
 import { maintenanceService } from './maintenanceService';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 interface Props {
     open: boolean;
     ticket: Mantenimiento | null;
@@ -59,6 +60,7 @@ export const MaintenanceDetailDialog = ({ open, ticket, onClose, onChanged }: Pr
             setLoading(false);
         }
     }, [enqueueSnackbar, t, ticket]);
+    useLiveRefresh(load);
     useEffect(() => {
         if (open && ticket) {
             load();

@@ -27,6 +27,7 @@ import type {
   SmtpSecurity,
 } from './types';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 /* ─────────────────────────── Estado del formulario ─────────────────────────── */
 
@@ -366,6 +367,8 @@ export const IntegrationSection = ({ onSaved }: Props) => {
     const secretsChanged = Object.values(secrets).some((s) => s.clear || s.value !== '');
     return formChanged || secretsChanged;
   }, [form, initial, secrets]);
+  // Cambios de otra persona: se recargan, salvo si aquí hay cambios sin guardar.
+  useLiveRefresh(load, { resources: ['directorio'], enabled: !dirty });
 
   const validation = useMemo(
     () => (form && config ? validate(form, secrets, config, t) : { errors: {}, mailValid: false, adValid: false }),

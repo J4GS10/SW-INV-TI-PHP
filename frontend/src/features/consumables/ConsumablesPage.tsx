@@ -25,6 +25,7 @@ import { ExportMenuButton } from '../../components/ExportMenuButton';
 import { usePermissions } from '../../hooks/usePermissions';
 import { CollapsibleToolbar } from '../../components/CollapsibleToolbar';
 import { useConfirm } from '../../components/confirm-context';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 export const ConsumablesPage = () => {
     const { t, i18n } = useTranslation();
     const { canOperate, canAdminInventory, canExportFinance: canExport, canSeeCosts } = usePermissions();
@@ -52,6 +53,7 @@ export const ConsumablesPage = () => {
         }
     }, [enqueueSnackbar, soloBajo, t]);
     useEffect(() => { load(); }, [load]);
+    useLiveRefresh(load);
     const handleDelete = async (c: Consumible) => {
         if (!(await confirm({ message: t('common.confirm_delete'), destructive: true, confirmText: t('common.delete') })))
             return;

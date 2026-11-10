@@ -15,6 +15,7 @@ import { formatDate } from '../../utils/dates';
 import { approvalSummaryLabel } from '../../utils/catalogLabels';
 import { useAuth } from '../../context/auth-context';
 import { DESTINO, pendientesDeRol } from './atencion';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 type Fila = Record<string, unknown>;
 const COLOR = { alta: 'error', media: 'warning', baja: 'info' } as const;
@@ -46,6 +47,7 @@ export const AttentionInbox = ({ onLoaded }: { onLoaded?: (items: ItemAtencion[]
       setItems([]);
     }
   }, []);
+  useLiveRefresh(cargar);
 
   useEffect(() => {
     let vivo = true;

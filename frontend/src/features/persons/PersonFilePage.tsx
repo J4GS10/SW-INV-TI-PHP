@@ -26,6 +26,7 @@ import { OffboardingDialog } from './OffboardingDialog';
 import { personService } from './personService';
 import type { PersonaResumen } from '../../types/users';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 interface Ficha {
   persona: {
@@ -78,6 +79,7 @@ export const PersonFilePage = () => {
       navigate('/empleados', { replace: true });
     }
   }, [personaId, agregarReciente, enqueueSnackbar, t, navigate]);
+  useLiveRefresh(cargar);
 
   useEffect(() => { void Promise.resolve().then(cargar); }, [cargar]);
 

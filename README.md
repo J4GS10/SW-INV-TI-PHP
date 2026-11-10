@@ -23,7 +23,7 @@ bash herramientas/desplegar.sh respaldar    # respaldo Data Pump verificado
 bash herramientas/desplegar.sh recargar     # recarga el Caddyfile sin cortar conexiones
 ```
 
-Caddy envía `/api/*` y `/health` a la API, bloquea `/metrics` y `/health/full`, y sirve lo demás desde el frontend.
+Caddy envía `/api/*`, `/health` y `/.well-known/mercure` (avisos en vivo) a la API, bloquea `/metrics` y `/health/full`, y sirve lo demás desde el frontend.
 
 ## Probar
 
@@ -39,14 +39,7 @@ cd ../frontend
 bash test-support/run.sh                          # tsc, lint y pruebas
 ```
 
-Las pruebas de punta a punta (Playwright) corren contra un entorno temporal, nunca contra producción, porque restablecen cuentas y restauran datos:
-
-```bash
-cd backend
-bash herramientas/qa/entorno.sh subir             # entorno de QA con una copia del último respaldo
-bash herramientas/qa/e2e.sh --project=chromium    # sin argumentos: todos los navegadores y móvil
-bash herramientas/qa/entorno.sh borrar            # elimina el entorno; no toca producción
-```
+**Un solo entorno: producción.** El sistema se prueba en el mismo despliegue que se usa, con las cuentas de prueba por rol ([pruebas por rol](docs/PRUEBAS_POR_ROL.md)). No existe entorno de QA ni otra copia del sistema, y no se levanta ninguno. Las pruebas de arriba verifican el código y al terminar no dejan ningún contenedor encendido.
 
 ## Base de datos
 

@@ -11,6 +11,7 @@ import { LicenseTypesDialog } from '../../software/LicenseTypesDialog';
 import { CatalogItemsPanel } from './CatalogItemsPanel';
 import { SpecsByTypePanel } from './SpecsByTypePanel';
 import { KitsPanel } from './KitsPanel';
+import { useLiveTick } from '../../../hooks/useLiveRefresh';
 
 const ModelsPage = lazy(() => import('../models/ModelsPage').then((m) => ({ default: m.ModelsPage })));
 const AssetTypesPage = lazy(() => import('../types/AssetTypesPage').then((m) => ({ default: m.AssetTypesPage })));
@@ -47,9 +48,10 @@ export const CatalogCenterPage = () => {
   const [licenseTypes, setLicenseTypes] = useState(false);
   const [params, setParams] = useSearchParams();
 
+  const liveTick = useLiveTick();
   useEffect(() => {
     catalogoService.definiciones().then(setDefs).catch(() => setDefs([])).finally(() => setLoaded(true));
-  }, []);
+  }, [liveTick]);
 
   const groups = useMemo(() => GROUPS.map((group) => ({
     group,

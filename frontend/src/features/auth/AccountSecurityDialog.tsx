@@ -24,6 +24,7 @@ import { SessionsList } from './security/SessionsList';
 import { scopeService } from '../../api/scopeService';
 import type { SesionActiva } from '../../types/users';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 /** Sessions shown before "show all": the dialog stays short even with many devices. */
 const SESSIONS_PREVIEW = 5;
@@ -82,6 +83,7 @@ export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props
       setSessions([]);
     }
   }, []);
+  useLiveRefresh(loadSessions);
 
   const [devices, setDevices] = useState<TrustedDevice[]>([]);
   const loadDevices = useCallback(async () => {
@@ -91,6 +93,7 @@ export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props
       setDevices([]);
     }
   }, []);
+  useLiveRefresh(loadDevices);
 
   const closeSession = async (session: SesionActiva) => {
     if (!(await confirm({

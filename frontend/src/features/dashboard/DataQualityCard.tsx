@@ -8,6 +8,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { productividadService, type CalidadDatos, type ItemVerificacion } from '../../api/productividadService';
+import { useLiveTick } from '../../hooks/useLiveRefresh';
 
 const COLOR = { alta: 'error', media: 'warning', baja: 'info' } as const;
 
@@ -29,9 +30,10 @@ export const DataQualityCard = () => {
   const [datos, setDatos] = useState<CalidadDatos | null>(null);
   const [abierta, setAbierta] = useState<string | null>(null);
 
+  const liveTick = useLiveTick();
   useEffect(() => {
     productividadService.calidadDatos().then(setDatos).catch(() => setDatos({ pendientes: 0, verificaciones: [] }));
-  }, []);
+  }, [liveTick]);
 
   const conHallazgos = datos?.verificaciones.filter((v) => v.total > 0) ?? [];
 

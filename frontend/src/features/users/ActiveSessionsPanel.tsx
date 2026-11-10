@@ -10,6 +10,7 @@ import { SectionCard } from '../../components/ui';
 import type { SesionActiva } from '../../types/users';
 import { SessionsList } from '../auth/security/SessionsList';
 import { userService } from './userService';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 const PREVIEW = 8;
 
@@ -29,6 +30,7 @@ export const ActiveSessionsPanel = ({ refreshKey }: { refreshKey?: number }) => 
       setSessions([]);
     }
   }, []);
+  useLiveRefresh(load);
 
   useEffect(() => { void load(); }, [load, refreshKey]);
 

@@ -17,6 +17,7 @@ import type { TipoActivo } from '../../../types/catalogs';
 import type { LicenciaDisponible } from '../../../types/software';
 import { softwareService } from '../../software/softwareService';
 import { Dialog } from '../../../components/ui/Dialog';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 type Opcion = { id: number; nombre: string };
 
@@ -54,6 +55,7 @@ export const KitsPanel = () => {
       setLoading(false);
     }
   }, [enqueueSnackbar, t]);
+  useLiveRefresh(cargar);
 
   useEffect(() => {
     void cargar();

@@ -18,6 +18,7 @@ import { PageHeader, SectionCard as UiSectionCard } from '../../components/ui';
 import { PALETTE_PRESETS, createAppTheme, pickText } from '../../theme/theme';
 import { MfaRequirementCard } from './MfaRequirementCard';
 import { directLogoUrl, isUploadedLogo, LOGO_BASE_HEIGHT, LOGO_MAX_BYTES, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_TYPES, logoScale, logoSourceOf, type LogoSource } from './logoSource';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 // Presets de fondo (oscuros, nunca negro puro) para guiar al usuario.
 const HEX_RE = /^#([0-9a-fA-F]{3}){1,2}$/;
 // Campo de color: input nativo + hex editable + swatch grande.
@@ -188,7 +189,7 @@ const PaletteSelector = ({ activeIndex, onSelect }: {
 };
 export const ConfigPage = () => {
     const { t } = useTranslation();
-    const { register, handleSubmit, reset, watch, setValue, setError, clearErrors, formState: { errors } } = useForm<SystemConfig>({ mode: 'onChange' });
+    const { register, handleSubmit, reset, watch, setValue, setError, clearErrors, formState: { errors, isDirty } } = useForm<SystemConfig>({ mode: 'onChange' });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [logoSource, setLogoSource] = useState<LogoSource>('upload');
@@ -226,6 +227,8 @@ export const ConfigPage = () => {
         }
     }, [enqueueSnackbar, reset, t]);
     useEffect(() => { loadConfig(); }, [loadConfig]);
+    // Otra persona cambió la configuración: se recarga, salvo si aquí hay cambios sin guardar.
+    useLiveRefresh(loadConfig, { resources: ['gov/config'], enabled: !isDirty });
     const elegirOrigenLogo = (origen: LogoSource) => {
         const actual = logoUrl ?? '';
         setLogoSource(origen);

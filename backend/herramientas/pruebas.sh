@@ -14,6 +14,8 @@ export MSYS_NO_PATHCONV=1
 AQUI="$(cd "$(dirname "$0")" && pwd)"
 RAIZ="$(cd "$AQUI/.." && (pwd -W 2>/dev/null || pwd))"
 RED="${RED_PRUEBAS:-inv_php_pruebas}"
+# Al terminar (bien o mal) no queda nada encendido: base y dobles de prueba se borran.
+trap 'docker rm -f inv_php_oracle_test mailpit minio-pruebas redis-pruebas samba-ad-pruebas >/dev/null 2>&1 || true' EXIT
 
 args=("$@")
 imagen=inventario-php-dev

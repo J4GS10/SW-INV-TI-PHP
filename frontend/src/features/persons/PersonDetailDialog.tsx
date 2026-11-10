@@ -11,6 +11,7 @@ import { ActivoVigente, personService } from './personService';
 import type { PersonaResumen } from '../../types/users';
 import { SectionCard } from '../../components/ui';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 interface Props {
     open: boolean;
     persona: PersonaResumen | null;
@@ -38,6 +39,7 @@ export const PersonDetailDialog = ({ open, persona, onClose, onOffboard, onHando
         }
     }, [open, persona]);
     useEffect(() => { load(); }, [load]);
+    useLiveRefresh(load);
     // Jefe directo (PER_Jefe) resuelto por id; `undefined` = cargando, `null` = sin jefe / no encontrado.
     const jefeId = open ? persona?.PER_Jefe ?? null : null;
     const [jefe, setJefe] = useState<{ id: string; data: PersonaResumen | null } | null>(null);

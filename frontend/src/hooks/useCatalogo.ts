@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { catalogoService, type CatalogoClave, type CatalogoItem, type MovimientoAplica } from '../api/catalogoService';
 import { catalogCodeLabel, catalogItemLabel } from '../utils/catalogLabels';
+import { useLiveRefresh } from './useLiveRefresh';
 
 /** Registros activos de un catálogo (con caché) y una función para recargarlos. */
 export function useCatalogo(clave: CatalogoClave) {
@@ -18,6 +19,7 @@ export function useCatalogo(clave: CatalogoClave) {
     }
   }, [clave]);
   useEffect(() => { void reload(); }, [reload]);
+  useLiveRefresh(reload);
   return { items, loading, reload };
 }
 

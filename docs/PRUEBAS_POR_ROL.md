@@ -1,6 +1,6 @@
 # Pruebas por rol
 
-Qué puede trabajar cada rol, con qué cuentas probarlo y cómo validar cada flujo. Las reglas de cada rol están en la [arquitectura](ARQUITECTURA.md#roles).
+Qué puede trabajar cada rol, con qué cuentas probarlo y cómo validar cada flujo. Las reglas de cada rol están en la [arquitectura](ARQUITECTURA.md#roles). Todo se prueba aquí, en producción: el sistema tiene un solo entorno y no existe QA.
 
 ## Cuentas de prueba
 

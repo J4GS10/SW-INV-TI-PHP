@@ -18,6 +18,7 @@ import { softwareService } from './softwareService';
 import { CredentialsEditor } from './CredentialsEditor';
 import { camposDelMetodo, etiquetaCampo, generarSecreto } from './credenciales';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 interface Props {
   licencia: Licencia;
@@ -62,6 +63,7 @@ export const CredentialsPanel = ({ licencia, onChanged }: Props) => {
   }, [licencia.LIC_Licencia, enqueueSnackbar, t]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+  useLiveRefresh(cargar);
 
   // Los secretos mostrados se ocultan solos a los 30 s.
   const hayVisibles = Object.keys(visibles).length > 0;

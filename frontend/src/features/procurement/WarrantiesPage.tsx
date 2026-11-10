@@ -14,6 +14,7 @@ import { CollapsibleToolbar } from '../../components/CollapsibleToolbar';
 import { PageHeader, DataTableShell, StatusChip } from '../../components/ui';
 import type { StatusVariant } from '../../components/ui';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 const estadoChip = (estado: string, t: TFunction) => {
     const map: Record<string, { variant: StatusVariant; label: string }> = {
         vencida:     { variant: 'vencido',    label: t('procurement.w_expired') },
@@ -45,6 +46,7 @@ export const WarrantiesPage = () => {
         }
     }, [dias, enqueueSnackbar, soloAlertas, t]);
     useEffect(() => { load(); }, [load]);
+    useLiveRefresh(load);
     const [notifying, setNotifying] = useState(false);
     const notificar = async () => {
         setNotifying(true);

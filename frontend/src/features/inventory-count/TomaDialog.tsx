@@ -16,6 +16,7 @@ import type { LecturaResultado, ResultadoLectura, TomaDetalle } from '../../type
 import { formatDateTimeValue } from '../../utils/dates';
 import { normalizeLanguage } from '../../types/language';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 const COLOR: Record<ResultadoLectura, 'success' | 'warning' | 'error' | 'info' | 'default'> = {
   ENCONTRADO: 'success',
@@ -61,6 +62,7 @@ export const TomaDialog = ({ tomaId, areas, onClose }: Props) => {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_loading')), { variant: 'error' });
     }
   }, [enqueueSnackbar, t, tomaId]);
+  useLiveRefresh(cargar);
 
   useEffect(() => {
     setToma(null);

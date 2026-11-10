@@ -17,6 +17,7 @@ import type { Toma } from '../../types/kardex';
 import { formatDateTimeValue } from '../../utils/dates';
 import { TomaDialog } from './TomaDialog';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 type AreaRuta = { ARE_Area: number; ruta: string; SED_Sede?: number | null };
 
@@ -57,6 +58,7 @@ export const TomasPage = () => {
   }, [enqueueSnackbar, t]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useLiveRefresh(cargar);
   useEffect(() => { if (unica && sede === '') setSede(unica.SED_Sede); }, [sede, unica]);
 
   const nombreSede = (id: number) => sedes.find((s) => s.SED_Sede === id)?.SED_Nombre ?? `#${id}`;

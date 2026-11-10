@@ -133,7 +133,7 @@ bash herramientas/desplegar.sh estado
 
 Después:
 - **Respaldo:** `bash herramientas/desplegar.sh respaldar` debe terminar en «Respaldo verificado», y el archivo debe aparecer también en `BACKUP_REPLICA_DIR`.
-- **Restauración:** pruébela una vez, en el entorno de pruebas (`herramientas/qa/entorno.sh subir`), nunca sobre producción.
+- **Restauración:** reemplaza la base completa. Pruébela una vez en el servidor formal recién instalado, antes de cargar datos reales (hay un solo entorno: no se levanta otra copia para probarla).
 - **Reinicio:** reinicie el servidor y compruebe que todo vuelve solo.
 
 ## 10. Mantenimiento

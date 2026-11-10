@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import client from '../../api/axios';
 import { EmptyState } from '../../components/ui';
 import { formatDateTimeValue } from '../../utils/dates';
+import { useLiveTick } from '../../hooks/useLiveRefresh';
 
 interface Consumo {
   historial: { MOC_Movimiento: number; MOC_Fecha: string; consumible: string; unidad: string; MOC_Cantidad: number;
@@ -19,10 +20,11 @@ export const ConsumiblesEquipo = ({ activoId }: { activoId: string }) => {
   const { t, i18n } = useTranslation();
   const [datos, setDatos] = useState<Consumo | null>(null);
 
+  const liveTick = useLiveTick();
   useEffect(() => {
     client.get<Consumo>(`/core/activos/${activoId}/consumibles`).then((r) => setDatos(r.data))
       .catch(() => setDatos({ historial: [], compatibles: [] }));
-  }, [activoId]);
+  }, [activoId, liveTick]);
 
   if (!datos) return <Box display="flex" justifyContent="center" py={3}><CircularProgress/></Box>;
   return (

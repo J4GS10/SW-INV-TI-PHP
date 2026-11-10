@@ -9,6 +9,7 @@ import { EmptyState } from '../../components/ui';
 import { SectionCard } from '../../components/ui';
 import { DepartamentoDetalle, departmentService } from './departmentService';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 interface Props {
     open: boolean;
     departamentoId: number | null;
@@ -33,6 +34,7 @@ export const DepartmentDetailDialog = ({ open, departamentoId, onClose }: Props)
         }
     }, [departamentoId, open]);
     useEffect(() => { load(); }, [load]);
+    useLiveRefresh(load);
     return (<Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between' }}>
         <Box>

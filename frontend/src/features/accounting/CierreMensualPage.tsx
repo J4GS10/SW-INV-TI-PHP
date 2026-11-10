@@ -15,6 +15,7 @@ import { formatMoney } from '../../utils/currency';
 import { formatDate } from '../../utils/dates';
 import { useConfirm } from '../../components/confirm-context';
 import { normalizeLanguage } from '../../types/language';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 type Fila = Record<string, string | number | null>;
 interface Cierre {
@@ -71,6 +72,7 @@ export const CierreMensualPage = () => {
   }, [anio, mes, sede, enqueueSnackbar, t]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useLiveRefresh(cargar);
 
   const dinero = (v: string | number | null, moneda: string | number | null) =>
     (v == null ? '—' : formatMoney(Number(v), String(moneda ?? 'GTQ'), i18n.language));

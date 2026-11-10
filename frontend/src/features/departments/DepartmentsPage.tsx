@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 import { DepartamentoResumen, departmentService } from './departmentService';
 import { DepartmentDetailDialog } from './DepartmentDetailDialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 export const DepartmentsPage = () => {
     const { t } = useTranslation();
     const { enqueueSnackbar } = useSnackbar();
@@ -28,6 +29,7 @@ export const DepartmentsPage = () => {
         }
     }, [enqueueSnackbar, t]);
     useEffect(() => { load(); }, [load]);
+    useLiveRefresh(load);
     return (<Box>
       <PageHeader
         title={t('departments.title')}

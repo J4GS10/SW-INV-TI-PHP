@@ -13,6 +13,7 @@ import { getApiErrorMessage } from '../../api/errors';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dates';
 import { attachmentService, Adjunto } from './attachmentService';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 // Mismos límites que el servidor: se avisa antes de subir.
 const MAX_MB = 10;
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.csv,.txt';
@@ -53,6 +54,7 @@ export const AttachmentsSection = ({ activoId }: Props) => {
         }
     }, [activoId, enqueueSnackbar, t]);
     useEffect(() => { load(); }, [load]);
+    useLiveRefresh(load);
     const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file)

@@ -17,6 +17,7 @@ import { ExportMenuButton } from '../../components/ExportMenuButton';
 import { usePermissions } from '../../hooks/usePermissions';
 import { CollapsibleToolbar } from '../../components/CollapsibleToolbar';
 import { useConfirm } from '../../components/confirm-context';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 export const ProvidersPage = () => {
     const { t } = useTranslation();
     // Compras crea y edita proveedores; borrarlos es de TI.
@@ -41,6 +42,7 @@ export const ProvidersPage = () => {
         }
     }, [enqueueSnackbar, t]);
     useEffect(() => { load(); }, [load]);
+    useLiveRefresh(load);
     const handleDelete = async (p: Proveedor) => {
         if (!(await confirm({ message: t('common.confirm_delete'), destructive: true, confirmText: t('common.delete') })))
             return;

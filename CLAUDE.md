@@ -7,4 +7,6 @@
 - API: el frontend traduce los códigos `{"detail": "<CÓDIGO>"}`, así que no se cambian. SQL explícito con DBAL e identificadores entre comillas.
 - Toda acción autenticada usa `#[Autenticado]`. Seguridad en dos capas: validaciones de la aplicación y VPD de Oracle.
 - Vocabulario: `docs/GLOSARIO.md`. Lo que un rol no puede trabajar no se le muestra.
-- Arquitectura: `docs/ARQUITECTURA.md`. Pruebas y despliegue: `README.md`. `e2e.sh` y `persistencia.sh` no corren contra producción.
+- Arquitectura: `docs/ARQUITECTURA.md`. Pruebas y despliegue: `README.md`.
+- **Un solo entorno: producción** (proyecto compose `inventario`). Todo se prueba ahí, con las cuentas de prueba por rol (`docs/PRUEBAS_POR_ROL.md`). Nunca se levanta QA ni otra copia del sistema. Una prueba limpia lo que crea y no toca datos reales; si solo puede correr borrando datos, se pregunta antes.
+- Cambios en vivo: toda escritura se anuncia por Mercure y las pantallas abiertas recargan solas (`docs/ARQUITECTURA.md`, «Actualización en vivo»). Una pantalla nueva que carga datos usa `useLiveRefresh` o `useLiveTick`.

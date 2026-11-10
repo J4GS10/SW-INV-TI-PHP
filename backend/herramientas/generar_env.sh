@@ -34,6 +34,7 @@ declare -A valor=(
   # MinIO KMS: «nombre:clave de 32 bytes en base64».
   [MINIO_KMS_SECRET_KEY]="inventario-kms:$(base64_32)"
   [SECRET_KEY]="$(hex32)"
+  [MERCURE_JWT_SECRET]="$(hex32)"
   # Varias claves separadas por coma: la primera firma y las demás solo verifican (rotación).
   [HMAC_KEYS]="$(hex32)"
   # Fernet: 32 bytes en base64 con alfabeto URL.

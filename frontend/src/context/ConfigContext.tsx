@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import client from '../api/axios';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { ConfigContext, DEFAULT_CONFIG } from './config-context';
 import type { SystemConfig } from './config-context';
 
@@ -58,6 +59,9 @@ export const ConfigProvider = ({ children }: Props) => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Colores, logo y nombre cambiados por otra persona: se aplican al instante, sin recargar.
+  useLiveRefresh(load, { resources: ['gov/config'] });
 
   return (
     <ConfigContext.Provider value={{ config, isLoaded, reload: load, apply }}>

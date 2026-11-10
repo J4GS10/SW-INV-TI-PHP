@@ -3,6 +3,7 @@ import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } fro
 import { isSessionRestriction } from '../types/auth';
 
 import { apiCache } from './cache';
+import { CLIENT_ID } from './liveUpdates';
 import { refreshAccessToken } from './refresh';
 import { sessionEvents } from './sessionEvents';
 import { tokenStorage } from './tokenStorage';
@@ -26,6 +27,8 @@ client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // La pestaña que escribe ya se actualizó: el aviso en vivo de su propio cambio se ignora.
+  config.headers['X-Client-Id'] = CLIENT_ID;
   return config;
 });
 
@@ -42,7 +45,16 @@ client.interceptors.response.use(
     return response;
   },
   async (error: AxiosError) => {
-    const original = error.config as (AxiosRequestConfig & { _retried?: boolean }) | undefined;
+    const original = error.config as (AxiosRequestConfig & { _retried?: boolean; _netRetried?: boolean }) | undefined;
+
+    // Conexión cortada sin respuesta (Wi-Fi, reinicio de la API): una lectura se repite una
+    // vez sola. Las escrituras no: el servidor pudo haberlas aplicado.
+    if (original && !error.response && error.code !== 'ECONNABORTED' && error.code !== 'ERR_CANCELED'
+      && (original.method ?? 'get').toLowerCase() === 'get' && !original._netRetried) {
+      original._netRetried = true;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return client.request(original);
+    }
 
     // 403 por paso de seguridad pendiente (contraseña temporal / MFA obligatorio):
     // la sesión sigue viva; el AuthContext muestra la pantalla correspondiente.

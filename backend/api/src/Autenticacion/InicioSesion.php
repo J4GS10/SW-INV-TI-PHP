@@ -8,6 +8,7 @@ use App\Config\Ajustes;
 use App\Correo\Notificador;
 use App\Dominio\Ident;
 use App\Dominio\Usuario;
+use App\Realtime\UpdatePublisher;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\SesionRepositorio;
 use App\Repositorio\UsuarioRepositorio;
@@ -33,6 +34,7 @@ final readonly class InicioSesion
         private Tokens $tokens,
         private Notificador $notificador,
         private Ajustes $ajustes,
+        private UpdatePublisher $tiempoReal,
     ) {
     }
 
@@ -55,7 +57,7 @@ final readonly class InicioSesion
             $this->gobierno->registrarAuditoria('LOGIN_NEW_DEVICE', 'INV_USUARIO',
                 ['username' => $usuario->username, 'dispositivo' => $sesion['dispositivo']], $usuario->id, $ip, $ua);
         }
-        $this->fijarCookie($respuesta, $refresh);
+        $this->fijarCookie($respuesta, $refresh, $usuario->id);
 
         return ['claims' => $claims, 'dispositivo_nuevo' => $sesion['nuevo_dispositivo'] ? $sesion['dispositivo'] : null];
     }
@@ -88,8 +90,9 @@ final readonly class InicioSesion
         ];
     }
 
-    public function fijarCookie(Response $respuesta, string $refresh): void
+    public function fijarCookie(Response $respuesta, string $refresh, string $usuarioHex): void
     {
+        $this->fijarCookieTiempoReal($respuesta, $usuarioHex);
         $respuesta->headers->setCookie(Cookie::create(self::COOKIE_REFRESH)
             ->withValue($refresh)
             // Sin persistencia, cookie de sesión: el navegador la descarta al cerrarse.
@@ -104,6 +107,28 @@ final readonly class InicioSesion
     {
         $respuesta->headers->clearCookie(self::COOKIE_REFRESH, $this->rutaCookie(), null,
             $this->ajustes->esProduccion(), true, Cookie::SAMESITE_STRICT);
+        $respuesta->headers->clearCookie(UpdatePublisher::COOKIE, UpdatePublisher::COOKIE_PATH, null,
+            true, true, Cookie::SAMESITE_STRICT);
+    }
+
+    /**
+     * Permiso para escuchar los cambios en vivo (hub Mercure, mismo origen). Vive lo
+     * mismo que la inactividad de la sesión y se renueva con cada refresh.
+     */
+    private function fijarCookieTiempoReal(Response $respuesta, string $usuarioHex): void
+    {
+        $segundos = $this->ajustes->sesionInactividadMinutos * 60;
+        $token = $this->tiempoReal->subscriberToken($usuarioHex, $segundos);
+        if (null === $token) {
+            return;
+        }
+        $respuesta->headers->setCookie(Cookie::create(UpdatePublisher::COOKIE)
+            ->withValue($token)
+            ->withExpires($this->ajustes->cookieRefreshPersistente ? time() + $segundos : 0)
+            ->withPath(UpdatePublisher::COOKIE_PATH)
+            ->withSecure(true) // prefijo __Secure-: el navegador la exige siempre con Secure
+            ->withHttpOnly(true)
+            ->withSameSite(Cookie::SAMESITE_STRICT));
     }
 
     /** Las respuestas con tokens o desafíos no se guardan en cachés intermedias. */

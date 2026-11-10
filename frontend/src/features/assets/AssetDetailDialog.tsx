@@ -59,6 +59,7 @@ import { getApiErrorDetail, getApiErrorMessage } from '../../api/errors';
 import type { Movimiento } from '../../types/traceability';
 import { formatMoney } from '../../utils/currency';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 const SIN_DATOS: never[] = [];
 interface Props {
     open: boolean;
@@ -285,6 +286,7 @@ export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS,
             setLoading(false);
         }
     }, [asset, enqueueSnackbar, t, canSeePeople, canSeeInventory, canReadControl]);
+    useLiveRefresh(loadAll);
     useEffect(() => {
         if (open && asset) {
             loadAll();

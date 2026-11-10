@@ -21,6 +21,7 @@ import { usePermissions } from '../../../hooks/usePermissions';
 import { catalogItemLabel } from '../../../utils/catalogLabels';
 import { mergeAtomicValues } from '../../../utils/atomicValues';
 import { MergeDialog } from './MergeDialog';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 const SPEC_TYPES = 'tipos-especificacion';
 /** Reading order of a specification: what kind of data comes first, its unit and range depend on it. */
@@ -98,6 +99,7 @@ export const CatalogItemsPanel = ({ def }: Props) => {
   }, [clave, enqueueSnackbar, t]);
 
   useEffect(() => { void cargar(); }, [cargar]);
+  useLiveRefresh(cargar);
 
   // Dónde se pide cada especificación y qué valores acepta: así se ve dónde vive «DDR4».
   useEffect(() => {

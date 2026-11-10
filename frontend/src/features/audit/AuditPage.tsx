@@ -15,6 +15,7 @@ import { downloadCsv } from '../../api/downloadCsv';
 import type { SupportedLanguage } from '../../types/language';
 import { CollapsibleToolbar } from '../../components/CollapsibleToolbar';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 const ACCIONES = [
     '', 'CREATE', 'UPDATE', 'DELETE', 'DELETE_LOGIC',
     'ASSIGN', 'RETURN', 'TRANSFER', 'INSTALL', 'UNINSTALL',
@@ -103,6 +104,7 @@ export const AuditPage = () => {
         }
     }, [accion, entidad, enqueueSnackbar, fromDate, page, rowsPerPage, t, toDate]);
     useEffect(() => { load(); }, [load]);
+    useLiveRefresh(load);
     // Exportación del servidor: todo el rango filtrado (no solo la página visible),
     // limitada al alcance del lector y registrada en la propia bitácora.
     const exportCSV = async (exportLanguage: SupportedLanguage) => {

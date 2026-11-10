@@ -142,6 +142,9 @@ final readonly class Ajustes
     public string $s3Bucket;
     public string $s3Region;
     public float $almacenamientoTimeout;
+    /** Hub Mercure (actualizaciones en vivo); sin clave, no se publica nada. */
+    public ?string $mercureUrl;
+    public ?string $mercureClave;
 
     /** @param array<string, mixed> $e */
     private function __construct(array $e)
@@ -278,6 +281,8 @@ final readonly class Ajustes
         $this->s3Bucket = $texto('S3_BUCKET', 'lombardi-adjuntos');
         $this->s3Region = $texto('S3_REGION', 'us-east-1');
         $this->almacenamientoTimeout = (float) $texto('STORAGE_TIMEOUT_SECONDS', '5');
+        $this->mercureUrl = $opcional('MERCURE_HUB_URL');
+        $this->mercureClave = $opcional('MERCURE_JWT_SECRET');
 
         $this->sesionInactividadMinutos = $this->validar($inactividad, [] !== $hmacConfiguradas);
     }
@@ -348,7 +353,7 @@ final readonly class Ajustes
         }
         // «s3» es el protocolo de MinIO, que corre en el propio servidor: sin su dirección no se arranca,
         // para que ningún adjunto pueda salir hacia un servicio externo.
-        if ('s3' === $this->almacenamiento && (null === $this->s3Endpoint || '' === $this->s3Endpoint)) {
+        if ('s3' === $this->almacenamiento && null === $this->s3Endpoint) {
             throw $error('S3_ENDPOINT_URL es obligatorio cuando STORAGE_BACKEND=s3 (dirección de MinIO).');
         }
 

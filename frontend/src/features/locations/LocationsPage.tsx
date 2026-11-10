@@ -13,6 +13,7 @@ import { getApiErrorMessage } from '../../api/errors';
 import { locationService } from './locationService';
 import { useConfirm } from '../../components/confirm-context';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 type LevelType = 'PAIS' | 'ESTADO' | 'MUNICIPIO' | 'SEDE' | 'EDIFICIO' | 'NIVEL' | 'AREA';
 interface BreadcrumbItem {
     type: LevelType;
@@ -126,6 +127,7 @@ export const LocationsPage = () => {
         }
     }, [api, breadcrumbs, currentLevel, enqueueSnackbar, t]);
     useEffect(() => { loadItems(); }, [loadItems]);
+    useLiveRefresh(loadItems);
     const navigateInto = (item: LocationItem) => {
         const next = meta.next;
         if (!next)

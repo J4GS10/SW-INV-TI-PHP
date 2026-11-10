@@ -287,7 +287,7 @@ final readonly class LoginController
             $claims = [...$this->politica->claims($usuario, $viaSso, $sesion['creada'] ?? null), 'sid' => Ident::aTexto($sesionId)];
             $nuevo = $this->tokens->crearRefresh($usuario->username, $usuario->rol, $authTime > 0 ? $authTime : null, $claims);
             $this->sesiones->tocar($sesionId, Tokens::jtiSinVerificar($nuevo), $ip);
-            $this->inicio->fijarCookie($respuesta, $nuevo);
+            $this->inicio->fijarCookie($respuesta, $nuevo, $usuario->id);
 
             return $claims;
         });

@@ -13,6 +13,7 @@ import { TipoActivo } from '../../../types/inventory';
 import { AssetTypeDialog } from './AssetTypeDialog';
 import { ReclasificarDialog } from './ReclasificarDialog';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
+import { useLiveTick } from '../../../hooks/useLiveRefresh';
 export const AssetTypesPage = () => {
     const { t } = useTranslation();
     const confirm = useConfirm();
@@ -34,9 +35,10 @@ export const AssetTypesPage = () => {
             setLoading(false);
         }
     };
+    const liveTick = useLiveTick();
     useEffect(() => {
         loadData();
-    }, []);
+    }, [liveTick]);
     const handleEdit = (type: TipoActivo) => {
         setTypeToEdit(type);
         setIsDialogOpen(true);

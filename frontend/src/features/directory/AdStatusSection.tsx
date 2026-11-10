@@ -16,6 +16,7 @@ import { directoryService } from './directoryService';
 import { isForbidden } from './directoryUtils';
 import type { DirectoryStatus, SyncResult } from './types';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 
 const COUNT_KEYS = [
@@ -216,6 +217,7 @@ export const AdStatusSection = ({ canTestConnection, refreshKey = 0 }: Props) =>
       setLoading(false);
     }
   }, []);
+  useLiveRefresh(load);
 
   useEffect(() => {
     load();

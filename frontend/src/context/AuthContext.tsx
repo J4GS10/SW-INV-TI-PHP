@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
 
 import { authSync } from '../api/authSync';
+import { liveUpdates } from '../api/liveUpdates';
 import { refreshAccessToken } from '../api/refresh';
 import { sessionEvents } from '../api/sessionEvents';
 import { tokenStorage } from '../api/tokenStorage';
@@ -176,6 +177,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       window.removeEventListener('focus', check);
     };
   }, [isAuthenticated]);
+
+  // Avisos en vivo: con la sesión abierta, escucha los cambios del sistema. Si el aviso es
+  // para esta persona (sesión cerrada, rol o MFA cambiados), lo comprueba en el acto y
+  // renueva el token para tomar los permisos nuevos; si la sesión ya no vale, sale.
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    liveUpdates.start();
+    const unsubscribe = liveUpdates.subscribe(({ resource }) => {
+      if (resource !== 'me') return;
+      void authService.me().then(() => renewSession()).catch(() => undefined);
+    });
+    return () => {
+      unsubscribe();
+      liveUpdates.stop();
+    };
+  }, [isAuthenticated, renewSession]);
 
   useEffect(() => {
     if (!isAuthenticated) return undefined;

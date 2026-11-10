@@ -15,6 +15,7 @@ import { PageHeader, DataTableShell } from '../../../components/ui';
 import { SearchInput } from '../../../components/SearchInput';
 import { CollapsibleToolbar } from '../../../components/CollapsibleToolbar';
 import { useConfirm } from '../../../components/confirm-context';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 export const ModelsPage = () => {
     const { t } = useTranslation();
     const confirm = useConfirm();
@@ -64,6 +65,7 @@ export const ModelsPage = () => {
             setLoading(false);
         }
     }, [selectedMarca]);
+    useLiveRefresh(loadModelos);
     useEffect(() => {
         loadModelos();
     }, [loadModelos]);

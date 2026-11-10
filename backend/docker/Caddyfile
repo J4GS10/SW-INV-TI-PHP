@@ -14,6 +14,21 @@
 :8000 {
 	root * /app/public
 	encode zstd gzip
+	# Actualizaciones en vivo (SSE): la API publica qué cambió y cada navegador recarga lo que muestra.
+	# Solo eventos privados: el suscriptor necesita la cookie que la API entrega al iniciar sesión.
+	# issuer y resource_identifier coinciden con las constantes de UpdatePublisher (API).
+	mercure {
+		transport local
+		resource_identifier https://inventario.invalid/hub
+		issuer urn:inventario:api {
+			publisher {
+				jwt {env.MERCURE_JWT_SECRET} HS256
+			}
+			subscriber {
+				jwt {env.MERCURE_JWT_SECRET} HS256
+			}
+		}
+	}
 	php_server {
 		try_files {path} index.php
 	}

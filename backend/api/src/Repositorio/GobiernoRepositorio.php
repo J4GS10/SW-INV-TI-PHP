@@ -6,6 +6,7 @@ namespace App\Repositorio;
 
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
+use App\Realtime\UpdatePublisher;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\ParameterType;
@@ -13,7 +14,7 @@ use Doctrine\DBAL\ParameterType;
 /** Bitácora de auditoría y revocación de tokens. */
 final readonly class GobiernoRepositorio
 {
-    public function __construct(private Connection $conexion)
+    public function __construct(private Connection $conexion, private UpdatePublisher $tiempoReal)
     {
     }
 
@@ -114,6 +115,8 @@ final readonly class GobiernoRepositorio
         );
         // Cerrar todo también olvida los equipos recordados: el siguiente acceso vuelve a pedir el código MFA.
         $this->conexion->executeStatement('DELETE FROM SYS_TRUSTED_DEVICE WHERE TDV_USER = :u', ['u' => $usuarioHex]);
+        // Sus pestañas abiertas comprueban la sesión al instante (no al siguiente latido).
+        $this->tiempoReal->userChanged($usuarioHex);
     }
 
     public function jtiRevocado(string $jti): bool

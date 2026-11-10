@@ -24,6 +24,7 @@ import { typeLabel } from '../../utils/catalogLabels';
 import { ResumenMotivos, type ResumenMotivosData } from './ResumenMotivos';
 import { Dialog } from '../../components/ui/Dialog';
 import { DateField } from '../../components/ui/DateField';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 type Vista = 'kardex' | 'entradas_salidas' | 'reasignaciones' | 'custodia' | 'resumen' | 'motivos';
 const VISTAS: Vista[] = ['kardex', 'entradas_salidas', 'reasignaciones', 'custodia', 'resumen', 'motivos'];
@@ -108,6 +109,7 @@ export const TrazabilidadPage = () => {
   }, [desde, enqueueSnackbar, fecha, filtros, hasta, page, rowsPerPage, sede, t, vista]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useLiveRefresh(cargar);
 
   const cambiarVista = (_: unknown, nueva: Vista) => {
     setPage(0);

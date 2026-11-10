@@ -10,6 +10,7 @@ import { getApiErrorMessage } from '../../api/errors';
 import { TipoLicencia } from '../../types/software';
 import { softwareService } from './softwareService';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 interface Props { open: boolean; onClose: () => void; }
 
@@ -29,6 +30,7 @@ export const LicenseTypesDialog = ({ open, onClose }: Props) => {
     catch (error) { enqueueSnackbar(getApiErrorMessage(error, t('common.error_loading')), { variant: 'error' }); }
     finally { setLoading(false); }
   }, [enqueueSnackbar, t]);
+  useLiveRefresh(load);
   useEffect(() => { if (open) void load(); }, [load, open]);
   const startCreate = () => { setSelected(null); setName(''); setDescription(''); };
   const startEdit = (type: TipoLicencia) => { setSelected(type); setName(type.TLI_Nombre); setDescription(type.TLI_Descripcion ?? ''); };

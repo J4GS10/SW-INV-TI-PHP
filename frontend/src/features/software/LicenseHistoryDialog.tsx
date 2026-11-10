@@ -8,6 +8,7 @@ import { EmptyState } from '../../components/ui';
 import type { HistorialLicencia, Licencia } from '../../types/software';
 import { formatDate } from '../../utils/dates';
 import { Dialog } from '../../components/ui/Dialog';
+import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 interface Props {
   licencia: Licencia | null;
@@ -35,6 +36,7 @@ export const LicenseHistoryDialog = ({ licencia, titulo, onClose }: Props) => {
   }, [licencia, enqueueSnackbar, t]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  useLiveRefresh(cargar);
 
   return (
     <Dialog open={!!licencia} onClose={onClose} maxWidth="md" fullWidth>
