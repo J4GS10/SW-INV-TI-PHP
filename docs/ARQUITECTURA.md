@@ -543,6 +543,7 @@ Todo corre en Docker: en el equipo solo hace falta Docker y Git Bash.
 |---|---|
 | Desplegar | `cd backend && bash herramientas/desplegar.sh` |
 | Ver el estado | `bash herramientas/desplegar.sh estado` |
+| Pruebas del backend en producción | `CONFIRMAR=SI bash herramientas/pruebas_produccion.sh`: detiene la API y el worker, hace un respaldo verificado y toma una huella de la base. Corre la suite con el VPD activo, restaura el respaldo, exige la misma huella y vuelve a levantar todo (unos 15 minutos sin servicio) |
 | Pruebas del backend | `bash herramientas/pruebas.sh` (Oracle real, en un contenedor aparte) |
 | Una parte | `bash herramientas/pruebas.sh --filter ActivosTest` |
 | Pruebas del frontend | `cd frontend && bash test-support/run.sh` |

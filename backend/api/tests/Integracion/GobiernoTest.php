@@ -42,7 +42,8 @@ final class GobiernoTest extends WebTestCase
         self::assertSame([422, 'VALIDATION_ERROR'], $this->detalle('PUT', '/api/v1/gov/config', ['SYS_Nombre_Empresa' => 'X']));
 
         // Tamaño del logo: porcentaje de 50 a 250, nunca vacío.
-        self::assertSame(100, (int) $config['SYS_Logo_Tamano'], 'Por defecto, el tamaño base.');
+        // El valor actual es el que dejó el administrador (de fábrica, 100): siempre dentro del rango.
+        self::assertThat((int) $config['SYS_Logo_Tamano'], self::logicalAnd(self::greaterThanOrEqual(50), self::lessThanOrEqual(250)));
         [$e, $grande] = $this->pedir('PUT', '/api/v1/gov/config', ['SYS_Logo_Tamano' => 180]);
         self::assertSame([200, 180], [$e, (int) $grande['SYS_Logo_Tamano']]);
         foreach ([40, 260, null, 'grande'] as $invalido) {

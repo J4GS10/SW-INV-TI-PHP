@@ -29,6 +29,7 @@ Caddy envía `/api/*`, `/health` y `/.well-known/mercure` (avisos en vivo) a la 
 
 ```bash
 cd backend
+CONFIRMAR=SI bash herramientas/pruebas_produccion.sh   # suite completa sobre la base de PRODUCCIÓN: respaldo, prueba y vuelta exacta al respaldo
 bash herramientas/pruebas.sh                      # suite completa contra Oracle real, con dobles de correo, S3, AD y Redis
 bash herramientas/pruebas.sh --unit               # sin base de datos
 bash herramientas/pruebas.sh --filter LoginTest   # una parte

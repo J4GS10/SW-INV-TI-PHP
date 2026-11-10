@@ -216,7 +216,7 @@ final class EsquemaTest extends KernelTestCase
         $e = static fn (string $k, string $d = ''): string => (string) ($_SERVER[$k] ?? $_ENV[$k] ?? $d);
         $app = DriverManager::getConnection([
             'driver' => 'oci8', 'host' => $e('ORACLE_HOST'), 'port' => (int) $e('ORACLE_PORT', '1521'),
-            'servicename' => $e('ORACLE_SERVICE_NAME', 'XEPDB1'), 'user' => 'INVENTARIO_APP', 'password' => $e('ORACLE_PASSWORD'),
+            'servicename' => $e('ORACLE_SERVICE_NAME', 'XEPDB1'), 'user' => 'INVENTARIO_APP', 'password' => $e('ORACLE_APP_PASSWORD', $e('ORACLE_PASSWORD')),
             'charset' => 'AL32UTF8', 'driverOptions' => ['exclusive' => true],
         ]);
         foreach (SesionOracleMiddleware::sentencias('INVENTARIO', 'INVENTARIO_APP') as $sql) {
