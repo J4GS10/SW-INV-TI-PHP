@@ -19,6 +19,8 @@ type Fila = Record<string, string | number | null>;
 interface Cierre {
   frozen?: boolean;
   closed_by?: string | null;
+  /** Solo en un mes sin cerrar: trabajo sin resolver que ya no entraría en sus cifras. */
+  pendientes?: { aprobaciones: number; ingresos: number };
   activos: Fila[]; altas: Fila[]; bajas: Fila[]; consumibles: Fila[]; licencias: Fila[];
   mantenimiento: Fila[];
 }
@@ -64,10 +66,16 @@ export const CierreMensualPage = () => {
   const nombreMes = new Date(2000, mes - 1, 1).toLocaleDateString(i18n.language, { month: 'long' });
   // Solo se congela un mes terminado; la API rechaza los demás, así que no se ofrece.
   const mesTerminado = anio < hoy.getFullYear() || (anio === hoy.getFullYear() && mes < hoy.getMonth() + 1);
+  const pendientes = datos?.pendientes ?? { aprobaciones: 0, ingresos: 0 };
   const cerrarMes = async () => {
     const seguro = await confirm({
       title: t('month_end.close_confirm_title', { month: nombreMes, year: anio }),
-      message: t('month_end.close_confirm_message'),
+      // Lo que sigue sin resolver ya no entrará en las cifras de este mes: se avisa antes de congelar.
+      message: [
+        pendientes.ingresos > 0 ? t('month_end.pending_receipts', { count: pendientes.ingresos }) : '',
+        pendientes.aprobaciones > 0 ? t('month_end.pending_approvals', { count: pendientes.aprobaciones }) : '',
+        t('month_end.close_confirm_message'),
+      ].filter(Boolean).join(' '),
       confirmText: t('month_end.close'),
       destructive: true,
     });

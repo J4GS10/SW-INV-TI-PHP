@@ -9,7 +9,6 @@ use App\Dominio\Roles;
 use App\EventListener\OcultarCostosListener;
 use App\Http\ClienteHttp;
 use App\Http\Entrada;
-use App\Http\Idempotencia;
 use App\Http\Limite;
 use App\Inventario\Aprobaciones;
 use App\Inventario\Consumibles;
@@ -34,7 +33,6 @@ final readonly class ConsumiblesController
         private Consumibles $consumibles,
         private Aprobaciones $aprobaciones,
         private UsuarioActual $actual,
-        private Idempotencia $idempotencia,
     ) {
     }
 
@@ -107,7 +105,7 @@ final readonly class ConsumiblesController
         // Quien no ve costos tampoco los registra.
         $m = OcultarCostosListener::descartarCostos($m, $this->actual->usuario()->rol, 'precio_unitario', 'moneda') + ['precio_unitario' => null, 'moneda' => null];
 
-        return $this->idempotencia->ejecutar($request, fn (): array => $this->consumibles->mover($id, $m, 'ENTRADA',
+        return new JsonResponse($this->consumibles->mover($id, $m, 'ENTRADA',
             $this->actual->usuario()->id, ClienteHttp::ip($request)), 201);
     }
 
@@ -119,7 +117,7 @@ final readonly class ConsumiblesController
     {
         $m = $this->movimiento($request);
 
-        return $this->idempotencia->ejecutar($request, fn (): array => $this->consumibles->mover($id, $m, 'SALIDA',
+        return new JsonResponse($this->consumibles->mover($id, $m, 'SALIDA',
             $this->actual->usuario()->id, ClienteHttp::ip($request)), 201);
     }
 

@@ -3,7 +3,7 @@ parameters:
     excluir_de_servicios: &excluir
         - '../src/Kernel.php'
         - '../src/Security/Mfa/MfaCannotBeDisabled.php'
-        - '../src/GoodsReceipt/Domain/'
+        - '../src/*/Domain/'
         - '../src/Dominio/'
         - '../src/Correo/ConfigCorreo.php'
         - '../src/Correo/ErrorEnvioCorreo.php'
@@ -29,6 +29,8 @@ parameters:
         - '../src/Tareas/EjecutarTarea.php'
         # Fase 6: valores del migrador de esquema.
         - '../src/Esquema/{ScriptSql,FuentePlsql,ObjetoPlsql,PoliticaVpd,PoliticasVpd,DefinicionSeguridad}.php'
+        # Fase 11: excepción del borrado lógico.
+        - '../src/Db/RecordInUse.php'
 
 services:
     _defaults:

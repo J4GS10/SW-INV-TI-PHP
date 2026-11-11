@@ -56,9 +56,9 @@ final readonly class Credenciales
     }
 
     /** @return array<string, mixed> */
-    private function credencial(int $id): array
+    private function credencial(int $id, bool $bloquear = false): array
     {
-        $f = $this->conexion->fetchAssociative('SELECT * FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Licencia_Clave" = :id', ['id' => $id]);
+        $f = $this->conexion->fetchAssociative('SELECT * FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Licencia_Clave" = :id'.($bloquear ? ' FOR UPDATE' : ''), ['id' => $id]);
 
         return false === $f ? throw new ErrorApi(404, 'LICENSE_KEY_NOT_FOUND') : $f;
     }
@@ -297,7 +297,7 @@ final readonly class Credenciales
     public function editar(int $id, array $datos, string $usuario, ?string $ip): void
     {
         $this->transaccion->ejecutar(function () use ($id, $datos, $usuario, $ip): void {
-            $c = $this->credencial($id);
+            $c = $this->credencial($id, true);
             $lic = $this->licencia((int) $c['LIC_Licencia']);
             $visibles = array_intersect_key($datos, array_flip(['usuario', 'serial', 'servidor', 'dispositivo']));
             $limpios = self::validar($lic, $visibles, true);
@@ -368,8 +368,8 @@ final readonly class Credenciales
     public function rotar(int $id, array $datos, string $usuario, ?string $ip): void
     {
         $this->transaccion->ejecutar(function () use ($id, $datos, $usuario, $ip): void {
-            $c = $this->credencial($id);
-            $pedidos = self::pedidos($this->licencia((int) $c['LIC_Licencia']));
+            $c = $this->credencial($id, true);
+            $pedidos =self::pedidos($this->licencia((int) $c['LIC_Licencia']));
             $nuevos = [];
             foreach (self::CIFRADOS as $campo) {
                 $v = self::texto($datos[$campo] ?? null);

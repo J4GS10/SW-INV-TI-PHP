@@ -102,6 +102,18 @@ final class EsquemaTest extends TestCase
             ."'USU_Usuario' VALUE k.\"USU_Usuario\" ABSENT ON NULL RETURNING CLOB)", $cuerpo->ddl);
         self::assertStringNotContainsString("'KDX_Hash'", $cuerpo->ddl);
         self::assertSame('CREATE OR REPLACE CONTEXT INVENTARIO_CTX USING INVENTARIO.INV_CTX', $d->ddlContexto());
-        self::assertCount(13, $d->objetos());
+        self::assertCount(13 + \count(\App\Db\LogicalDelete::TABLES), $d->objetos());
+    }
+
+    public function testLosRegistrosDeNegocioSoloAdmitenBorradoLogico(): void
+    {
+        $d = new DefinicionSeguridad('INVENTARIO', ['KDX_Hash'], ['SUPER_ADMIN']);
+        $disparadores = array_values(array_filter($d->objetos(), static fn (ObjetoPlsql $o): bool => str_starts_with($o->nombre, 'TRG_BL_')));
+
+        self::assertCount(\count(\App\Db\LogicalDelete::TABLES), $disparadores);
+        $licencia = array_values(array_filter($disparadores, static fn (ObjetoPlsql $o): bool => 'TRG_BL_INV_LICENCIA' === $o->nombre))[0];
+        self::assertStringContainsString('BEFORE DELETE ON "INV_LICENCIA" FOR EACH ROW', $licencia->ddl);
+        self::assertStringContainsString("SYS_CONTEXT('INVENTARIO_CTX', 'USUARIO') IS NOT NULL", $licencia->ddl);
+        self::assertStringContainsString('RAISE_APPLICATION_ERROR(-'.DefinicionSeguridad::ERR_BORRADO_FISICO, $licencia->ddl);
     }
 }

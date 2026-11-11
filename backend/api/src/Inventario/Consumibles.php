@@ -38,6 +38,7 @@ final readonly class Consumibles
         private Transaccion $transaccion,
         private Notificador $notificador,
         private Operador $operador,
+        private \App\Db\LogicalDelete $borrado,
     ) {
     }
 
@@ -199,8 +200,12 @@ final readonly class Consumibles
             if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_MOVIMIENTO_CONSUMIBLE" WHERE "CON_Consumible" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
                 throw new ErrorApi(409, 'CANNOT_DELETE_CONSUMABLE_HAS_MOVEMENTS');
             }
-            $this->conexion->executeStatement('DELETE FROM "INV_CONSUMIBLE_COMPATIBLE" WHERE "CON_Consumible" = :id', ['id' => $id]);
-            $this->conexion->executeStatement('DELETE FROM "INV_CONSUMIBLE" WHERE "CON_Consumible" = :id', ['id' => $id]);
+            // Se archiva; sus compatibilidades (vínculos con modelos) se quitan con él.
+            try {
+                $this->borrado->archive('INV_CONSUMIBLE', 'CON_Consumible', $id);
+            } catch (\App\Db\RecordInUse) {
+                throw new ErrorApi(409, 'CANNOT_DELETE_CONSUMABLE_HAS_MOVEMENTS');
+            }
             $this->gobierno->registrarAuditoria('DELETE', 'INV_CONSUMIBLE', ['id' => $id, 'nombre' => $c['CON_Nombre']], $usuario, $ip,
                 sedeId: null === $c['SED_Sede'] ? null : (int) $c['SED_Sede']);
         });

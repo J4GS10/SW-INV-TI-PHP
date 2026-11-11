@@ -53,6 +53,16 @@ final readonly class ContextoPeticionListener
         $h->set('Permissions-Policy', 'geolocation=(), microphone=(), camera=(self), payment=(), usb=(), '
             .'interest-cohort=(), browsing-topics=(), fullscreen=(self), '
             .'accelerometer=(), gyroscope=(), magnetometer=()');
+        // La API devuelve datos, nunca páginas: nada de lo que responde puede cargar ni ejecutar recursos.
+        // Una respuesta que fija su propia política (adjuntos en `sandbox`) la conserva.
+        if (!$h->has('Content-Security-Policy')) {
+            $h->set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+        }
+        // Sin una política propia (logo, foto de perfil), el navegador no guarda la respuesta en disco:
+        // inventario, personas y costos no quedan en la caché de un equipo compartido.
+        if ('no-cache, private' === $h->get('Cache-Control')) {
+            $h->set('Cache-Control', 'no-store');
+        }
         if ($this->ajustes->esProduccion()) {
             $h->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
         }

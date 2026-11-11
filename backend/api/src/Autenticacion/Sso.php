@@ -118,6 +118,11 @@ final readonly class Sso
             $this->auditarRechazo($p['nombre'], $correo, 'inactive_user', $ip, $ua, $usuario);
             throw ErrorApi::prohibido('SSO_USER_NOT_AUTHORIZED');
         }
+        // El bloqueo del administrador también vale para Microsoft o Google.
+        if ($usuario->bloqueoAdministrativoVigente(\App\Dominio\Reloj::ahora())) {
+            $this->auditarRechazo($p['nombre'], $correo, 'account_locked', $ip, $ua, $usuario);
+            throw ErrorApi::prohibido('SSO_USER_NOT_AUTHORIZED');
+        }
         if (!$usuario->ssoHabilitado) {
             $this->auditarRechazo($p['nombre'], $correo, 'sso_disabled_for_user', $ip, $ua, $usuario);
             throw ErrorApi::prohibido('SSO_NOT_ENABLED_FOR_USER');

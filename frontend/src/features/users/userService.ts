@@ -66,6 +66,12 @@ export const userService = {
     await client.delete(`/org/usuarios/${id}/mfa-exemption`);
   },
 
+  /** Suspends the account with a reason, until the end of `until` (YYYY-MM-DD) or, with null, until it is unlocked. */
+  lock: async (id: string, reason: string, until: string | null): Promise<void> => {
+    await client.post(`/org/usuarios/${id}/lock`, { reason, until });
+  },
+
+  /** Lifts both locks: the one from failed attempts and the one set by the administrator. */
   unlock: async (id: string): Promise<void> => {
     await client.post(`/org/usuarios/${id}/unlock`);
   },

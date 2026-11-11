@@ -14,7 +14,6 @@ use App\Http\ErrorApi;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\CifradoCampos;
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 
 /**
  * Software, tipos y licencias, e instalaciones (asignación de una licencia a un
@@ -37,6 +36,7 @@ final readonly class Software
         private ReglasClase $reglas,
         private Credenciales $credenciales,
         private Transaccion $transaccion,
+        private \App\Db\LogicalDelete $borrado,
     ) {
     }
 
@@ -107,7 +107,7 @@ final readonly class Software
             if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA" WHERE "TLI_Tipo_Licencia" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
                 throw new ErrorApi(409, 'CANNOT_DELETE_TYPE_HAS_LICENSES');
             }
-            $this->conexion->executeStatement('DELETE FROM "INV_TIPO_LICENCIA" WHERE "TLI_Tipo_Licencia" = :id', ['id' => $id]);
+            $this->borrado->archive('INV_TIPO_LICENCIA', 'TLI_Tipo_Licencia', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_TIPO_LICENCIA', ['id' => $id, 'nombre' => $tipo['TLI_Nombre']], $usuario, $ip);
         });
     }
@@ -204,7 +204,11 @@ final readonly class Software
             if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA" WHERE "SOF_Software" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
                 throw new ErrorApi(409, 'CANNOT_DELETE_SOFTWARE_HAS_LICENSES');
             }
-            $this->conexion->executeStatement('DELETE FROM "INV_SOFTWARE" WHERE "SOF_Software" = :id', ['id' => $id]);
+            try {
+                $this->borrado->archive('INV_SOFTWARE', 'SOF_Software', $id);
+            } catch (\App\Db\RecordInUse) {
+                throw new ErrorApi(409, 'CANNOT_DELETE_SOFTWARE_HAS_LICENSES');
+            }
             $this->gobierno->registrarAuditoria('DELETE', 'INV_SOFTWARE', ['id' => $id, 'nombre' => $sw['SOF_Nombre']], $usuario, $ip);
         });
     }
@@ -459,9 +463,9 @@ final readonly class Software
             $this->kardex->registrar('LICENCIA_BAJA', licencia: $id, referencia: self::referenciaSoftware($sw ?: null), cantidad: (int) $l['LIC_Cantidad_Total'],
                 saldo: 0, costo: $l['LIC_Costo'], moneda: $l['LIC_Moneda'], motivo: 'Licencia eliminada del inventario', usuario: $usuario);
             try {
-                // Claves y adjuntos se borran en cascada; el historial de instalaciones lo impide (FK).
-                $this->conexion->executeStatement('DELETE FROM "INV_LICENCIA" WHERE "LIC_Licencia" = :id', ['id' => $id]);
-            } catch (ForeignKeyConstraintViolationException) {
+                // Se archiva con sus claves y adjuntos; el historial de instalaciones lo impide.
+                $this->borrado->archive('INV_LICENCIA', 'LIC_Licencia', $id);
+            } catch (\App\Db\RecordInUse) {
                 throw new ErrorApi(409, 'CANNOT_DELETE_LICENSE_IN_USE');
             }
             $this->gobierno->registrarAuditoria('DELETE', 'INV_LICENCIA', ['id' => $id, 'software_id' => (int) $l['SOF_Software'],

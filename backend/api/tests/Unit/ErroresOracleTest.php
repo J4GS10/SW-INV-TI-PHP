@@ -31,6 +31,24 @@ final class ErroresOracleTest extends TestCase
         }
     }
 
+    public function testUnTextoDeMasDe4000BytesEsErrorDeDatosY422(): void
+    {
+        foreach ([1460, 1489, 1704] as $codigo) {
+            self::assertTrue(ErroresOracle::esDeDatos($codigo), "ORA-{$codigo}");
+        }
+        $delDriver = new class('ORA-01460: unimplemented or unreasonable conversion requested', null, 1460) extends AbstractException {
+        };
+        $evento = new ExceptionEvent($this->createStub(HttpKernelInterface::class), Request::create('/api/v1/login/access-token'),
+            HttpKernelInterface::MAIN_REQUEST, new DriverException($delDriver, null));
+
+        (new ErroresListener(new NullLogger(), $this->createStub(Connection::class)))($evento);
+
+        $respuesta = $evento->getResponse();
+        self::assertNotNull($respuesta);
+        self::assertSame(422, $respuesta->getStatusCode());
+        self::assertSame('{"detail":"INVALID_PARAMETER_VALUE"}', $respuesta->getContent());
+    }
+
     public function testConLaConexionPerdidaSeDescartaYSeResponde503ConReintento(): void
     {
         $conexion = $this->createMock(Connection::class);

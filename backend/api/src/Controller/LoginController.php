@@ -86,7 +86,8 @@ final readonly class LoginController
         $username = (string) $form['username'];
         $password = (string) $form['password'];
 
-        $usuario = $this->usuarios->porUsername($username);
+        // Un nombre más largo que la columna (50) no puede existir: no se consulta la base.
+        $usuario = mb_strlen($username) > 50 ? null : $this->usuarios->porUsername($username);
         // Usuario inexistente: mismo costo de CPU y mismo mensaje que una contraseña errónea.
         if (null === $usuario) {
             Contrasenas::verificarSenuelo();
@@ -256,6 +257,9 @@ final readonly class LoginController
             throw new ErrorApi(401, 'USER_INACTIVE_OR_NOT_FOUND');
         }
         $ahora = Reloj::ahora();
+        if ($usuario->bloqueoAdministrativoVigente($ahora)) {
+            throw new ErrorApi(401, 'ACCOUNT_LOCKED');
+        }
         $authTime = (int) ($payload['auth_time'] ?? $payload['iat'] ?? 0);
         if ($authTime > 0 && $ahora->getTimestamp() - $authTime > $this->ajustes->sesionMaxHoras * 3600 + 60) {
             throw new ErrorApi(401, 'SESSION_EXPIRED');

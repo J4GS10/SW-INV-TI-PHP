@@ -16,7 +16,7 @@ final readonly class UsuarioRepositorio
         .'u."USU_2FA_Habilitado", u."USU_2FA_Metodo", u."USU_2FA_Secret", u."USU_2FA_Ultimo_Paso", '
         .'u."USU_Intentos_Fallidos", u."USU_Bloqueado_Hasta", u."USU_Bloqueos_Consecutivos", '
         .'u."USU_Ultimo_Bloqueo", u."USU_Ultimo_Login", u."USU_SSO_Habilitado", u."USU_SSO_Provider", '
-        .'u."USU_MFA_Exento_Hasta", u."USU_MFA_Omitido_En"';
+        .'u."USU_MFA_Exento_Hasta", u."USU_MFA_Omitido_En", u."USU_Bloqueo_Admin_Motivo", u."USU_Bloqueo_Admin_Hasta"';
 
     public function __construct(private Connection $conexion)
     {
@@ -82,7 +82,16 @@ final readonly class UsuarioRepositorio
         );
     }
 
-    /** Contraseña nueva: deja de ser temporal y se limpia el bloqueo. */
+    /** Bloqueo administrativo: motivo y fin (null = indefinido), o ambos null para quitarlo. */
+    public function guardarBloqueoAdministrativo(string $usuarioHex, ?string $motivo, ?\DateTimeImmutable $hasta): void
+    {
+        $this->conexion->executeStatement(
+            'UPDATE "INV_USUARIO" SET "USU_Bloqueo_Admin_Motivo" = :m, "USU_Bloqueo_Admin_Hasta" = :h WHERE "USU_Usuario" = :id',
+            ['m' => $motivo, 'h' => Reloj::aBd($hasta), 'id' => $usuarioHex],
+        );
+    }
+
+    /** Contraseña nueva: deja de ser temporal y se limpia el bloqueo por intentos (no el administrativo). */
     public function guardarNuevaContrasena(Usuario $usuario): void
     {
         $this->conexion->executeStatement(

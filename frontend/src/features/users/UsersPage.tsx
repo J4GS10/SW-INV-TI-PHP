@@ -11,6 +11,7 @@ import DevicesOtherIcon from '@mui/icons-material/DevicesOther';
 import EditIcon from '@mui/icons-material/Edit';
 import GppBadIcon from '@mui/icons-material/GppBad';
 import GppMaybeIcon from '@mui/icons-material/GppMaybe';
+import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -34,6 +35,7 @@ import { SecurityOverview, SecurityPolicy } from './SecurityOverview';
 import { ActiveSessionsPanel } from './ActiveSessionsPanel';
 import { TemporaryPasswordDialog } from './TemporaryPasswordDialog';
 import { MfaExemptionDialog } from './MfaExemptionDialog';
+import { LockAccountDialog } from './LockAccountDialog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 
 type MfaFilter = '' | 'enabled' | 'pending' | 'none';
@@ -74,6 +76,7 @@ export const UsersPage = () => {
   const [menu, setMenu] = useState<{ anchor: HTMLElement; row: UsuarioSistema } | null>(null);
   const [tempPassword, setTempPassword] = useState<{ value: string; name: string } | null>(null);
   const [exemptUser, setExemptUser] = useState<{ id: string; name: string } | null>(null);
+  const [lockUser, setLockUser] = useState<{ id: string; name: string } | null>(null);
   const [view, setView] = usePageTab(VIEWS);
 
   const load = useCallback(async () => {
@@ -210,6 +213,16 @@ export const UsersPage = () => {
   const renderFlags = (u: UsuarioSistema) => {
     const until = lockedUntil(u, now);
     const flags = [];
+    if (u.bloqueo_admin_motivo) {
+      const adminUntil = parseApiDate(u.bloqueo_admin_hasta);
+      flags.push(
+        <Tooltip key="admin-lock" title={u.bloqueo_admin_motivo}>
+          <Chip size="small" color="error" label={adminUntil
+            ? t('users.lock.chip_until', { date: formatTimeOrDateTime(adminUntil, locale, now) })
+            : t('users.lock.chip')} />
+        </Tooltip>,
+      );
+    }
     if (until) {
       flags.push(
         <Chip key="locked" size="small" color="error" variant="outlined"
@@ -422,7 +435,13 @@ export const UsersPage = () => {
               <ListItemText>{t('users.mfa_exemption.action')}</ListItemText>
             </MenuItem>
           )),
-          lockedUntil(menuRow, now) && (
+          currentUser?.role === 'SUPER_ADMIN' && !menuRow.bloqueo_admin_motivo && (
+            <MenuItem key="lock" dense onClick={() => { setMenu(null); setLockUser({ id: menuRow.USU_Usuario, name: menuName }); }}>
+              <ListItemIcon><LockIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('users.lock.action')}</ListItemText>
+            </MenuItem>
+          ),
+          (lockedUntil(menuRow, now) || menuRow.bloqueo_admin_motivo) && (
             <MenuItem key="unlock" dense onClick={() => void runAction(menuRow, () => userService.unlock(menuRow.USU_Usuario), 'users.actions.unlock_done')}>
               <ListItemIcon><LockOpenIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t('users.actions.unlock')}</ListItemText>
@@ -466,6 +485,7 @@ export const UsersPage = () => {
       />
 
       <MfaExemptionDialog user={exemptUser} onClose={() => setExemptUser(null)} onSaved={() => void load()} />
+      <LockAccountDialog user={lockUser} onClose={() => setLockUser(null)} onSaved={() => void load()} />
       <TemporaryPasswordDialog
         password={tempPassword?.value ?? null}
         userName={tempPassword?.name ?? ''}

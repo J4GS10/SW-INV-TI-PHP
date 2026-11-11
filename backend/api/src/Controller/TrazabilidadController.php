@@ -11,7 +11,6 @@ use App\Dominio\Roles;
 use App\Http\ClienteHttp;
 use App\Http\Entrada;
 use App\Http\ErrorValidacion;
-use App\Http\Idempotencia;
 use App\Http\Limite;
 use App\Inventario\Movimientos;
 use App\Inventario\OperacionesLote;
@@ -31,7 +30,6 @@ final readonly class TrazabilidadController
         private Movimientos $movimientos,
         private OperacionesLote $lote,
         private UsuarioActual $actual,
-        private Idempotencia $idempotencia,
     ) {
     }
 
@@ -112,7 +110,7 @@ final readonly class TrazabilidadController
         }
         $e->validar();
 
-        return $this->idempotencia->ejecutar($request, fn (): array => $this->movimientos->asignar($d, $this->usuario(), ClienteHttp::ip($request)), 201);
+        return new JsonResponse($this->movimientos->asignar($d, $this->usuario(), ClienteHttp::ip($request)), 201);
     }
 
     #[Route('/devolucion', methods: ['POST'])]

@@ -2,7 +2,7 @@
 
 ## Antes de cargar datos reales
 
-Hecho el 2026-11-09: base y adjuntos reinstalados desde cero, solo con el catálogo mínimo y la cuenta raíz `sa`. MFA obligatorio para SUPER_ADMIN, ADMIN_SEGURIDAD y ADMIN_TI, con `MFA_CAN_BE_DISABLED=false`. El respaldo con los datos de prueba es `inventario_20261109_170833.dmp`.
+Hecho el 2026-11-11: Docker limpiado por completo (contenedores, imágenes, volúmenes y caché de construcción), y el sistema reinstalado desde cero sin caché. Quedaron solo el catálogo mínimo, `sa` y las cuentas de prueba por rol (`app:test-accounts`), todas con la misma clave de prueba, que se pasó solo por variable de entorno. MFA obligatorio para SUPER_ADMIN, ADMIN_SEGURIDAD y ADMIN_TI, con `MFA_CAN_BE_DISABLED=false`. El respaldo de antes de la limpieza es `inventario_20261111_172959.dmp`.
 
 | Ajuste | Hoy | Para el uso real |
 |---|---|---|
@@ -12,21 +12,19 @@ Hecho el 2026-11-09: base y adjuntos reinstalados desde cero, solo con el catál
 | Acceso desde otros equipos | El Wi-Fi de este PC es una red *Pública* y la regla «Inventario produccion HTTPS» abre el 443 solo en redes *Dominio* y *Privada*: el teléfono no entra | Cambiar la red a *Privada*, con aprobación. En el servidor formal no aplica |
 | Correo | `SMTP_HOST` vacío: no sale ningún correo, tampoco la recuperación de clave | Configurar SMTP más adelante |
 | Servidor | Corre en un PC. `BACKUP_DIR` apunta a la carpeta antigua `26.10.13-sw-ti-agente` y la réplica va a otro disco del mismo equipo | Servidor formal en preparación: respaldos en su propia carpeta y copia fuera del equipo |
-| Limpieza del equipo | Imágenes viejas de `inventario-php` (fase4, fase5, fase6, qa-nueva, resistencia, qa), `inventario-php-dev` e `inventario-frontend:qa`, y los contenedores del backend en Python (`inventario-backend-1`, que aún monta `inventario_adjuntos_data`, e `inventario-migrator-1`) | Borrarlos con aprobación; conservar `anterior` |
+| Cuenta raíz | `sa` usa la clave de prueba compartida | Cambiarla por una propia y guardarla fuera del sistema |
 
 ## Decisiones abiertas
 
 | Prioridad | Tema | Situación | Recomendación |
 |---|---|---|---|
 | Alta | Tipos de activo iniciales | La base parte sin tipos. Hay una lista depurada de 25, con prefijo y clase; los insumos (tinta, cables, limpieza) van como consumibles | Confirmar la lista, el prefijo de *Bocina* y la depreciación, y agregarlos al catálogo mínimo |
-| Alta | Cerrar el mes con trabajo pendiente | Se puede cerrar con ingresos o aprobaciones sin resolver | Avisar antes de cerrar |
 | Alta | Mes cerrado por error | No se puede reabrir | Reapertura con aprobación de otra persona y registro en auditoría |
 | Media | Acceso de administración | Oracle y la consola de MinIO no publican puertos; no hay una cuenta para consultar la base | Publicar 1521 y 9001 solo en `127.0.0.1` y entrar por túnel SSH (SQL Developer, DBeaver). Una cuenta `INVENTARIO_LECTURA` de solo lectura creada por el migrador; falta decidir si ve todas las sedes |
-| Media | Administradores de TI | Nadie aprueba lo que pidió: hacen falta dos activos | Alerta cuando quede solo uno |
 | Media | Listas cerradas | Sistema Operativo y Tarjeta Gráfica se escriben a mano | Lista cerrada, al menos para Sistema Operativo |
 | Media | Oracle XE | Sin Data Guard; réplica por archivos con hasta 1 hora de pérdida | Confirmar la fecha de soporte de 21c |
 | Media | Separar los datos | Todo en una VM ([puesta en marcha](PUESTA_EN_MARCHA.md#11-seguridad-e-infraestructura-en-proxmox)) | Etapa 2 con `inv-app` e `inv-datos` cuando el servidor formal esté listo; falta dividir el compose y que el worker lea el estado de los respaldos sin montar su carpeta |
-| Media | Pruebas de navegador | La suite del backend ya corre sobre producción con respaldo y vuelta exacta (`pruebas_produccion.sh`; el 2026-11-10: 291 pruebas, 0 fallos, huella idéntica tras restaurar). La suite de navegador (`herramientas/qa/e2e`, `persistencia.sh`) dependía de QA y hoy no corre | Adaptarla al mismo ciclo: respaldo, prueba en producción y restauración |
+| Media | Pruebas de navegador | La suite del backend ya corre sobre producción con respaldo y vuelta exacta (`pruebas_produccion.sh`; el 2026-11-11: 304 pruebas, 0 fallos. La imagen `inventario-php-dev` y los dobles se borran al terminar y se reconstruyen con `docker build -f docker/Dockerfile --target dev -t inventario-php-dev .`). La suite de navegador (`herramientas/qa/e2e`, `persistencia.sh`) dependía de QA y hoy no corre | Adaptarla al mismo ciclo: respaldo, prueba en producción y restauración |
 | Baja | Anunciar lo que viene | Compras registra el ingreso cuando la mercadería ya llegó | Estado «En camino» en el ingreso, si Compras conoce los pedidos antes |
 | Baja | Tablas de órdenes de compra | Sin uso desde que se retiró el módulo, con 0 filas: `INV_ORDEN_COMPRA`, sus líneas y `INV_RECEPCION` | Borrarlas con una migración cuando se confirme que no vuelve |
 
@@ -42,6 +40,10 @@ Hecho el 2026-11-09: base y adjuntos reinstalados desde cero, solo con el catál
 - Sin SMTP no hay recuperación de clave por correo: solo el SUPER_ADMIN puede restablecerla.
 
 ### Media: primeros meses
+
+- Capas: la lógica de negocio de `Inventario/`, `Organizacion/` y `Catalogo/` escribe su SQL de Oracle y lanza errores con código HTTP (24 de 35 servicios), y 8 de 32 controladores consultan la base. Solo `GoodsReceipt` y `ProfilePhoto` separan dominio, aplicación e infraestructura. Cambiar la base o el marco hoy toca esos servicios: migrar módulo por módulo a repositorios con interfaz, empezando por `Movimientos` y `Activos` (los más grandes, ~900 líneas cada uno).
+- Suite de navegador por rol: `herramientas/qa/e2e` (Playwright) sigue atada al entorno QA retirado. El 2026-11-11 se validó a mano desde el navegador (custodia, componentes, bajas con aprobación, alcance por sede y matriz de permisos de los 7 roles); falta adaptarla al ciclo de `pruebas_produccion.sh` para repetirlo sin intervención.
+- Dos campos de formulario sin etiqueta asociada en la pantalla de Activos (aviso de accesibilidad del navegador).
 
 - Volumen: tomas probadas con 501 activos. Salvo Activos, Auditoría y Trazabilidad, los listados cargan todo de una vez; paginar en el servidor los que crecen (ingresos, movimientos, mantenimiento).
 - Prueba de resistencia en el servidor formal, y revisión independiente de código y seguridad.

@@ -44,6 +44,7 @@ final readonly class ErroresListener
         $respuesta = match (true) {
             $e instanceof ErrorApi => new JsonResponse(['detail' => $e->cuerpo ?? $e->detalle], $e->estado, $e->cabeceras),
             $e instanceof ErrorValidacion => new JsonResponse(['detail' => 'VALIDATION_ERROR', 'errors' => $e->errores], 422),
+            $e instanceof \App\Db\RecordInUse => new JsonResponse(['detail' => 'RECORD_IN_USE'], 409),
             $e instanceof ExcepcionDbal => $this->deBaseDeDatos($e, $ruta),
             $e instanceof HttpExceptionInterface => new JsonResponse(
                 ['detail' => match ($e->getStatusCode()) {
@@ -77,6 +78,11 @@ final readonly class ErroresListener
             $this->logger->warning('rls.denied', ['path' => $ruta, 'ora' => $codigo]);
 
             return new JsonResponse(['detail' => 'SEDE_OUT_OF_SCOPE'], 403);
+        }
+        if (ErroresOracle::esBorradoFisico($codigo)) {
+            $this->logger->error('db.physical_delete_refused', ['path' => $ruta, 'ora' => $codigo]);
+
+            return new JsonResponse(['detail' => 'PHYSICAL_DELETE_FORBIDDEN'], 409);
         }
         if (ErroresOracle::esDeDatos($codigo)) {
             $this->logger->warning('db.data_error', ['path' => $ruta, 'ora' => $codigo]);

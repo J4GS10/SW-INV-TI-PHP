@@ -453,6 +453,25 @@ final readonly class OrganizacionController
         return new JsonResponse(['status' => 'success']);
     }
 
+    /** Bloqueo administrativo con motivo y, si se da, hasta el final de `until` (AAAA-MM-DD); sin fecha, indefinido. */
+    #[Route('/usuarios/{id}/lock', methods: ['POST'])]
+    #[Autenticado(roles: [Roles::SUPER_ADMIN])]
+    public function bloquear(Request $r): JsonResponse
+    {
+        $entrada = Entrada::json($r);
+        $motivo = $entrada->texto('reason', 5, 500);
+        $hasta = $entrada->patron('until', '^\d{4}-\d{2}-\d{2}$');
+        $entrada->validar();
+        // Cinco espacios no son un motivo: sin texto real, el bloqueo no quedaría registrado.
+        $motivo = trim((string) $motivo);
+        if (mb_strlen($motivo) < 5) {
+            throw new ErrorApi(422, 'LOCK_REASON_REQUIRED');
+        }
+        $this->identidades->bloquear(Entrada::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r), $motivo, $hasta);
+
+        return new JsonResponse(['status' => 'success']);
+    }
+
     #[Route('/usuarios/{id}/sessions/revoke', methods: ['POST'])]
     #[Autenticado(roles: Roles::IAM)]
     public function revocarSesiones(Request $r): JsonResponse

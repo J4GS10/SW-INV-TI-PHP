@@ -28,6 +28,7 @@ final readonly class DefinicionSeguridad
     public const int ERR_IDENTIDAD_ELEVADA = 20003;
     public const int ERR_APROBACION_SIN_BORRADO = 20004;
     public const int ERR_TABLA_SIN_VACIADO = 20005;
+    public const int ERR_BORRADO_FISICO = 20006;
 
     // Columnas de INV_USUARIO que deciden el acceso: solo se escriben en modo elevado.
     public const array COLUMNAS_IDENTIDAD = ['USU_Usuario', 'USU_Username', 'USU_Rol', 'USU_Alcance_Global', 'USU_Estado', 'PER_Persona'];
@@ -302,7 +303,29 @@ final readonly class DefinicionSeguridad
                         END IF;
                     END;
                 SQL),
+            ...$this->sinBorradoFisico($t, $usuario),
         ];
+    }
+
+    /**
+     * Los registros de negocio solo se borran de forma lógica (App\Db\LogicalDelete, ROW ARCHIVAL):
+     * durante una petición la base rechaza un DELETE sobre ellos, aunque lo intente un código futuro.
+     *
+     * @return list<ObjetoPlsql>
+     */
+    private function sinBorradoFisico(string $tipo, string $usuario): array
+    {
+        $error = self::ERR_BORRADO_FISICO;
+
+        return array_map(static fn (string $tabla): ObjetoPlsql => new ObjetoPlsql($tipo, 'TRG_BL_'.$tabla, <<<SQL
+            CREATE OR REPLACE TRIGGER trg_bl_{$tabla}
+                BEFORE DELETE ON "{$tabla}" FOR EACH ROW
+                BEGIN
+                    IF {$usuario} IS NOT NULL THEN
+                        RAISE_APPLICATION_ERROR(-{$error}, '{$tabla}: solo admite borrado lógico');
+                    END IF;
+                END;
+            SQL), \App\Db\LogicalDelete::TABLES);
     }
 
     /**

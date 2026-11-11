@@ -11,7 +11,6 @@ use App\EventListener\OcultarCostosListener;
 use App\Http\ClienteHttp;
 use App\Http\Entrada;
 use App\Http\ErrorApi;
-use App\Http\Idempotencia;
 use App\Http\Limite;
 use App\Inventario\Activos;
 use App\Inventario\Consumibles;
@@ -40,7 +39,6 @@ final readonly class CoreController
         private Consumibles $consumibles,
         private Sugerencias $sugerencias,
         private UsuarioActual $actual,
-        private Idempotencia $idempotencia,
         private \App\Config\Ajustes $ajustes,
     ) {
     }
@@ -115,7 +113,7 @@ final readonly class CoreController
         // Quien no ve costos tampoco los escribe.
         $d = OcultarCostosListener::descartarCostos($d, $this->actual->usuario()->rol, 'ACT_Costo') + ['ACT_Costo' => null];
 
-        return $this->idempotencia->ejecutar($request, fn (): array => $this->activos->crear($d, $especificaciones, $this->usuario()), 201);
+        return new JsonResponse($this->activos->crear($d, $especificaciones, $this->usuario()), 201);
     }
 
     /** Edición en lote (antes de /activos/{id}: «lote» no es un id). */
@@ -326,8 +324,8 @@ final readonly class CoreController
     /** @return array<string, mixed> en la edición, solo lo enviado */
     private function camposActivo(Entrada $e, bool $creacion): array
     {
-        $campos = [Campo::texto('ACT_Codigo_Interno', min: 3, max: 50), Campo::texto('ACT_Serie_Fabricante', $creacion, 3, 100),
-            Campo::texto('ACT_Hostname', max: 100), new Campo('ACT_Fecha_Compra', Campo::FECHA, requerido: $creacion),
+        $campos = [Campo::identificador('ACT_Codigo_Interno', min: 3, max: 50), Campo::identificador('ACT_Serie_Fabricante', $creacion, 3, 100),
+            Campo::identificador('ACT_Hostname', max: 100), new Campo('ACT_Fecha_Compra', Campo::FECHA, requerido: $creacion, noFutura: true),
             new Campo('ACT_Fin_Garantia', Campo::FECHA), new Campo('ACT_Costo', Campo::DECIMAL, max: 12, escala: 2, minimo: 0),
             Campo::entero('PRV_Proveedor'), Campo::texto('ACT_Factura', max: 60), Campo::entero('MOD_Modelo', $creacion),
             Campo::entero('TAC_Tipo_Activo', $creacion), Campo::entero('EOP_Estado_Operativo', $creacion), Campo::entero('SED_Sede')];

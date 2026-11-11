@@ -449,7 +449,7 @@ final readonly class UbicacionController
         $this->alcance->exigirPropio($this->sedeDeNivel($area['NIV_Nivel']));
         try {
             $this->crud->eliminar(E::area(), $id, $r, ['id' => $id, 'nombre' => $area['ARE_Nombre']]);
-        } catch (\Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException) {
+        } catch (\App\Db\RecordInUse) {
             throw new ErrorApi(409, 'CANNOT_DELETE_AREA_IN_USE');
         }
 

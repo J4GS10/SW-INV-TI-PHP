@@ -44,7 +44,26 @@ final readonly class Campo
         public ?float $maximo = null,
         /** Columna en la base si difiere del nombre en la API (p. ej. CREATED_AT → created_at). */
         public ?string $columna = null,
+        /** Expresión (Unicode, sin delimitadores) que el texto debe cumplir completa. */
+        public ?string $patron = null,
+        /** Fecha de un hecho ya ocurrido (compra, recepción): no se admite una futura. */
+        public bool $noFutura = false,
     ) {
+    }
+
+    /** Nombres de persona: letras de cualquier idioma, espacios, punto, apóstrofo y guion. */
+    public const string NOMBRE_PERSONA = "^[\\p{L}\\p{M}][\\p{L}\\p{M} .'’-]*$";
+    /** Series, códigos y nombres de equipo: letras, cifras y los signos habituales de una etiqueta. */
+    public const string IDENTIFICADOR = '^[\p{L}\p{N}][\p{L}\p{N} ._\/#+:()-]*$';
+
+    public static function nombrePersona(string $nombre, bool $requerido = false, ?int $min = null, ?int $max = null): self
+    {
+        return new self($nombre, self::TEXTO, $requerido, $min, $max, patron: self::NOMBRE_PERSONA);
+    }
+
+    public static function identificador(string $nombre, bool $requerido = false, ?int $min = null, ?int $max = null): self
+    {
+        return new self($nombre, self::TEXTO, $requerido, $min, $max, patron: self::IDENTIFICADOR);
     }
 
     public function columnaBd(): string

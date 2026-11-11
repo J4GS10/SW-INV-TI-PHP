@@ -99,6 +99,13 @@ final readonly class Reclasificacion
         $tipoId = (int) $payload['tipo_id'];
         $sede = (int) $payload['SED_Sede'];
         $tipo = (string) $this->conexion->fetchOne('SELECT "TAC_Nombre" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $tipoId]);
+        // Bloqueados en el mismo orden que el resto del sistema (sin interbloqueos) y releídos:
+        // mientras se aprueba, nadie los entrega, instala ni repara.
+        $ids = array_map(static fn (array $a): string => (string) $a['ACT_Activo'], $this->activos($tipoId, $sede));
+        sort($ids, \SORT_STRING);
+        foreach ($ids as $id) {
+            $this->conexion->fetchOne('SELECT 1 FROM "INV_ACTIVO" WHERE "ACT_Activo" = :id FOR UPDATE', ['id' => $id]);
+        }
         $activos = $this->activos($tipoId, $sede);
         if ([] === $activos) {
             throw new ErrorApi(409, 'RECLASSIFY_NOTHING_TO_CONVERT');

@@ -22,6 +22,9 @@ final class OperationalAlertsTest extends PruebaApi
         parent::setUp();
         $this->backups = sys_get_temp_dir().'/alertas_'.D::sufijo();
         mkdir($this->backups);
+        // Two IT administrators able to sign in: IT_ADMIN_SINGLE stays out of the other tests' counts.
+        D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]);
+        D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]);
         D::conexion()->executeStatement('DELETE FROM SYS_OPERATIONAL_ALERT');
         D::conexion()->executeStatement('DELETE FROM "SYS_EMAIL_OUTBOX" WHERE "EOB_Estado" IN (:a, :b)', ['a' => CorreoEnCola::PENDIENTE, 'b' => CorreoEnCola::FALLIDO]);
     }
@@ -48,6 +51,31 @@ final class OperationalAlertsTest extends PruebaApi
     private function audit(string $action): int
     {
         return D::contar('SELECT COUNT(*) FROM "INV_AUDITORIA_SISTEMA" WHERE "AUD_Accion" = :a', ['a' => $action]);
+    }
+
+    public function testFewerThanTwoItAdministratorsIsAProblemBecauseNobodyApprovesTheirOwnRequest(): void
+    {
+        $this->backupAged(0);
+        $c = D::conexion();
+        $active = $c->fetchFirstColumn('SELECT "USU_Usuario" FROM "INV_USUARIO" WHERE "USU_Rol" = \'ADMIN_TI\' AND "USU_Estado" = 1');
+        self::assertGreaterThanOrEqual(2, \count($active));
+        $alerts = $this->alerts();
+        self::assertSame(0, $alerts->evaluate()['open'], 'Two administrators: nothing to say.');
+        try {
+            // Only one left able to sign in: the rest are deactivated or locked by the system administrator.
+            $c->executeStatement('UPDATE "INV_USUARIO" SET "USU_Estado" = 0 WHERE "USU_Rol" = \'ADMIN_TI\' AND "USU_Usuario" NOT IN (:a, :b)', ['a' => $active[0], 'b' => $active[1]]);
+            $c->executeStatement('UPDATE "INV_USUARIO" SET "USU_Bloqueo_Admin_Motivo" = \'Prueba\' WHERE "USU_Usuario" = :b', ['b' => $active[1]]);
+            self::assertSame(['open' => 1, 'notified' => 0, 'resolved' => 0], $alerts->evaluate(), 'It waits an hour before writing to anyone.');
+            self::assertSame([OperationalAlerts::IT_ADMIN_SINGLE, 1], [$alerts->open()[0]['code'], $alerts->open()[0]['detail']['administrators']]);
+            $c->executeStatement("UPDATE SYS_OPERATIONAL_ALERT SET ALR_FIRST_SEEN = ALR_FIRST_SEEN - INTERVAL '2' HOUR");
+            self::assertSame(1, $alerts->evaluate()['notified']);
+        } finally {
+            $c->executeStatement('UPDATE "INV_USUARIO" SET "USU_Bloqueo_Admin_Motivo" = NULL WHERE "USU_Usuario" = :b', ['b' => $active[1]]);
+            foreach (\array_slice($active, 2) as $id) {
+                $c->executeStatement('UPDATE "INV_USUARIO" SET "USU_Estado" = 1 WHERE "USU_Usuario" = :id', ['id' => $id]);
+            }
+        }
+        self::assertSame(['open' => 0, 'notified' => 0, 'resolved' => 1], $alerts->evaluate());
     }
 
     public function testAStaleBackupWarnsOnceAndClosesWhenARecentOneAppears(): void

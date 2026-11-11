@@ -20,9 +20,10 @@ final readonly class OperationalAlerts
     public const string DISK_LOW = 'DISK_LOW';
     public const string EMAIL_QUEUE_STUCK = 'EMAIL_QUEUE_STUCK';
     public const string COUNT_CLOSE_STUCK = 'COUNT_CLOSE_STUCK';
+    public const string IT_ADMIN_SINGLE = 'IT_ADMIN_SINGLE';
 
     /** Minutes a problem must last before anyone is notified. */
-    private const array WAIT_MINUTES = [self::COUNT_CLOSE_STUCK => 30];
+    private const array WAIT_MINUTES = [self::COUNT_CLOSE_STUCK => 30, self::IT_ADMIN_SINGLE => 60];
     private const string REMIND_AFTER = '-24 hours';
 
     private const array MESSAGES = [
@@ -31,6 +32,7 @@ final readonly class OperationalAlerts
         self::DISK_LOW => 'Queda poco espacio en el disco de los respaldos.',
         self::EMAIL_QUEUE_STUCK => 'Hay correos que el sistema no ha logrado enviar.',
         self::COUNT_CLOSE_STUCK => 'Una toma de inventario lleva demasiado tiempo cerrándose.',
+        self::IT_ADMIN_SINGLE => 'Hay menos de dos administradores de TI activos: nadie puede aprobar lo que pide el otro.',
     ];
 
     public function __construct(

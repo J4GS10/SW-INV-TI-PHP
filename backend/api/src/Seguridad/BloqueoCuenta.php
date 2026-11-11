@@ -42,7 +42,7 @@ final readonly class BloqueoCuenta
 
     public function estaBloqueada(Usuario $u, \DateTimeImmutable $ahora, ?string $ip = null): bool
     {
-        if (null !== $u->bloqueadoHasta && $u->bloqueadoHasta > $ahora) {
+        if ($u->bloqueoAdministrativoVigente($ahora) || null !== $u->bloqueadoHasta && $u->bloqueadoHasta > $ahora) {
             return true;
         }
         $porIp = $this->porIp($u, $ip);

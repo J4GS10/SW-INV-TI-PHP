@@ -49,6 +49,9 @@ export interface UsuarioSistema {
   USU_Debe_Cambiar_Password?: boolean;
   /** Fecha ISO hasta la que la cuenta está bloqueada por intentos fallidos. */
   USU_Bloqueado_Hasta?: string | null;
+  /** Bloqueo puesto por el administrador del sistema (vigente): motivo y fin (null = hasta que lo quite). */
+  bloqueo_admin_motivo?: string | null;
+  bloqueo_admin_hasta?: string | null;
   USU_Intentos_Fallidos?: number;
   USU_Password_Cambiada_En?: string | null;
   /** El rol exige MFA y la cuenta no usa SSO. */

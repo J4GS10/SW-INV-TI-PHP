@@ -20,12 +20,11 @@ use Doctrine\DBAL\ParameterType;
  */
 final class CatalogoGenerico
 {
-    /** @var array<string, list<array{tabla: string, columna: string}>> */
-    private array $referencias = [];
-
     public function __construct(
         private readonly Connection $conexion,
         private readonly Alcance $alcance,
+        private readonly \App\Db\SchemaReferences $esquema,
+        private readonly \App\Db\LogicalDelete $borrado,
     ) {
     }
 
@@ -404,7 +403,8 @@ final class CatalogoGenerico
                 $this->conexion->executeStatement("UPDATE \"{$ref['tabla']}\" SET \"{$ref['columna']}\" = :g WHERE \"{$ref['columna']}\" = :o",
                     ['g' => $gemelo, 'o' => $id]);
             }
-            $this->conexion->executeStatement('DELETE FROM "INV_MODELO" WHERE "MOD_Modelo" = :o', ['o' => $id]);
+            // Sin referencias ya (se movieron al gemelo): se archiva, no se borra.
+            $this->borrado->archive('INV_MODELO', 'MOD_Modelo', (int) $id);
             ++$unidos;
         }
 
@@ -419,18 +419,7 @@ final class CatalogoGenerico
      */
     public function referencias(string $tabla, string $pk): array
     {
-        return $this->referencias["{$tabla}.{$pk}"] ??= array_map(
-            static fn (array $f): array => ['tabla' => (string) $f['TABLA'], 'columna' => (string) $f['COLUMNA']],
-            $this->conexion->fetchAllAssociative(
-                'SELECT hc.table_name AS "TABLA", hc.column_name AS "COLUMNA" FROM user_constraints h '
-                .'JOIN user_cons_columns hc ON hc.constraint_name = h.constraint_name '
-                .'JOIN user_constraints pa ON pa.constraint_name = h.r_constraint_name '
-                .'JOIN user_cons_columns pc ON pc.constraint_name = pa.constraint_name AND pc.position = hc.position '
-                ."WHERE h.constraint_type = 'R' AND pa.table_name = :t AND pc.column_name = :pk AND h.table_name <> :t "
-                .'ORDER BY hc.table_name, hc.column_name',
-                ['t' => $tabla, 'pk' => $pk],
-            ),
-        );
+        return array_map(static fn (array $r): array => ['tabla' => $r['table'], 'columna' => $r['column']], $this->esquema->childrenOf($tabla, $pk));
     }
 
     /**
@@ -584,10 +573,7 @@ final class CatalogoGenerico
 
     private function largoColumna(string $tabla, string $columna): int
     {
-        return (int) $this->conexion->fetchOne(
-            'SELECT char_length FROM user_tab_columns WHERE table_name = :t AND column_name = :c',
-            ['t' => $tabla, 'c' => $columna],
-        ) ?: 4000;
+        return $this->esquema->charLength($tabla, $columna) ?? 4000;
     }
 
     private static function textoOpcional(mixed $valor): ?string

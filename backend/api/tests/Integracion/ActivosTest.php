@@ -94,7 +94,9 @@ final class ActivosTest extends PruebaApi
     public function testBusquedaPaginadaDetalleYCodigo(): void
     {
         $marca = 'BUSQ'.strtoupper(D::sufijo());
-        $a = $this->alta(['ACT_Hostname' => "{$marca}-%_1"]);
+        // La API ya no admite comodines en un nombre de equipo; un dato heredado sí puede traerlos y la búsqueda debe tratarlos como texto.
+        $a = $this->alta(['ACT_Hostname' => "{$marca}-X1"]);
+        D::conexion()->executeStatement('UPDATE "INV_ACTIVO" SET "ACT_Hostname" = :n WHERE "ACT_Hostname" = :v', ['n' => "{$marca}-%_1", 'v' => "{$marca}-X1"]);
         $this->alta(['ACT_Hostname' => "{$marca}-2"]);
         $r = $this->ok(200, 'POST', '/api/v1/core/activos/search', ['q' => $marca, 'per_page' => 1]);
         self::assertSame([2, 1, 1], [$r['total'], $r['page'], \count($r['items'])]);

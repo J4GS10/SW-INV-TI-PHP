@@ -14,7 +14,7 @@ use Doctrine\DBAL\Connection;
  */
 final readonly class RepositorioEntidad
 {
-    public function __construct(private Connection $conexion)
+    public function __construct(private Connection $conexion, private \App\Db\LogicalDelete $borrado)
     {
     }
 
@@ -87,9 +87,14 @@ final readonly class RepositorioEntidad
         return $this->conexion->update('"'.$e->tabla.'"', self::citar($e, $datos), ['"'.$e->clave.'"' => $this->clave($e, $id)]);
     }
 
+    /**
+     * Borrado lógico (App\Db\LogicalDelete): la fila se archiva con su historial.
+     *
+     * @throws \App\Db\RecordInUse si otro registro todavía la referencia
+     */
     public function eliminar(Entidad $e, int|string $id): int
     {
-        return $this->conexion->delete('"'.$e->tabla.'"', ['"'.$e->clave.'"' => $this->clave($e, $id)]);
+        return $this->borrado->archive($e->tabla, $e->clave, $this->clave($e, $id)) ? 1 : 0;
     }
 
     /**

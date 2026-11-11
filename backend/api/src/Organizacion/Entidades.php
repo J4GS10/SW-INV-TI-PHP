@@ -32,10 +32,10 @@ final class Entidades
     public static function persona(): Entidad
     {
         return new Entidad('INV_PERSONA', 'PER_Persona', [
-            Campo::texto('PER_Primer_Nombre', true, 2, 50),
-            Campo::texto('PER_Segundo_Nombre', max: 50),
-            Campo::texto('PER_Primer_Apellido', true, 2, 50),
-            Campo::texto('PER_Segundo_Apellido', max: 50),
+            Campo::nombrePersona('PER_Primer_Nombre', true, 2, 50),
+            Campo::nombrePersona('PER_Segundo_Nombre', max: 50),
+            Campo::nombrePersona('PER_Primer_Apellido', true, 2, 50),
+            Campo::nombrePersona('PER_Segundo_Apellido', max: 50),
             new Campo('PER_Email_Corporativo', Campo::CORREO, true),
             Campo::texto('PER_Telefono', max: 20),
             Campo::entero('DEP_Departamento', true),

@@ -134,6 +134,8 @@ RUN ldconfig \
 WORKDIR /app
 COPY docker/Caddyfile /etc/frankenphp/Caddyfile
 COPY docker/php.ini /usr/local/etc/php/conf.d/zz-inventario.ini
+# Ajustes solo de producción (OPcache sin revisar disco, sin aserciones, errores al registro).
+COPY docker/php-prod.ini /usr/local/etc/php/conf.d/zzz-produccion.ini
 # El código queda de root (solo lectura para la aplicación); appuser escribe solo en var/.
 COPY --from=vendor /app /app
 RUN chown -R appuser:appuser var

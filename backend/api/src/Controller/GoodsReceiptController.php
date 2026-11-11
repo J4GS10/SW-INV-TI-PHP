@@ -13,7 +13,6 @@ use App\GoodsReceipt\Application\GoodsReceiptService;
 use App\Http\ClienteHttp;
 use App\Http\Entrada;
 use App\Http\ErrorApi;
-use App\Http\Idempotencia;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -32,7 +31,6 @@ final readonly class GoodsReceiptController
     public function __construct(
         private GoodsReceiptService $service,
         private GoodsReceiptAct $act,
-        private Idempotencia $idempotency,
         private UsuarioActual $current,
     ) {
     }
@@ -66,7 +64,7 @@ final readonly class GoodsReceiptController
     #[Autenticado(roles: self::REGISTRARS)]
     public function register(Request $request): JsonResponse
     {
-        return $this->idempotency->ejecutar($request, fn (): array => $this->service->register(self::body($request), $this->user(), ClienteHttp::ip($request)), 201);
+        return new JsonResponse($this->service->register(self::body($request), $this->user(), ClienteHttp::ip($request)), 201);
     }
 
     #[Route('/form-context', methods: ['GET'])]

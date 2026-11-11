@@ -75,7 +75,9 @@ final class AdjuntosTest extends PruebaApi
         $archivo = 'var/adjuntos_pruebas/'.$adj['ADJ_Object_Key'];
         self::assertFileExists($archivo);
         self::assertSame(204, $this->archivo('DELETE', "/api/v1/adjuntos/{$adj['ADJ_Adjunto']}")->getStatusCode());
-        self::assertFileDoesNotExist($archivo, 'El binario se borra después del commit.');
+        // Borrado lógico: el adjunto se archiva y su binario se conserva (el respaldo y la auditoría lo pueden recuperar).
+        self::assertFileExists($archivo, 'El binario se conserva: el borrado es lógico.');
+        unlink($archivo);
         self::assertSame([404, 'ATTACHMENT_NOT_FOUND'], $this->detalle('GET', "/api/v1/adjuntos/{$adj['ADJ_Adjunto']}/download"));
         self::assertSame($antes + 2, D::contar("SELECT COUNT(*) FROM \"INV_AUDITORIA_SISTEMA\" WHERE \"AUD_Entidad_Afectada\" = 'INV_ADJUNTO'"), 'Alta y baja auditadas.');
     }

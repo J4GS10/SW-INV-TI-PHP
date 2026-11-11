@@ -40,7 +40,19 @@ final class Usuario
         public readonly ?\DateTimeImmutable $mfaExentoHasta = null,
         /** Cuándo omitió la persona configurar el MFA (solo se puede una vez, en su primer ingreso). */
         public readonly ?\DateTimeImmutable $mfaOmitidoEn = null,
+        /** Bloqueo puesto por el administrador del sistema: motivo (null = sin bloqueo) y fin (null = indefinido). */
+        public readonly ?string $bloqueoAdminMotivo = null,
+        public readonly ?\DateTimeImmutable $bloqueoAdminHasta = null,
     ) {
+    }
+
+    /**
+     * ¿La bloqueó el administrador del sistema y sigue vigente? Aparte del bloqueo por intentos:
+     * no lo levanta un inicio de sesión ni un cambio de contraseña, solo el administrador o su fecha.
+     */
+    public function bloqueoAdministrativoVigente(\DateTimeImmutable $ahora): bool
+    {
+        return null !== $this->bloqueoAdminMotivo && (null === $this->bloqueoAdminHasta || $this->bloqueoAdminHasta > $ahora);
     }
 
     /** @param array<string, mixed> $fila */
@@ -68,6 +80,8 @@ final class Usuario
             ssoProveedor: isset($fila['USU_SSO_Provider']) && '' !== $fila['USU_SSO_Provider'] ? (string) $fila['USU_SSO_Provider'] : null,
             mfaExentoHasta: Reloj::desdeBd($fila['USU_MFA_Exento_Hasta'] ?? null),
             mfaOmitidoEn: Reloj::desdeBd($fila['USU_MFA_Omitido_En'] ?? null),
+            bloqueoAdminMotivo: isset($fila['USU_Bloqueo_Admin_Motivo']) && '' !== $fila['USU_Bloqueo_Admin_Motivo'] ? (string) $fila['USU_Bloqueo_Admin_Motivo'] : null,
+            bloqueoAdminHasta: Reloj::desdeBd($fila['USU_Bloqueo_Admin_Hasta'] ?? null),
         );
     }
 

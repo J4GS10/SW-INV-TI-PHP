@@ -56,6 +56,7 @@ final readonly class Movimientos
         private Transaccion $transaccion,
         private Notificador $notificador,
         private Operador $operador,
+        private \App\Db\LogicalDelete $borrado,
     ) {
     }
 
@@ -118,7 +119,7 @@ final readonly class Movimientos
                 'SELECT 1 FROM "INV_MOVIMIENTO" WHERE "TMO_Tipo_Movimiento" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id]))) {
                 throw new ErrorApi(409, 'CANNOT_DELETE_TYPE_HAS_MOVEMENTS');
             }
-            $this->conexion->executeStatement('DELETE FROM "INV_TIPO_MOVIMIENTO" WHERE "TMO_Tipo_Movimiento" = :id', ['id' => $id]);
+            $this->borrado->archive('INV_TIPO_MOVIMIENTO', 'TMO_Tipo_Movimiento', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_TIPO_MOVIMIENTO', ['id' => $id, 'nombre' => $t['TMO_Nombre']], $usuario, $ip);
         });
     }

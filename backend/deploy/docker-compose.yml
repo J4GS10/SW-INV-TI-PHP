@@ -220,6 +220,10 @@ services:
     <<: *endurecido
     # Corre como root sobre su volumen (propiedad de root): no necesita ninguna capacidad.
     cap_drop: [ALL]
+    # Con tope, como los demás: sin él, MinIO podía dejar sin memoria a Oracle y a la API.
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 512
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
       interval: 5s

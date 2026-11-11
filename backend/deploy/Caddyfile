@@ -13,6 +13,17 @@
     email {$ACME_EMAIL:admin@example.com}
     # Quien entra por IP no envía SNI: este nombre elige su certificado.
     default_sni {$TLS_DEFAULT_SNI:localhost}
+    # Conexiones lentas a propósito (slowloris): quien no termina de enviar sus cabeceras en 10 s
+    # o deja la conexión sin uso 3 min la pierde. Sin tope de escritura: los avisos en vivo (SSE)
+    # mantienen la respuesta abierta. Las cabeceras de una petición legítima caben en 32 KB.
+    servers {
+        timeouts {
+            read_header 10s
+            read_body 5m
+            idle 3m
+        }
+        max_header_size 32KB
+    }
     log {
         output stderr
         format json
@@ -52,6 +63,10 @@
 
     @api path /api /api/* /health /.well-known/mercure
     handle @api {
+        # El borde corta lo que PHP igual rechazaría (post_max_size = 18M) antes de que llegue a la API.
+        request_body {
+            max_size 20MB
+        }
         reverse_proxy api_php:8000 {
             # Si la API se reinicia (despliegue o caída), espera hasta 10 s en vez de
             # devolver 502. Solo reintenta lo que no llegó a enviarse.

@@ -6,6 +6,7 @@ namespace App\Operations;
 
 use App\Correo\CorreoEnCola;
 use App\Dominio\Reloj;
+use App\Dominio\Roles;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
@@ -31,6 +32,7 @@ final readonly class HealthChecks
             OperationalAlerts::DISK_LOW => $this->lowDisk(),
             OperationalAlerts::EMAIL_QUEUE_STUCK => $this->stuckEmail(),
             OperationalAlerts::COUNT_CLOSE_STUCK => $this->stuckCount(),
+            OperationalAlerts::IT_ADMIN_SINGLE => $this->tooFewItAdministrators(),
         ], static fn (?array $problem): bool => null !== $problem);
     }
 
@@ -82,6 +84,22 @@ final readonly class HealthChecks
             ['pending' => CorreoEnCola::PENDIENTE, 'failed' => CorreoEnCola::FALLIDO, 'limit' => Reloj::aBd(Reloj::ahora()->modify('-30 minutes'))]);
 
         return $count > 0 ? ['emails' => $count] : null;
+    }
+
+    /**
+     * Nobody approves their own request: with fewer than two IT administrators able to sign in,
+     * disposals, adjustments and reclassifications wait for ever.
+     *
+     * @return array<string, int|string>|null
+     */
+    private function tooFewItAdministrators(): ?array
+    {
+        $count = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM "INV_USUARIO" WHERE "USU_Rol" = :role AND "USU_Estado" = 1 '
+            .'AND ("USU_Bloqueo_Admin_Motivo" IS NULL OR "USU_Bloqueo_Admin_Hasta" < :now)',
+            ['role' => Roles::ADMIN_TI, 'now' => Reloj::aBd(Reloj::ahora())]);
+
+        return $count < 2 ? ['administrators' => $count] : null;
     }
 
     /** @return array<string, int|string>|null */

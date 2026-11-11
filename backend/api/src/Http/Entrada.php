@@ -497,6 +497,11 @@ final class Entrada
 
             return null;
         }
+        if (null !== $c->patron && '' !== $valor && 1 !== preg_match('/'.$c->patron.'/u', $valor)) {
+            $this->error('string_pattern_mismatch', $c->nombre, 'String has characters that are not allowed here', $valor);
+
+            return null;
+        }
         if (null !== $c->opciones && !\in_array($valor, $c->opciones, true)) {
             $esperado = self::literales($c->opciones);
             $this->error('literal_error', $c->nombre, "Input should be {$esperado}", $valor, ['expected' => $esperado]);
@@ -572,6 +577,11 @@ final class Entrada
         if (\is_string($valor) && 1 === preg_match('/^\d{4}-\d{2}-\d{2}$/', $valor)) {
             $fecha = \DateTimeImmutable::createFromFormat('!Y-m-d', $valor);
             if (false !== $fecha && $fecha->format('Y-m-d') === $valor) {
+                // Un día de margen: «hoy» en la zona de la organización puede ser mañana en UTC.
+                if ($c->noFutura && $valor > \App\Dominio\Reloj::ahora()->modify('+1 day')->format('Y-m-d')) {
+                    return $this->fallo('date_in_the_future', $c, 'Date should not be in the future', $valor);
+                }
+
                 return $valor;
             }
         }

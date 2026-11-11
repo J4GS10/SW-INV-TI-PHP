@@ -4,10 +4,28 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Control de inventario de TI" />
+    <!-- Sistema interno: los buscadores no lo indexan. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#f5f3ef" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1f2e" media="(prefers-color-scheme: dark)" />
     <title>Control de Inventario TI</title>
+    <!-- Lo que se ve mientras baja la aplicación: nunca una pantalla en blanco. React lo reemplaza al montar. -->
+    <style>
+      html, body { margin: 0; height: 100%; }
+      .arranque { height: 100vh; display: flex; align-items: center; justify-content: center; background: #f5f3ef; }
+      .arranque i { width: 36px; height: 36px; border-radius: 50%; border: 3px solid #d9d5cc; border-top-color: #4a7c9e; animation: arranque 0.8s linear infinite; }
+      @keyframes arranque { to { transform: rotate(360deg); } }
+      @media (prefers-color-scheme: dark) {
+        .arranque { background: #1a1f2e; }
+        .arranque i { border-color: #2c3346; border-top-color: #7eb8d4; }
+      }
+      @media (prefers-reduced-motion: reduce) { .arranque i { animation-duration: 2.4s; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="arranque" role="status" aria-busy="true" aria-label="Cargando"><i></i></div></div>
+    <noscript>Este sistema necesita JavaScript. / This system needs JavaScript. / Questo sistema richiede JavaScript.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

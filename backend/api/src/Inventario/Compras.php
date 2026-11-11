@@ -25,6 +25,7 @@ final readonly class Compras
         private GobiernoRepositorio $gobierno,
         private Transaccion $transaccion,
         private Notificador $notificador,
+        private \App\Db\LogicalDelete $borrado,
     ) {
     }
 
@@ -107,7 +108,11 @@ final readonly class Compras
             if (false !== $this->alcance->elevado(fn (): mixed => $this->conexion->fetchOne('SELECT 1 FROM PUR_GOODS_RECEIPT WHERE GRC_PRV_SUPPLIER = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id]))) {
                 throw new ErrorApi(409, 'CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS');
             }
-            $this->conexion->executeStatement('DELETE FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :id', ['id' => $id]);
+            try {
+                $this->borrado->archive('INV_PROVEEDOR', 'PRV_Proveedor', $id);
+            } catch (\App\Db\RecordInUse) {
+                throw new ErrorApi(409, 'CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS');
+            }
             $this->gobierno->registrarAuditoria('DELETE', 'INV_PROVEEDOR', ['id' => $id, 'nombre' => $p['PRV_Nombre']], $usuario, $ip);
         });
     }

@@ -36,6 +36,7 @@ final readonly class Mantenimientos
         private Transaccion $transaccion,
         private Notificador $notificador,
         private Operador $operador,
+        private \App\Db\LogicalDelete $borrado,
     ) {
     }
 
@@ -93,7 +94,7 @@ final readonly class Mantenimientos
                 'SELECT 1 FROM "INV_MANTENIMIENTO" WHERE "TMA_Tipo_Mantenimiento" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id]))) {
                 throw new ErrorApi(409, 'CANNOT_DELETE_TYPE_HAS_TICKETS');
             }
-            $this->conexion->executeStatement('DELETE FROM "INV_TIPO_MANTENIMIENTO" WHERE "TMA_Tipo_Mantenimiento" = :id', ['id' => $id]);
+            $this->borrado->archive('INV_TIPO_MANTENIMIENTO', 'TMA_Tipo_Mantenimiento', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_TIPO_MANTENIMIENTO', ['id' => $id, 'nombre' => $t['TMA_Nombre']], $usuario, $ip);
         });
     }
@@ -341,8 +342,8 @@ final readonly class Mantenimientos
             if (null === $m['MAN_Fecha_Cierre']) {
                 throw new ErrorApi(400, 'CANNOT_DELETE_OPEN_TICKET');
             }
-            $this->conexion->executeStatement('DELETE FROM "INV_DETALLE_MANT" WHERE "MAN_Mantenimiento" = :id', ['id' => $id]);
-            $this->conexion->executeStatement('DELETE FROM "INV_MANTENIMIENTO" WHERE "MAN_Mantenimiento" = :id', ['id' => $id]);
+            // Se archiva con sus detalles y evidencias (ON DELETE CASCADE → también archivados).
+            $this->borrado->archive('INV_MANTENIMIENTO', 'MAN_Mantenimiento', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_MANTENIMIENTO', ['ticket_id' => $m['MAN_Mantenimiento']], $usuario, $ip);
         });
     }
@@ -423,7 +424,7 @@ final readonly class Mantenimientos
             if (null !== $this->uno($actual['_ticket'])['MAN_Fecha_Cierre']) {
                 throw new ErrorApi(400, 'CANNOT_DELETE_DETAILS_OF_CLOSED_TICKET');
             }
-            $this->conexion->executeStatement('DELETE FROM "INV_DETALLE_MANT" WHERE "DMA_Detalle_Mant" = :id', ['id' => $id]);
+            $this->borrado->archive('INV_DETALLE_MANT', 'DMA_Detalle_Mant', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_DETALLE_MANT', ['detalle_id' => $id], $usuario, $ip);
         });
     }

@@ -39,6 +39,7 @@ final readonly class Adjuntos
         private Transaccion $transaccion,
         private Ajustes $ajustes,
         private LoggerInterface $logger,
+        private \App\Db\LogicalDelete $borrado,
     ) {
     }
 
@@ -134,13 +135,9 @@ final readonly class Adjuntos
     {
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $fila = $this->filaO404($id);
-            $this->conexion->executeStatement('DELETE FROM "INV_ADJUNTO" WHERE "ADJ_Adjunto" = :id', ['id' => $id]);
+            // Borrado lógico: la fila se archiva y el archivo se conserva en el almacén (historial y respaldos).
+            $this->borrado->archive('INV_ADJUNTO', 'ADJ_Adjunto', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_ADJUNTO', ['id' => Ident::aTexto($id), 'nombre' => $fila['ADJ_Nombre_Original']], $usuario, $ip);
-            $almacen = $this->almacenes->de($fila['ADJ_Storage_Backend']);
-            $clave = self::clave($fila);
-            $bucket = $fila['ADJ_Bucket'];
-            // Si el commit falla, el binario sigue ahí y la fila también.
-            $this->transaccion->alConfirmar(fn () => $this->borrarBinario($almacen, $clave, $bucket, 'storage.delete_orphaned'));
         });
     }
 

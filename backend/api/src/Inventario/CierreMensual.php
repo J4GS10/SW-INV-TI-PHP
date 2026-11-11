@@ -16,8 +16,12 @@ use Doctrine\DBAL\Connection;
  */
 final readonly class CierreMensual
 {
-    public function __construct(private Connection $conexion, private Alcance $alcance, private \App\Repositorio\GobiernoRepositorio $gobierno)
-    {
+    public function __construct(
+        private Connection $conexion,
+        private Alcance $alcance,
+        private \App\Repositorio\GobiernoRepositorio $gobierno,
+        private \App\Db\Transaccion $transaccion,
+    ) {
     }
 
     private static function dos(string $v): string
@@ -28,7 +32,26 @@ final readonly class CierreMensual
     /** @return array<string, mixed> */
     public function cierre(int $anio, int $mes, ?int $sede): array
     {
-        return $this->congelado($anio, $mes, $sede) ?? [...$this->calcular($anio, $mes, $sede), 'frozen' => false];
+        return $this->congelado($anio, $mes, $sede)
+            ?? [...$this->calcular($anio, $mes, $sede), 'frozen' => false, 'pendientes' => $this->pendientes($sede)];
+    }
+
+    /**
+     * Trabajo sin resolver que cambiaría las cifras si se resuelve después del cierre: la pantalla
+     * lo avisa antes de congelar el mes. Solo cuenta lo que el usuario puede ver (VPD).
+     *
+     * @return array{aprobaciones: int, ingresos: int}
+     */
+    private function pendientes(?int $sede): array
+    {
+        $ingresos = "SELECT COUNT(*) FROM PUR_GOODS_RECEIPT WHERE GRC_STATUS IN ('REGISTERED', 'PENDING_APPROVAL')";
+
+        return [
+            'aprobaciones' => (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"INV_APROBACION\" WHERE \"APR_Estado\" = 'PENDIENTE'"),
+            'ingresos' => (int) (null === $sede
+                ? $this->conexion->fetchOne($ingresos)
+                : $this->conexion->fetchOne($ingresos.' AND GRC_SED_SITE = :s', ['s' => $sede])),
+        ];
     }
 
     /**
@@ -43,19 +66,56 @@ final readonly class CierreMensual
         if ($fin >= \App\Dominio\Reloj::ahora()->format('Y-m-d')) {
             throw new \App\Http\ErrorApi(409, 'MONTH_NOT_FINISHED');
         }
+        $foto = $this->fotoConsistente($anio, $mes, $sede);
+
+        // El cierre y su auditoría se guardan juntos o no se guarda nada. Dos cierres simultáneos
+        // del mismo mes y sede: la clave única deja pasar uno y el otro recibe MONTH_ALREADY_CLOSED.
+        return $this->transaccion->ejecutar(function () use ($anio, $mes, $sede, $usuario, $ip, $foto): array {
+            try {
+                $this->conexion->executeStatement('INSERT INTO TRC_MONTH_END_CLOSE (MEC_YEAR, MEC_MONTH, MEC_SED_SITE, MEC_SNAPSHOT, MEC_USU_CLOSED_BY) VALUES (:a, :m, :s, :f, :u)',
+                    ['a' => $anio, 'm' => $mes, 's' => $sede, 'f' => json_encode($foto, \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR), 'u' => $usuario], ['f' => \Doctrine\DBAL\ParameterType::LARGE_OBJECT]);
+            } catch (\Doctrine\DBAL\Exception\UniqueConstraintViolationException) {
+                throw new \App\Http\ErrorApi(409, 'MONTH_ALREADY_CLOSED');
+            }
+            $this->gobierno->registrarAuditoria('MONTH_END_CLOSE', 'TRC_MONTH_END_CLOSE', ['anio' => $anio, 'mes' => $mes, 'sede' => $sede], $usuario, $ip, sedeId: $sede);
+
+            return (array) $this->congelado($anio, $mes, $sede);
+        });
+    }
+
+    /**
+     * Foto del mes con todas sus consultas leyendo la base en el mismo instante: una entrega o una
+     * baja confirmada a mitad del cálculo no la descuadra. Se calcula en una transacción READ ONLY
+     * (lectura consistente de Oracle, sin bloquear a nadie). No se usa SERIALIZABLE: Oracle la
+     * aborta con ORA-08177 en cuanto otra sesión confirma un cambio en una fila que luego se
+     * escribe (la cadena de auditoría), es decir, fallaría al azar con el sistema en uso.
+     *
+     * @return array<string, mixed>
+     */
+    private function fotoConsistente(int $anio, int $mes, ?int $sede): array
+    {
+        if ($this->conexion->isTransactionActive()) {
+            // Dentro de otra operación: SET TRANSACTION ya no es posible; se calcula en la de ella.
+            $this->exigirAbierto($anio, $mes, $sede);
+
+            return $this->calcular($anio, $mes, $sede);
+        }
+        $this->conexion->beginTransaction();
+        try {
+            $this->conexion->executeStatement('SET TRANSACTION READ ONLY');
+            $this->exigirAbierto($anio, $mes, $sede);
+
+            return $this->calcular($anio, $mes, $sede);
+        } finally {
+            $this->conexion->rollBack();
+        }
+    }
+
+    private function exigirAbierto(int $anio, int $mes, ?int $sede): void
+    {
         if (null !== $this->congelado($anio, $mes, $sede)) {
             throw new \App\Http\ErrorApi(409, 'MONTH_ALREADY_CLOSED');
         }
-        $foto = $this->calcular($anio, $mes, $sede);
-        try {
-            $this->conexion->executeStatement('INSERT INTO TRC_MONTH_END_CLOSE (MEC_YEAR, MEC_MONTH, MEC_SED_SITE, MEC_SNAPSHOT, MEC_USU_CLOSED_BY) VALUES (:a, :m, :s, :f, :u)',
-                ['a' => $anio, 'm' => $mes, 's' => $sede, 'f' => json_encode($foto, \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR), 'u' => $usuario], ['f' => \Doctrine\DBAL\ParameterType::LARGE_OBJECT]);
-        } catch (\Doctrine\DBAL\Exception\UniqueConstraintViolationException) {
-            throw new \App\Http\ErrorApi(409, 'MONTH_ALREADY_CLOSED');
-        }
-        $this->gobierno->registrarAuditoria('MONTH_END_CLOSE', 'TRC_MONTH_END_CLOSE', ['anio' => $anio, 'mes' => $mes, 'sede' => $sede], $usuario, $ip, sedeId: $sede);
-
-        return (array) $this->congelado($anio, $mes, $sede);
     }
 
     /** @return array<string, mixed>|null */

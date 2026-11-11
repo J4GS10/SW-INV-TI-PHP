@@ -9,10 +9,15 @@ use Doctrine\DBAL\Exception\DriverException;
 /** Clasificación de errores ORA-NNNNN (mismos conjuntos que el backend anterior). */
 final class ErroresOracle
 {
-    /** Valor rechazado por el motor (texto largo, número fuera de rango, fecha inválida). */
-    private const array DATOS = [12899, 1438, 1426, 1722, 1830, 1839, 1840, 1841, 1843, 1847, 1858, 1861];
+    /**
+     * Valor rechazado por el motor (texto largo, número fuera de rango, fecha inválida).
+     * 1460, 1489 y 1704: texto de más de 4000 bytes en un parámetro o una concatenación.
+     */
+    private const array DATOS = [12899, 1438, 1426, 1722, 1830, 1839, 1840, 1841, 1843, 1847, 1858, 1861, 1460, 1489, 1704];
     /** Política VPD (ORA-28115) o disparadores de seguridad (RAISE_APPLICATION_ERROR -2000x). */
     private const array ALCANCE = [28115, 20001, 20002, 20003, 20004, 20005];
+    /** Un DELETE físico sobre un registro de negocio (solo admite borrado lógico). */
+    private const array BORRADO_FISICO = [20006];
     /** Restricciones de integridad: única, FK hija/padre, NOT NULL, CHECK. */
     private const array INTEGRIDAD = [1, 2291, 2292, 1400, 1407, 2290];
     /**
@@ -46,6 +51,11 @@ final class ErroresOracle
     public static function esFueraDeAlcance(?int $codigo): bool
     {
         return \in_array($codigo, self::ALCANCE, true);
+    }
+
+    public static function esBorradoFisico(?int $codigo): bool
+    {
+        return \in_array($codigo, self::BORRADO_FISICO, true);
     }
 
     public static function esDeIntegridad(?int $codigo): bool

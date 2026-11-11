@@ -32,6 +32,7 @@ final readonly class CatalogosController
         private Operaciones $crud,
         private Connection $conexion,
         private \App\Catalogo\SpecificationRules $specificationRules,
+        private \App\Db\LogicalDelete $borrado,
     ) {
     }
 
@@ -177,9 +178,9 @@ final readonly class CatalogosController
         $id = Entrada::enteroDeRuta($r, 'kit');
         $kit = $this->kit($id) ?? throw new ErrorApi(404, 'STANDARD_KIT_NOT_FOUND');
         $this->conexion->transactional(function () use ($id, $kit, $r): void {
-            $this->conexion->executeStatement('DELETE FROM "INV_KIT_ESTANDAR_ITEM" WHERE "KIT_Kit" = :id', ['id' => $id]);
-            $this->conexion->executeStatement('DELETE FROM "INV_KIT_ESTANDAR" WHERE "KIT_Kit" = :id', ['id' => $id]);
-            $this->crud->auditar('DELETE', 'INV_KIT_ESTANDAR', ['id' => $id, 'nombre' => $kit['KIT_Nombre']], $r);
+            // El kit se archiva; su composición queda en la auditoría (los renglones son vínculos y se quitan con él).
+            $this->borrado->archive('INV_KIT_ESTANDAR', 'KIT_Kit', $id);
+            $this->crud->auditar('DELETE', 'INV_KIT_ESTANDAR', ['id' => $id, 'nombre' => $kit['KIT_Nombre'], 'items' => $kit['items'] ?? []], $r);
         });
 
         return new Response(null, 204);

@@ -11,7 +11,6 @@ use App\Dominio\Roles;
 use App\Http\ClienteHttp;
 use App\Http\Entrada;
 use App\Http\ErrorValidacion;
-use App\Http\Idempotencia;
 use App\Http\Limite;
 use App\Inventario\Credenciales;
 use App\Inventario\Software;
@@ -31,7 +30,6 @@ final readonly class SoftwareController
         private Software $software,
         private Credenciales $credenciales,
         private UsuarioActual $actual,
-        private Idempotencia $idempotencia,
     ) {
     }
 
@@ -246,7 +244,7 @@ final readonly class SoftwareController
     {
         $i = self::instalacion($request);
 
-        return $this->idempotencia->ejecutar($request, fn (): array => $this->software->instalar($i['licencia'], $i['activo'], $i['persona'],
+        return new JsonResponse($this->software->instalar($i['licencia'], $i['activo'], $i['persona'],
             $i['clave'], $i['fecha'], $this->usuario(), ClienteHttp::ip($request)), 201);
     }
 

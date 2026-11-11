@@ -184,7 +184,8 @@
         "BACKUP_NO_REPLICA": "Backups are only on this machine: if it fails, they are lost with it.",
         "DISK_LOW": "The backup disk is running out of space.",
         "EMAIL_QUEUE_STUCK": "There are emails the system could not send.",
-        "COUNT_CLOSE_STUCK": "An inventory count has been closing for too long."
+        "COUNT_CLOSE_STUCK": "An inventory count has been closing for too long.",
+        "IT_ADMIN_SINGLE": "Fewer than two IT administrators are active: nobody can approve what the other requests."
     },
     "menu": {
         "my_tasks": "My tasks",
@@ -1223,6 +1224,19 @@
             "revoke_confirm": "{{name}} will have to set up MFA at the next sign-in. Continue?",
             "revoked": "The MFA exemption of {{name}} was removed."
         },
+        "lock": {
+            "action": "Lock",
+            "title": "Lock account",
+            "caption": "{{name}} will not be able to sign in (password or SSO) and their sessions will close now. The account stays active: only you unlock it, or the date if you set one. It is recorded in the audit log.",
+            "reason": "Reason",
+            "reason_help": "For example: someone else may be using the account.",
+            "until": "Until (optional)",
+            "until_help": "With no date, it stays locked until you unlock it.",
+            "save": "Lock",
+            "saved": "Account of {{name}} locked and its sessions closed.",
+            "chip": "Locked by the administrator",
+            "chip_until": "Locked by the administrator until {{date}}"
+        },
         "tabs": {
             "accounts": "Accounts"
         }
@@ -1989,6 +2003,11 @@
         "IDEMPOTENCY_KEY_CONFLICT_DIFFERENT_BODY": "The operation was already sent with different data. Reload and try again.",
         "IDEMPOTENCY_KEY_CONFLICT_DIFFERENT_OWNER": "The operation belongs to another session.",
         "IDEMPOTENCY_REQUEST_IN_PROGRESS": "The operation is already being processed. Please wait a moment.",
+        "IDEMPOTENCY_ALREADY_APPLIED": "The operation was already recorded. The screen shows the result.",
+        "RECORD_IN_USE": "It cannot be deleted: other records use it.",
+        "PHYSICAL_DELETE_FORBIDDEN": "This record cannot be erased from the system; it can only be retired.",
+        "LOCK_UNTIL_MUST_BE_FUTURE": "The lock date must be after today.",
+        "LOCK_REASON_REQUIRED": "Write the reason for the lock (at least 5 letters).",
         "INITIAL_STATE_MUST_BE_AVAILABLE_OR_STORAGE": "A new asset must be registered “In storage”.",
         "INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED": "The license is not installed or has already been removed.",
         "INSTALLATION_TARGET_XOR_REQUIRED": "Please indicate a device or a person, not both.",
@@ -3696,6 +3715,10 @@
     },
     "month_end": {
         "close_confirm_title": "Close {{month}} {{year}}?",
+        "pending_receipts_one": "There is {{count}} unconfirmed stock receipt.",
+        "pending_receipts_other": "There are {{count}} unconfirmed stock receipts.",
+        "pending_approvals_one": "There is {{count}} pending approval.",
+        "pending_approvals_other": "There are {{count}} pending approvals.",
         "close_confirm_message": "This month’s figures will be frozen and will no longer change. This cannot be undone.",
         "close": "Close the month",
         "closed_ok": "Month closed: these figures no longer change.",

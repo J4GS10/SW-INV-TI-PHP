@@ -84,6 +84,7 @@ final class LoginTest extends WebTestCase
                 ['id' => $a, 'nombre' => "A sede {$sufijo}"],
                 ['id' => $b, 'nombre' => "B sede {$sufijo}"],
             ]],
+            'foto_url' => null,
         ], $me);
     }
 

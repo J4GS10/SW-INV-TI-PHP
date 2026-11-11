@@ -90,6 +90,8 @@ final readonly class Solicitudes
     public function solicitarBaja(string $activo, array $baja, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($activo, $baja, $usuario, $ip): array {
+            // El activo bloqueado: dos solicitudes de baja simultáneas no pasan las dos la revisión de «ya pedida».
+            $this->activos->bloquearEnOrden([$activo]);
             [$a] = $this->activos->validarBaja($activo, $baja);
             $pendiente = $this->conexion->fetchOne("SELECT \"APR_Aprobacion\" FROM \"INV_APROBACION\" WHERE \"ACT_Activo\" = :a AND \"APR_Tipo\" = 'BAJA' "
                 ."AND \"APR_Estado\" = 'PENDIENTE' FETCH FIRST 1 ROWS ONLY", ['a' => $activo]);
@@ -114,7 +116,7 @@ final readonly class Solicitudes
         return $this->transaccion->ejecutar(function () use ($consumible, $real, $motivo, $usuario, $ip): array {
             [$alcance, $p] = $this->alcance->lectura('INV_CONSUMIBLE', 'c');
             $c = $this->conexion->fetchAssociative('SELECT c."CON_Nombre", c."CON_Stock_Actual", c."CON_Unidad", c."SED_Sede" FROM "INV_CONSUMIBLE" c '
-                .'WHERE c."CON_Consumible" = :id AND '.$alcance, [...$p, 'id' => $consumible]) ?: throw new ErrorApi(404, 'CONSUMABLE_NOT_FOUND');
+                .'WHERE c."CON_Consumible" = :id AND '.$alcance.' FOR UPDATE', [...$p, 'id' => $consumible]) ?: throw new ErrorApi(404, 'CONSUMABLE_NOT_FOUND');
             $actual = (int) $c['CON_Stock_Actual'];
             if ($real === $actual) {
                 throw new ErrorApi(400, 'STOCK_ALREADY_MATCHES');
@@ -139,6 +141,8 @@ final readonly class Solicitudes
     public function solicitarReclasificacion(int $tipo, array $d, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($tipo, $d, $usuario, $ip): array {
+            // El tipo bloqueado: dos reclasificaciones simultáneas del mismo tipo no quedan pendientes a la vez.
+            $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t FOR UPDATE', ['t' => $tipo]);
             $vista = $this->reclasificacion->vistaPrevia($tipo, $d['SED_Sede']);
             if ([] !== $vista['bloqueados']) {
                 throw new ErrorApi(409, 'RECLASSIFY_ASSETS_IN_USE');

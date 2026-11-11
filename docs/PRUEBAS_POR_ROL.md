@@ -21,6 +21,7 @@ Dirección: `https://localhost` en el PC del sistema, o `https://<IP o nombre>` 
 - **MFA:** use una aplicación autenticadora (Microsoft o Google Authenticator); una sola aplicación guarda varias cuentas. Guarde los códigos de recuperación de cada una.
 - **Omitir el MFA una vez:** en el primer ingreso de una cuenta con MFA aparece la pantalla para configurarlo, con el botón *Omitir por esta vez*. Esa sesión sigue con un aviso; en el siguiente ingreso el MFA es obligatorio y ya no se puede omitir, salvo que el SUPER_ADMIN conceda una excepción.
 - **Datos que crean estas cuentas:** el país Guatemala, las sedes *Sede Prueba Norte* y *Sede Prueba Sur*, el departamento *Pruebas* y el cargo *Colaborador de prueba*.
+- **Crearlas o restablecer su clave** (idempotente; la clave va solo en la variable, nunca en un archivo), desde `backend/deploy`: `TEST_ACCOUNTS_PASSWORD='<clave>' docker compose -p inventario --env-file .env --env-file .env.php run --rm --no-deps -e TEST_ACCOUNTS_PASSWORD migrador php bin/console app:test-accounts`.
 - **Sin SMTP no sale ningún correo.** Los avisos se ven en *Mis tareas* y en la campana.
 - **Pruebe en ventanas privadas**, una por cuenta, para tener varias sesiones a la vez.
 

@@ -113,6 +113,8 @@ final readonly class Identidades
         $sso = $bool($u['USU_SSO_Habilitado']);
         $exentoHasta = Reloj::desdeBd(null === $u['USU_MFA_Exento_Hasta'] ? null : (string) $u['USU_MFA_Exento_Hasta']);
         $exento = null !== $exentoHasta && $exentoHasta > Reloj::ahora();
+        $bloqueoAdminHasta = Reloj::desdeBd(null === ($u['USU_Bloqueo_Admin_Hasta'] ?? null) ? null : (string) $u['USU_Bloqueo_Admin_Hasta']);
+        $bloqueoAdmin = null !== ($u['USU_Bloqueo_Admin_Motivo'] ?? null) && (null === $bloqueoAdminHasta || $bloqueoAdminHasta > Reloj::ahora());
 
         return [
             'USU_Usuario' => Ident::aTexto((string) $u['USU_Usuario']),
@@ -126,6 +128,9 @@ final readonly class Identidades
             'USU_Ultimo_Login' => $fecha($u['USU_Ultimo_Login']),
             'USU_Debe_Cambiar_Password' => $bool($u['USU_Debe_Cambiar_Password']),
             'USU_Bloqueado_Hasta' => $fecha($u['USU_Bloqueado_Hasta']),
+            // Bloqueo del administrador, solo si sigue vigente (sin fecha = hasta que lo quite).
+            'bloqueo_admin_motivo' => $bloqueoAdmin ? $u['USU_Bloqueo_Admin_Motivo'] : null,
+            'bloqueo_admin_hasta' => $bloqueoAdmin ? $fecha($u['USU_Bloqueo_Admin_Hasta']) : null,
             'USU_Intentos_Fallidos' => (int) $u['USU_Intentos_Fallidos'],
             'USU_Password_Cambiada_En' => $fecha($u['USU_Password_Cambiada_En']),
             'mfa_requerido' => $this->mfaRequerido($rol, $sso),
@@ -386,6 +391,7 @@ final readonly class Identidades
         });
     }
 
+    /** Quita los dos bloqueos: el de intentos fallidos (y sus IP) y el que puso el administrador. */
     public function desbloquear(string $objetivoHex, Usuario $solicitante, callable $auditar): void
     {
         $objetivo = $this->gestionable($objetivoHex, $solicitante);
@@ -395,8 +401,39 @@ final readonly class Identidades
             // También las IP bloqueadas por fallos desde ellas (fase 8).
             $this->bloqueo->limpiar($objetivo);
             $this->usuarios->guardarEstadoAcceso($objetivo);
+            $this->usuarios->guardarBloqueoAdministrativo($objetivoHex, null, null);
             $auditar('ACCOUNT_UNLOCKED_BY_ADMIN', 'INV_USUARIO', ['target_id' => Ident::aTexto($objetivoHex), 'target_username' => $objetivo->username,
-                'estaba_bloqueado' => $estaba, 'bloqueos_consecutivos' => $previos]);
+                'estaba_bloqueado' => $estaba, 'bloqueos_consecutivos' => $previos, 'bloqueo_admin_motivo' => $objetivo->bloqueoAdminMotivo]);
+        });
+    }
+
+    /**
+     * Bloqueo administrativo: la cuenta no entra (contraseña, SSO ni sesiones abiertas) hasta `$hasta`
+     * (null = hasta que el administrador la desbloquee). Sus sesiones se cierran en el acto.
+     * A diferencia de desactivarla, la cuenta sigue activa: es una suspensión, con su motivo.
+     */
+    public function bloquear(string $objetivoHex, Usuario $solicitante, callable $auditar, string $motivo, ?string $hastaDia): void
+    {
+        $objetivo = $this->gestionable($objetivoHex, $solicitante);
+        $hasta = null;
+        if (null !== $hastaDia) {
+            // Hasta el final de ese día en la zona de la empresa; una fecha imposible (31 de febrero) no se corre al mes siguiente.
+            [$a, $m, $d] = array_map('intval', explode('-', $hastaDia));
+            if (!checkdate($m, $d, $a)) {
+                throw new ErrorApi(422, 'INVALID_PARAMETER_VALUE');
+            }
+            $hasta = (new \DateTimeImmutable(\sprintf('%04d-%02d-%02d 23:59:59', $a, $m, $d), new \DateTimeZone($this->ajustes->zonaHoraria)))
+                ->setTimezone(new \DateTimeZone('UTC'));
+            if ($hasta <= Reloj::ahora()) {
+                throw new ErrorApi(422, 'LOCK_UNTIL_MUST_BE_FUTURE');
+            }
+        }
+        $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $auditar, $motivo, $hasta): void {
+            $this->conexion->fetchOne('SELECT 1 FROM "INV_USUARIO" WHERE "USU_Usuario" = :id FOR UPDATE', ['id' => $objetivoHex]);
+            $this->usuarios->guardarBloqueoAdministrativo($objetivoHex, $motivo, $hasta);
+            $this->gobierno->revocarTodo($objetivoHex, Reloj::ahora()->modify('+1 year'));
+            $auditar('ACCOUNT_LOCKED_BY_ADMIN', 'INV_USUARIO', ['target_id' => Ident::aTexto($objetivoHex), 'target_username' => $objetivo->username,
+                'motivo' => $motivo, 'hasta' => Reloj::iso($hasta)]);
         });
     }
 
@@ -476,7 +513,8 @@ final readonly class Identidades
         $ahora = Reloj::ahora();
         $usuarios = $this->conexion->fetchAllAssociative(
             'SELECT u."USU_Usuario", u."USU_Rol", u."USU_Estado", u."USU_2FA_Habilitado", u."USU_SSO_Habilitado", u."USU_Alcance_Global", '
-            .'u."USU_Bloqueado_Hasta", u."USU_Debe_Cambiar_Password", (SELECT COUNT(*) FROM "INV_USUARIO_SEDE" us WHERE us."USU_Usuario" = u."USU_Usuario") AS "SEDES" '
+            .'u."USU_Bloqueado_Hasta", u."USU_Bloqueo_Admin_Motivo", u."USU_Bloqueo_Admin_Hasta", u."USU_Debe_Cambiar_Password", '
+            .'(SELECT COUNT(*) FROM "INV_USUARIO_SEDE" us WHERE us."USU_Usuario" = u."USU_Usuario") AS "SEDES" '
             .'FROM "INV_USUARIO" u',
         );
         $activos = array_values(array_filter($usuarios, static fn (array $u): bool => 1 === (int) $u['USU_Estado']));
@@ -494,7 +532,8 @@ final readonly class Identidades
             'con_mfa' => $conMfa,
             'cobertura_mfa' => [] === $activos ? 0 : (int) round(100 * $conMfa / \count($activos)),
             'mfa_pendiente_obligatorio' => \count(array_filter($activos, fn (array $u): bool => $this->mfaRequerido((string) $u['USU_Rol'], 1 === (int) $u['USU_SSO_Habilitado']) && 1 !== (int) $u['USU_2FA_Habilitado'])),
-            'bloqueados' => \count(array_filter($activos, static fn (array $u): bool => null !== $u['USU_Bloqueado_Hasta'] && Reloj::desdeBd((string) $u['USU_Bloqueado_Hasta']) > $ahora)),
+            'bloqueados' => \count(array_filter($activos, static fn (array $u): bool => null !== $u['USU_Bloqueado_Hasta'] && Reloj::desdeBd((string) $u['USU_Bloqueado_Hasta']) > $ahora
+                || null !== $u['USU_Bloqueo_Admin_Motivo'] && (null === $u['USU_Bloqueo_Admin_Hasta'] || Reloj::desdeBd((string) $u['USU_Bloqueo_Admin_Hasta']) > $ahora))),
             'cambio_password_pendiente' => \count(array_filter($activos, static fn (array $u): bool => 1 === (int) $u['USU_Debe_Cambiar_Password'])),
             'politica' => [
                 'mfa_roles_obligatorios' => (static function (array $r): array { sort($r); return $r; })(array_values(array_filter($a->rolesConMfa, $this->politicaSesion->rolExigeMfa(...)))),

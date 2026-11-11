@@ -425,6 +425,8 @@ final readonly class Activos
     public function actualizar(string $id, array $cambios, string $usuario): array
     {
         return $this->transaccion->ejecutar(function () use ($id, $cambios, $usuario): array {
+            // Bloqueada antes de leer: una edición, una entrega o una baja a la vez sobre el mismo activo.
+            $this->bloquearEnOrden([$id]);
             $actual = $this->filaO404($id);
             $hay = static fn (string $c): bool => \array_key_exists($c, $cambios);
             if (null !== ($cambios['MOD_Modelo'] ?? null)
@@ -674,6 +676,8 @@ final readonly class Activos
     public function instalarComponente(string $equipoId, string $componenteId, ?string $motivo, string $usuario): array
     {
         return $this->transaccion->ejecutar(function () use ($equipoId, $componenteId, $motivo, $usuario): array {
+            // Los dos bloqueados en orden: un componente no queda instalado en dos equipos a la vez.
+            $this->bloquearEnOrden([$equipoId, $componenteId]);
             $equipo = $this->fila($equipoId);
             $comp = $this->fila($componenteId);
             if (null === $equipo || null === $comp) {
@@ -726,6 +730,7 @@ final readonly class Activos
     public function retirarComponente(string $equipoId, string $componenteId, ?string $motivo, string $estadoDestino, string $usuario): array
     {
         return $this->transaccion->ejecutar(function () use ($equipoId, $componenteId, $motivo, $estadoDestino, $usuario): array {
+            $this->bloquearEnOrden([$equipoId, $componenteId]);
             $equipo = $this->fila($equipoId);
             $comp = $this->fila($componenteId);
             if (null === $equipo || null === $comp) {
@@ -782,6 +787,7 @@ final readonly class Activos
     public function agregarEspecificacion(string $activoId, int $tipo, string $valor, ?string $motivo, string $usuario, ?string $ip): array
     {
         $this->transaccion->ejecutar(function () use ($activoId, $tipo, $valor, $motivo, $usuario, $ip): void {
+            $this->bloquearEnOrden([$activoId]);
             $activo = $this->filaO404($activoId);
             if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ESPECIFICACION" WHERE "TES_Tipo_Especificacion" = :t', ['t' => $tipo])) {
                 throw new ErrorApi(404, 'SPECIFICATION_TYPE_NOT_FOUND');
@@ -819,7 +825,7 @@ final readonly class Activos
     public function cambiarEspecificacion(int $id, string $valor, ?string $motivo, string $usuario, ?string $ip): void
     {
         $this->transaccion->ejecutar(function () use ($id, $valor, $motivo, $usuario, $ip): void {
-            $e = $this->especificacion($id) ?? throw new ErrorApi(404, 'SPECIFICATION_NOT_FOUND');
+            $e = $this->especificacionBloqueada($id);
             $valor = $this->specificationRules->normalize((int) $this->fila((string) $e['ACT_Activo'])['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], $valor);
             $this->conexion->executeStatement('UPDATE "INV_ESPECIFICACION" SET "ESP_Valor" = :v WHERE "ESP_Especificacion" = :id', ['v' => $valor, 'id' => $id]);
             if ($e['ESP_Valor'] !== $valor) {
@@ -833,12 +839,26 @@ final readonly class Activos
     public function eliminarEspecificacion(int $id, string $usuario, ?string $ip): void
     {
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
-            $e = $this->especificacion($id) ?? throw new ErrorApi(404, 'SPECIFICATION_NOT_FOUND');
+            $e = $this->especificacionBloqueada($id);
             $activo = $this->fila((string) $e['ACT_Activo']);
             $this->conexion->executeStatement('DELETE FROM "INV_ESPECIFICACION" WHERE "ESP_Especificacion" = :id', ['id' => $id]);
             $this->kardex->registrar('ESPECIFICACION', activo: $activo, usuario: $usuario,
                 detalle: ['tipo' => (int) $e['TES_Tipo_Especificacion'], 'antes' => mb_substr((string) $e['ESP_Valor'], 0, 120), 'despues' => null]);
-            $this->gobierno->registrarAuditoria('DELETE', 'INV_ESPECIFICACION', ['id' => $id], $usuario, $ip);
+            $this->gobierno->registrarAuditoria('DELETE', 'INV_ESPECIFICACION', ['id' => $id, 'tipo' => (int) $e['TES_Tipo_Especificacion'],
+                'valor' => mb_substr((string) $e['ESP_Valor'], 0, 120)], $usuario, $ip);
         });
+    }
+
+    /**
+     * La especificación con su activo bloqueado (y releída después: otro cambio pudo terminar mientras se esperaba).
+     *
+     * @return array<string, mixed>
+     */
+    private function especificacionBloqueada(int $id): array
+    {
+        $e = $this->especificacion($id) ?? throw new ErrorApi(404, 'SPECIFICATION_NOT_FOUND');
+        $this->bloquearEnOrden([(string) $e['ACT_Activo']]);
+
+        return $this->especificacion($id) ?? throw new ErrorApi(404, 'SPECIFICATION_NOT_FOUND');
     }
 }

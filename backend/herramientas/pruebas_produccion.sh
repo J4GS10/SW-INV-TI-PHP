@@ -36,6 +36,8 @@ dmp=""
 huella() {
   printf 'connect %s/"%s"@//localhost:1521/%s\n%s\n' "$DUENO" "$(leer ORACLE_OWNER_PASSWORD)" "$SERVICIO" "$(cat <<'SQL'
 set serveroutput on size unlimited feedback off heading off pagesize 0 linesize 400
+-- Las filas con borrado lógico (ROW ARCHIVAL) también cuentan: la vuelta debe dejarlas idénticas.
+alter session set row archival visibility = all;
 declare
   v_sql varchar2(32767); v_res varchar2(4000); v_h number;
 begin

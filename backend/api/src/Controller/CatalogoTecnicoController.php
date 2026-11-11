@@ -17,7 +17,7 @@ use App\Http\ErrorApi;
 use App\Seguridad\Alcance;
 use App\Seguridad\Autenticado;
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
+use App\Db\RecordInUse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -462,14 +462,14 @@ final readonly class CatalogoTecnicoController
         return new JsonResponse($this->crud->actualizar($e, $id, $cambios, $r));
     }
 
-    /** Elimina o 409 `$enUso` si otro registro lo referencia (restricción de clave foránea). */
+    /** Borrado lógico, o 409 `$enUso` si otro registro todavía lo referencia. */
     private function eliminarEnUso(Entidad $e, Request $r, string $noEncontrado, string $columnaNombre, string $enUso): Response
     {
         $id = Entrada::enteroDeRuta($r);
         $registro = $this->crud->obtenerO404($e, $id, $noEncontrado);
         try {
             $this->crud->eliminar($e, $id, $r, ['id' => $id, 'nombre' => $registro[$columnaNombre]]);
-        } catch (ForeignKeyConstraintViolationException) {
+        } catch (RecordInUse) {
             throw new ErrorApi(409, $enUso);
         }
 

@@ -3,7 +3,8 @@
 # =========================================================================
 
 # --------- Stage 1: build ---------
-FROM node:20-alpine AS builder
+# Node 24 (LTS vigente; la 20 dejó de recibir parches en abril de 2026). La misma de las pruebas.
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 

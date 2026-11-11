@@ -33,7 +33,25 @@ const cacheable = (config: InternalAxiosRequestConfig): boolean => {
   const url = config.url ?? '';
   return !/^\/?(me|login)(\/|\?|$)/.test(url);
 };
+// =========================================================================
+// ESCRITURAS UNA SOLA VEZ: dos clics iguales mientras la primera sigue en curso
+// comparten la misma petición (el servidor recibe una). El servidor, además,
+// no repite nada con la misma Idempotency-Key (ver el interceptor de abajo).
+// =========================================================================
+const inFlightWrites = new Map<string, ReturnType<typeof sendRequest>>();
+const sendWrite = (config: InternalAxiosRequestConfig) => {
+  // Un archivo (FormData) no se compara: cada subida es la que eligió la persona.
+  if (config.data !== undefined && typeof config.data !== 'string') return sendRequest(config);
+  const key = `${(config.method ?? '').toUpperCase()} ${client.getUri(config)} ${String(config.headers.Authorization ?? '')} ${config.data ?? ''}`;
+  const running = inFlightWrites.get(key);
+  if (running) return running;
+  const request = sendRequest(config).finally(() => inFlightWrites.delete(key));
+  inFlightWrites.set(key, request);
+  return request;
+};
+
 client.defaults.adapter = (config) => {
+  if ((config.method ?? 'get').toLowerCase() !== 'get') return sendWrite(config);
   if (!cacheable(config)) return sendRequest(config);
   // La clave lleva el token: otra cuenta en la misma pestaña nunca ve lo que leyó la anterior.
   const key = `GET ${client.getUri(config)} ${String(config.headers.Authorization ?? '')}`;
@@ -52,8 +70,22 @@ client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   }
   // La pestaña que escribe ya se actualizó: el aviso en vivo de su propio cambio se ignora.
   config.headers['X-Client-Id'] = CLIENT_ID;
+  // Toda escritura lleva su clave de idempotencia; un reintento conserva la misma (va en config).
+  if ((config.method ?? 'get').toLowerCase() !== 'get' && !config.headers[IDEMPOTENCY_HEADER]) {
+    config.headers[IDEMPOTENCY_HEADER] = newIdempotencyKey();
+  }
   return config;
 });
+
+const IDEMPOTENCY_HEADER = 'Idempotency-Key';
+/** 32 caracteres hexadecimales al azar (el servidor acepta [A-Za-z0-9_-]{16,128}). */
+const newIdempotencyKey = (): string => {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+};
+/** Reintentos de una escritura cortada o aún en proceso en el servidor (con la misma clave, nunca se aplica dos veces). */
+const WRITE_RETRIES = 3;
 
 /** Marca para que la pantalla de acceso avise que la sesión terminó (cerrada por un administrador o vencida). */
 export const SESSION_ENDED_FLAG = 'inv_sesion_terminada';
@@ -68,7 +100,20 @@ client.interceptors.response.use(
     return response;
   },
   async (error: AxiosError) => {
-    const original = error.config as (AxiosRequestConfig & { _retried?: boolean; _netRetried?: boolean }) | undefined;
+    const original = error.config as (AxiosRequestConfig & { _retried?: boolean; _netRetried?: boolean; _writeRetries?: number }) | undefined;
+
+    // Escritura cortada (Wi-Fi, reinicio de la API, tiempo agotado) o todavía en proceso en el servidor:
+    // se repite con la MISMA Idempotency-Key. El servidor devuelve el resultado guardado, avisa que
+    // sigue en curso o la ejecuta si nunca llegó; jamás la aplica dos veces.
+    const errorDetail = (error.response?.data as { detail?: unknown } | undefined)?.detail;
+    const cut = !error.response && error.code !== 'ERR_CANCELED';
+    const stillRunning = error.response?.status === 409 && errorDetail === 'IDEMPOTENCY_REQUEST_IN_PROGRESS' && (original?._writeRetries ?? 0) > 0;
+    if (original && (original.method ?? 'get').toLowerCase() !== 'get' && original.headers?.[IDEMPOTENCY_HEADER]
+      && !original.url?.includes('/login/') && (cut || stillRunning) && (original._writeRetries ?? 0) < WRITE_RETRIES) {
+      original._writeRetries = (original._writeRetries ?? 0) + 1;
+      await new Promise((resolve) => setTimeout(resolve, 700 * original._writeRetries!));
+      return client.request(original);
+    }
 
     // Conexión cortada sin respuesta (Wi-Fi, reinicio de la API): una lectura se repite una
     // vez sola. Las escrituras no: el servidor pudo haberlas aplicado.

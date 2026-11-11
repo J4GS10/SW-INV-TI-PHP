@@ -63,6 +63,10 @@ final readonly class Autenticador
         if (!$usuario->activo) {
             throw ErrorApi::prohibido('INACTIVE_USER');
         }
+        // Bloqueada por el administrador: sale en la siguiente petición, aunque su token siga vigente.
+        if ($usuario->bloqueoAdministrativoVigente(\App\Dominio\Reloj::ahora())) {
+            throw new ErrorApi(401, 'ACCOUNT_LOCKED');
+        }
 
         $emitido = Tokens::emitidoEn($payload);
         if (null !== $emitido && $this->gobierno->revocadoGlobalmente($usuario->id, $emitido)) {

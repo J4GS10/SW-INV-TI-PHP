@@ -9,7 +9,6 @@ use App\Dominio\Ident;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
 use App\Http\Entrada;
-use App\Http\Idempotencia;
 use App\Inventario\Mantenimientos;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
@@ -23,7 +22,7 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Autenticado(roles: Roles::LECTURA_INVENTARIO)]
 final readonly class MantenimientoController
 {
-    public function __construct(private Mantenimientos $mantenimientos, private UsuarioActual $actual, private Idempotencia $idempotencia)
+    public function __construct(private Mantenimientos $mantenimientos, private UsuarioActual $actual)
     {
     }
 
@@ -114,7 +113,7 @@ final readonly class MantenimientoController
         }
         $e->validar();
 
-        return $this->idempotencia->ejecutar($request, fn (): array => $this->mantenimientos->abrir($d, $detalles, $this->usuario(), ClienteHttp::ip($request)), 201);
+        return new JsonResponse($this->mantenimientos->abrir($d, $detalles, $this->usuario(), ClienteHttp::ip($request)), 201);
     }
 
     #[Route('/{ticket}/cerrar', methods: ['PATCH'])]

@@ -21,6 +21,8 @@ Maneja tres clases de cosas:
 3. **Cada rol ve solo lo que trabaja.** Lo que no puede hacer no se le muestra, y el servidor responde 403 de todas formas.
 4. **La seguridad está en dos capas.** La aplicación filtra por sede y Oracle vuelve a filtrar con VPD, aunque la consulta tenga un error.
 5. **El historial no se reescribe.** El kardex, la auditoría y el cierre mensual solo aceptan inserciones.
+6. **Nada se borra.** «Eliminar» archiva el registro con su historial (borrado lógico); la base rechaza el borrado físico.
+7. **Cada escritura se aplica una sola vez.** Dos personas a la vez, un doble clic o un reintento tras un corte no duplican ni pisan nada (ver [Concurrencia](#concurrencia-e-idempotencia)).
 
 ## 3. Piezas y cómo se conectan
 
@@ -295,7 +297,7 @@ Están en `backend/api/src/Dominio/Roles.php`, con espejo en `frontend/src/utils
 
 | Rol | Hace | No hace |
 |---|---|---|
-| `SUPER_ADMIN` | Usuarios, configuración, directorio, MFA | No ve datos de negocio |
+| `SUPER_ADMIN` | Usuarios (crear, bloquear con motivo, desbloquear, desactivar), configuración, directorio, MFA | No ve datos de negocio |
 | `ADMIN_SEGURIDAD` | Consulta cuentas y auditoría; cierra sesiones | No modifica cuentas ni ve negocio |
 | `ADMIN_TI` | Todo el inventario, catálogos, aprobaciones, cierre | No aprueba lo propio |
 | `TECNICO` | Confirma ingresos, completa series, movimientos, mantenimiento, tomas | No ve costos; no da de alta directa |
@@ -329,11 +331,28 @@ Ambas leen el mismo predicado de `INV_VPD_PREDICADO`, así que no pueden diferir
 | Protección | Dónde |
 |---|---|
 | Costos ocultos a `TECNICO` y `CONSULTA` en cualquier respuesta | `EventListener/OcultarCostosListener.php` |
-| Reintentos sin duplicar (`Idempotency-Key`) | `Http/Idempotencia.php` |
+| Reintentos sin duplicar (`Idempotency-Key`) | `Http/IdempotencyListener.php`, `Db/IdempotencyCommitMiddleware.php` |
+| Borrado lógico y bloqueo del borrado físico | `Db/LogicalDelete.php`, disparadores `TRG_BL_*` |
 | Límites de peticiones por ruta (`#[Limite('30/minute')]`) | `EventListener/LimiteListener.php` |
 | Cifrado de claves de licencia e integraciones | `Seguridad/CifradoCampos.php` |
 | Celdas seguras en CSV y Excel (evita inyección de fórmulas) | `Documentos/CeldaSegura.php` |
 | Validación del tipo real de un archivo subido | `Adjuntos/TiposArchivo.php` |
+
+### Concurrencia e idempotencia
+
+| Riesgo | Cómo se evita | Dónde |
+|---|---|---|
+| Dos operaciones sobre el mismo registro a la vez | La fila se bloquea (`SELECT … FOR UPDATE`) antes de leer su estado; varios activos se bloquean siempre en el mismo orden, sin interbloqueos | `Activos::bloquearEnOrden`, ingresos, tomas, licencias, consumibles, aprobaciones |
+| Contadores (stock, cupos) | Actualización condicional (`… WHERE stock >= :n`) que falla si otro ya lo consumió | `Consumibles`, `Software` |
+| Duplicados (serie, código, hostname, mes cerrado) | Índices únicos en la base | Migraciones |
+| Foto del cierre mensual descuadrada | El cálculo corre en una transacción `READ ONLY` (todas las consultas ven el mismo instante, sin bloquear a nadie). Después, el cierre y su auditoría se guardan en una transacción corta, y la clave única del periodo deja pasar uno solo de dos cierres simultáneos. No se usa `SERIALIZABLE`: Oracle la aborta con ORA-08177 cuando otra sesión confirma un cambio en una fila que luego se escribe | `CierreMensual::cerrar` |
+| Doble clic, reintento tras un corte | El frontend envía una `Idempotency-Key` en cada escritura y comparte las peticiones idénticas en curso. El servidor reserva la clave, marca `APPLIED` **en el mismo commit** de la operación y guarda la respuesta: un reintento recibe esa respuesta y nunca se ejecuta dos veces | `api/axios.ts`, `Http/IdempotencyListener.php` |
+
+### Borrado lógico
+
+Eliminar un registro de negocio (catálogos, ubicaciones, proveedores, consumibles, software, licencias, mantenimientos, adjuntos, kits) lo **archiva** con Oracle In-Database Archiving (`ROW ARCHIVAL`): la fila conserva sus datos y referencias, ninguna consulta la ve y los respaldos la guardan con su estado (`Db/LogicalDelete.php`). Si otro registro vigente lo usa, no se elimina (409). Lo que se iba con él en cascada se archiva también; los vínculos entre registros (sedes de un usuario, compatibilidades) se quitan. Durante una petición, un `DELETE` físico sobre esas tablas lo rechaza la base (`ORA-20006`). Para ver lo archivado como dueño: `ALTER SESSION SET ROW ARCHIVAL VISIBILITY = ALL`.
+
+Quedan con borrado físico solo los datos técnicos que vencen (tokens, códigos de un solo uso, sesiones, claves de idempotencia, correos ya enviados), los vínculos que se reescriben al editar (renglones de un kit, compatibilidades, especificaciones permitidas) y la foto de perfil, que es un dato personal.
 
 ## 7. Modelo de datos
 

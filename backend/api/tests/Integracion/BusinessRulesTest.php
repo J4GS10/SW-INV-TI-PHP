@@ -147,7 +147,11 @@ final class BusinessRulesTest extends PruebaApi
 
         self::assertSame(403, $this->pedir('POST', "/api/v1/inventario/cierre-mensual/cerrar?anio=2026&mes=2&sede_id={$this->site}", [], $purchasing)[0]);
         self::assertSame([409, 'MONTH_NOT_FINISHED'], $this->detalle('POST', "/api/v1/inventario/cierre-mensual/cerrar?anio=2099&mes=1&sede_id={$this->site}", [], $this->admin));
-        self::assertFalse($this->ok(200, 'GET', $url, token: $purchasing)['frozen'] ?? false);
+        $open = $this->ok(200, 'GET', $url, token: $purchasing);
+        self::assertFalse($open['frozen'] ?? false);
+        // An open month says what is still unresolved, so the screen can warn before freezing it.
+        self::assertSame(['aprobaciones', 'ingresos'], array_keys($open['pendientes']));
+        self::assertGreaterThanOrEqual(0, $open['pendientes']['ingresos']);
 
         $this->asset(['ACT_Fecha_Compra' => '2026-02-10', 'ACT_Costo' => '100.00', 'ACT_Moneda' => 'GTQ']);
         $closed = $this->ok(201, 'POST', "/api/v1/inventario/cierre-mensual/cerrar?anio=2026&mes=2&sede_id={$this->site}", [], $this->admin);

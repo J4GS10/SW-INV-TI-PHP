@@ -184,7 +184,8 @@
         "BACKUP_NO_REPLICA": "I backup sono solo su questa macchina: se si guasta, vanno persi con essa.",
         "DISK_LOW": "Lo spazio sul disco dei backup sta finendo.",
         "EMAIL_QUEUE_STUCK": "Ci sono e-mail che il sistema non è riuscito a inviare.",
-        "COUNT_CLOSE_STUCK": "Un inventario si sta chiudendo da troppo tempo."
+        "COUNT_CLOSE_STUCK": "Un inventario si sta chiudendo da troppo tempo.",
+        "IT_ADMIN_SINGLE": "Ci sono meno di due amministratori IT attivi: nessuno può approvare ciò che chiede l’altro."
     },
     "menu": {
         "my_tasks": "Le mie attività",
@@ -1223,6 +1224,19 @@
             "revoke_confirm": "{{name}} dovrà configurare la MFA al prossimo accesso. Continuare?",
             "revoked": "L'esonero dalla MFA di {{name}} è stato rimosso."
         },
+        "lock": {
+            "action": "Blocca",
+            "title": "Blocca account",
+            "caption": "{{name}} non potrà accedere (password né SSO) e le sue sessioni verranno chiuse ora. L'account resta attivo: solo lei lo sblocca, o la data se la imposta. Resta nel registro di audit.",
+            "reason": "Motivo",
+            "reason_help": "Ad esempio: si sospetta che qualcun altro usi l'account.",
+            "until": "Fino al (facoltativo)",
+            "until_help": "Senza data, resta bloccato finché non lo sblocca.",
+            "save": "Blocca",
+            "saved": "Account di {{name}} bloccato e sessioni chiuse.",
+            "chip": "Bloccato dall'amministratore",
+            "chip_until": "Bloccato dall'amministratore fino al {{date}}"
+        },
         "tabs": {
             "accounts": "Account"
         }
@@ -1989,6 +2003,11 @@
         "IDEMPOTENCY_KEY_CONFLICT_DIFFERENT_BODY": "L'operazione è già stata inviata con altri dati. Ricarichi e riprovi.",
         "IDEMPOTENCY_KEY_CONFLICT_DIFFERENT_OWNER": "L'operazione appartiene a un'altra sessione.",
         "IDEMPOTENCY_REQUEST_IN_PROGRESS": "L'operazione è già in elaborazione. Attenda un momento.",
+        "IDEMPOTENCY_ALREADY_APPLIED": "L'operazione è già stata registrata. La schermata mostra il risultato.",
+        "RECORD_IN_USE": "Non si può eliminare: altri record lo usano.",
+        "PHYSICAL_DELETE_FORBIDDEN": "Questo record non si può cancellare dal sistema; si può solo dismettere.",
+        "LOCK_UNTIL_MUST_BE_FUTURE": "La data del blocco deve essere successiva a oggi.",
+        "LOCK_REASON_REQUIRED": "Scriva il motivo del blocco (almeno 5 lettere).",
         "INITIAL_STATE_MUST_BE_AVAILABLE_OR_STORAGE": "Un nuovo bene deve essere registrato «In deposito».",
         "INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED": "La licenza non è installata o è già stata rimossa.",
         "INSTALLATION_TARGET_XOR_REQUIRED": "Indichi un dispositivo o una persona, non entrambi.",
@@ -3696,6 +3715,10 @@
     },
     "month_end": {
         "close_confirm_title": "Chiudere {{month}} {{year}}?",
+        "pending_receipts_one": "C’è {{count}} ingresso a magazzino non confermato.",
+        "pending_receipts_other": "Ci sono {{count}} ingressi a magazzino non confermati.",
+        "pending_approvals_one": "C’è {{count}} approvazione in sospeso.",
+        "pending_approvals_other": "Ci sono {{count}} approvazioni in sospeso.",
         "close_confirm_message": "I dati di questo mese saranno congelati e non cambieranno più. L’azione non è annullabile.",
         "close": "Chiudi il mese",
         "closed_ok": "Mese chiuso: questi dati non cambiano più.",
