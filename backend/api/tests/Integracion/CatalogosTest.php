@@ -23,12 +23,10 @@ final class CatalogosTest extends WebTestCase
 
     public function testTipoDeActivoConClaseDeducidaReglasYPlantilla(): void
     {
-        $nombre = 'Impresora';
-        D::conexion()->executeStatement('DELETE FROM CAT_SPEC_ALLOWED_VALUE WHERE ASV_TAC_ASSET_TYPE IN (SELECT "TAC_Tipo_Activo" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Nombre" = :n)', ['n' => $nombre]);
-        D::conexion()->executeStatement('DELETE FROM "INV_ESPECIFICACION_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" IN (SELECT "TAC_Tipo_Activo" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Nombre" = :n)', ['n' => $nombre]);
-        D::conexion()->executeStatement('DELETE FROM "INV_TIPO_ACTIVO" WHERE "TAC_Nombre" = :n', ['n' => $nombre]);
+        // Nombre propio de la prueba: la clase se deduce de la palabra «impresora» y no se toca el tipo real.
+        $nombre = 'Impresora '.D::sufijo();
 
-        [$e, $tipo] = $this->pedir('POST', '/api/v1/cat/tipos-activo', ['TAC_Nombre' => $nombre, 'TAC_Prefijo' => 'IMP']);
+        [$e, $tipo] = $this->pedir('POST', '/api/v1/cat/tipos-activo', ['TAC_Nombre' => $nombre]);
         self::assertSame(201, $e);
         self::assertSame('IMPRESION', $tipo['TAC_Clase']);
         self::assertTrue($tipo['TAC_Aplica_Depreciacion']);

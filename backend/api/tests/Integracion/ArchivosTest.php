@@ -92,7 +92,9 @@ final class ArchivosTest extends PruebaApi
     public function testExportesConEncabezadosPorIdiomaComillasYRolesPropios(): void
     {
         $formula = '=HYPERLINK("http://malo/'.D::sufijo().'")';
-        $a = $this->activo($formula);
+        // La API ya rechaza una serie así; un dato heredado puede traerla y el exporte debe neutralizarla igual.
+        $a = $this->activo();
+        D::conexion()->executeStatement('UPDATE "INV_ACTIVO" SET "ACT_Serie_Fabricante" = :f WHERE "ACT_Codigo_Interno" = :c', ['f' => $formula, 'c' => $a['ACT_Codigo_Interno']]);
         $r = $this->archivo('GET', '/api/v1/export/activos.csv?lang=en');
         self::adjuntoComo($r, 'text/csv; charset=utf-8', 'assets_\d{8}_\d{6}\.csv');
         self::assertStringContainsString("\"Internal code\",\"Serial number\"", (string) $r->getContent(), 'Todas las celdas entre comillas.');
