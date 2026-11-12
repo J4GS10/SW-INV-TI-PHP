@@ -6,7 +6,7 @@ namespace App\Inventario;
 
 use App\Catalogo\ClasesActivo;
 use App\Dominio\ErrorDominio;
-use Doctrine\DBAL\Connection;
+use App\Repositorio\ConsultasComunes;
 
 /**
  * Ciclo de vida de los activos: estados canónicos del catálogo INV_ESTADO_OPERATIVO
@@ -42,7 +42,7 @@ final readonly class EstadosActivo
         self::BAJA => [self::BODEGA],
     ];
 
-    public function __construct(private Connection $conexion)
+    public function __construct(private ConsultasComunes $consultas)
     {
     }
 
@@ -116,9 +116,7 @@ final readonly class EstadosActivo
 
     public function nombre(int $id): ?string
     {
-        $nombre = $this->conexion->fetchOne('SELECT "EOP_Nombre" FROM "INV_ESTADO_OPERATIVO" WHERE "EOP_Estado_Operativo" = :id', ['id' => $id]);
-
-        return false === $nombre ? null : (string) $nombre;
+        return $this->consultas->nombreDeEstado($id);
     }
 
     public function existe(int $id): bool
@@ -129,10 +127,7 @@ final readonly class EstadosActivo
     /** Id del estado por su nombre canónico (sin distinguir mayúsculas). */
     public function idDe(string $estado): ?int
     {
-        $id = $this->conexion->fetchOne('SELECT "EOP_Estado_Operativo" FROM "INV_ESTADO_OPERATIVO" WHERE LOWER("EOP_Nombre") = LOWER(:n) '
-            .'ORDER BY "EOP_Estado_Operativo" FETCH FIRST 1 ROWS ONLY', ['n' => $estado]);
-
-        return false === $id ? null : (int) $id;
+        return $this->consultas->idDeEstado($estado);
     }
 
     /** Id obligatorio (500 si el catálogo no tiene el estado del sistema). */

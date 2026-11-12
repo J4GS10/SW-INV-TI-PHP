@@ -14,7 +14,7 @@ use App\Http\Limite;
 use App\Inventario\CierreMensual;
 use App\Inventario\Esquemas;
 use App\Inventario\Faltantes;
-use App\Inventario\Reportes;
+use App\Inventario\Infrastructure\Reportes;
 use App\Inventario\Tomas;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;

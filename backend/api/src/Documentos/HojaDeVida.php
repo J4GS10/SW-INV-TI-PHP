@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Documentos;
 
 use App\Inventario\Activos;
-use App\Inventario\Reportes;
-use Doctrine\DBAL\Connection;
+use App\Inventario\Infrastructure\Reportes;
+use App\Repositorio\ConsultasComunes;
 
 /**
  * Hoja de vida de un activo en PDF (A4 horizontal): datos del equipo y todos sus
@@ -34,7 +34,7 @@ final readonly class HojaDeVida
         tr{page-break-inside:avoid}';
 
     public function __construct(
-        private Connection $conexion,
+        private ConsultasComunes $consultas,
         private Activos $activos,
         private Reportes $reportes,
         private FormatoLocal $formato,
@@ -45,13 +45,13 @@ final readonly class HojaDeVida
     public function generar(string $activoHex, Idioma $idioma, bool $conCosto): array
     {
         $activo = $this->activos->filaO404($activoHex);
-        $modelo = $this->conexion->fetchOne('SELECT "MOD_Nombre" FROM "INV_MODELO" WHERE "MOD_Modelo" = :m', ['m' => $activo['MOD_Modelo']]);
+        $modelo = $this->consultas->nombreDeModelo($activo['MOD_Modelo']);
         $eventos = $this->reportes->kardexCompleto(['activo' => $activoHex]);
         $t = $idioma->de(self::TEXTOS);
         $e = Pdf::e(...);
 
         $datos = "{$t[1]}: {$activo['ACT_Codigo_Interno']}   ·   {$t[2]}: {$activo['ACT_Serie_Fabricante']}   ·   "
-            ."{$t[3]}: ".(false === $modelo || null === $modelo ? '—' : $modelo).'   ·   '."{$t[5]}: ".$this->formato->fecha($activo['ACT_Fecha_Compra']);
+            ."{$t[3]}: ".($modelo ?? '—').'   ·   '."{$t[5]}: ".$this->formato->fecha($activo['ACT_Fecha_Compra']);
         if ($conCosto) {
             $datos .= "   ·   {$t[4]}: ".FormatoLocal::monto($activo['ACT_Costo']).' '.($activo['ACT_Moneda'] ?? '');
         }
@@ -64,7 +64,7 @@ final readonly class HojaDeVida
                 static fn (string $v, float $ancho): string => \sprintf('<%1$s style="width:%2$.1fcm">%3$s</%1$s>', $etiqueta, $ancho, $e($v)), $celdas, self::COLUMNAS)).'</tr>';
             $html .= '<table><thead>'.$fila([$t[6], $t[7], $t[8], $t[9], $t[10], $t[11]], 'th').'</thead><tbody>';
             foreach ($eventos as $ev) {
-                $documento = \App\Inventario\Kardex::documentoLegible($ev['KDX_Documento_Tipo'], $ev['KDX_Documento_Ref']);
+                $documento = \App\Inventario\Infrastructure\Kardex::documentoLegible($ev['KDX_Documento_Tipo'], $ev['KDX_Documento_Ref']);
                 $html .= $fila([
                     $this->formato->fechaHora($ev['KDX_Fecha']), Traducciones::tipoEvento($ev['KDX_Tipo'], $idioma),
                     self::unir(' · ', [$ev['origen_persona'], $ev['origen_area'], $ev['origen_sede'], $ev['origen_activo']]) ?: '—',

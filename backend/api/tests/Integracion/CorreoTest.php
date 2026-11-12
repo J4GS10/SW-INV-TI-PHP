@@ -189,7 +189,7 @@ final class CorreoTest extends KernelTestCase
         D::conexion()->executeStatement('INSERT INTO "SYS_EMAIL_OUTBOX" ("EOB_Id", "EOB_Plantilla", "EOB_Asunto", "EOB_Html", "EOB_Para", "EOB_Cc_Admins", '
             .'"EOB_Resolver", "EOB_Estado", "EOB_Intentos", "EOB_Proximo_Intento", "EOB_Creado_En") '
             ."VALUES (:id, 'prueba', 'x', 'x', '[]', 0, 0, 'PENDIENTE', 3, :antes, :antes)", ['id' => $id, 'antes' => $antes]);
-        $reclamados = $this->servicio(\App\Correo\ColaCorreos::class)->reclamar(20, 300, 3);
+        $reclamados = $this->servicio(\App\Correo\Infrastructure\ColaCorreos::class)->reclamar(20, 300, 3);
         self::assertNotContains($id, $reclamados);
         self::assertSame('FALLIDO', D::conexion()->fetchOne('SELECT "EOB_Estado" FROM "SYS_EMAIL_OUTBOX" WHERE "EOB_Id" = :id', ['id' => $id]));
         D::conexion()->executeStatement('DELETE FROM "SYS_EMAIL_OUTBOX" WHERE "EOB_Id" = :id', ['id' => $id]);

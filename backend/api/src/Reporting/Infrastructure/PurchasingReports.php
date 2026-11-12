@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Reporting;
+namespace App\Reporting\Infrastructure;
 
 use App\Dominio\Reloj;
 use App\Inventario\EstadosActivo;
-use App\Inventario\Kardex;
+use App\Inventario\Infrastructure\Kardex;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;

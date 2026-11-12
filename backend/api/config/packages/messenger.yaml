@@ -7,4 +7,4 @@ framework:
         buses:
             messenger.bus.default:
                 middleware:
-                    - App\Tareas\ConexionVivaMiddleware
+                    - App\Tareas\Infrastructure\ConexionVivaMiddleware

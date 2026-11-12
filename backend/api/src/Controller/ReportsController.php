@@ -7,7 +7,7 @@ namespace App\Controller;
 use App\Crud\Campo;
 use App\Dominio\Roles;
 use App\Http\Entrada;
-use App\Reporting\PurchasingReports;
+use App\Reporting\Infrastructure\PurchasingReports;
 use App\Seguridad\Autenticado;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;

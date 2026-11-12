@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Integracion;
 
+use App\Integracion\Infrastructure\RepositorioIntegracion;
 use Psr\Log\LoggerInterface;
 
 /**

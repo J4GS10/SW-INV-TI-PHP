@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Inventario;
+namespace App\Inventario\Infrastructure;
 
 use App\Catalogo\ClasesActivo;
 use App\Dominio\Ident;

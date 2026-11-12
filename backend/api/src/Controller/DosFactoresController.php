@@ -17,7 +17,7 @@ use App\Seguridad\Autenticado;
 use App\Seguridad\BloqueoCuenta;
 use App\Seguridad\Contrasenas;
 use App\Seguridad\UsuarioActual;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -32,7 +32,7 @@ final readonly class DosFactoresController
         private BloqueoCuenta $bloqueo,
         private UsuarioRepositorio $usuarios,
         private GobiernoRepositorio $gobierno,
-        private Connection $conexion,
+        private Transaccion $transaccion,
     ) {
     }
 
@@ -144,7 +144,7 @@ final readonly class DosFactoresController
     /** Una reautenticación fallida suma al bloqueo de la cuenta, como en el login. */
     private function falloDeReautenticacion(Usuario $u, string $origen, ?string $ip, ?string $ua): void
     {
-        $this->conexion->transactional(function () use ($u, $origen, $ip, $ua): void {
+        $this->transaccion->ejecutar(function () use ($u, $origen, $ip, $ua): void {
             if ($this->bloqueo->registrarFallo($u, Reloj::ahora(), $ip)) {
                 $this->gobierno->registrarAuditoria('ACCOUNT_LOCKED', 'INV_USUARIO', [
                     'username' => $u->username, 'origen' => $origen, 'intentos' => $u->intentosFallidos,

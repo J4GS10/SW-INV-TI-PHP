@@ -33,7 +33,7 @@ use App\Seguridad\PoliticaSesion;
 use App\Seguridad\Tokens;
 use App\Security\Mfa\TrustedDevices;
 use App\Seguridad\UsuarioActual;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -49,7 +49,7 @@ final readonly class LoginController
     private const string MENSAJE_RESET = 'Si la cuenta existe, se enviaron instrucciones al correo registrado.';
 
     public function __construct(
-        private Connection $conexion,
+        private Transaccion $transaccion,
         private UsuarioRepositorio $usuarios,
         private GobiernoRepositorio $gobierno,
         private SesionRepositorio $sesiones,
@@ -127,7 +127,7 @@ final readonly class LoginController
         // Equipo recordado tras un código válido: la contraseña basta hasta que venza.
         $recordado = $usuario->dosFactoresHabilitado && $this->equipos->isTrusted($usuario, $request);
         if ($usuario->dosFactoresHabilitado && !$recordado) {
-            $this->conexion->transactional(function () use ($usuario, $ip, $ua): void {
+            $this->transaccion->ejecutar(function () use ($usuario, $ip, $ua): void {
                 $this->usuarios->guardarEstadoAcceso($usuario);
                 $this->gobierno->registrarAuditoria('2FA_CHALLENGE', 'INV_USUARIO',
                     ['username' => $usuario->username, 'metodo' => $usuario->dosFactoresMetodo], $usuario->id, $ip, $ua);
@@ -148,7 +148,7 @@ final readonly class LoginController
         $this->bloqueo->limpiar($usuario, $ip);
         $usuario->ultimoLogin = $ahora;
         $respuesta = new JsonResponse();
-        $sesion = $this->conexion->transactional(function () use ($usuario, $ip, $ua, $respuesta, $recordado): array {
+        $sesion = $this->transaccion->ejecutar(function () use ($usuario, $ip, $ua, $respuesta, $recordado): array {
             $this->usuarios->guardarEstadoAcceso($usuario);
             $this->gobierno->registrarAuditoria('LOGIN_SUCCESS', 'INV_USUARIO',
                 ['username' => $usuario->username, 'rol' => $usuario->rol, ...($recordado ? ['2fa' => 'trusted_device'] : [])],
@@ -203,7 +203,7 @@ final readonly class LoginController
 
         $viaSso = 'sso' === ($desafio['amr'] ?? null);
         $respuesta = new JsonResponse();
-        $sesion = $this->conexion->transactional(function () use ($usuario, $desafio, $ahora, $viaSso, $ip, $ua, $respuesta, $invalido): array {
+        $sesion = $this->transaccion->ejecutar(function () use ($usuario, $desafio, $ahora, $viaSso, $ip, $ua, $respuesta, $invalido): array {
             // Dos verificaciones simultáneas con el mismo desafío: solo una abre sesión.
             if (!$this->gobierno->revocarJtiUnaVez((string) $desafio['jti'], '2fa', Tokens::expira($desafio), $usuario->id)) {
                 throw $invalido;
@@ -219,7 +219,7 @@ final readonly class LoginController
             return $this->inicio->iniciar($usuario, $this->politica->claims($usuario, $viaSso), $viaSso ? 'sso' : '2fa', $ip, $ua, $respuesta);
         });
         if ($recordar && $this->equipos->enabled()) {
-            $this->conexion->transactional(function () use ($usuario, $respuesta, $ip, $ua): void {
+            $this->transaccion->ejecutar(function () use ($usuario, $respuesta, $ip, $ua): void {
                 $this->equipos->remember($usuario, $respuesta, $ip, SesionRepositorio::etiquetaDispositivo($ua));
                 $this->gobierno->registrarAuditoria('MFA_DEVICE_REMEMBERED', 'INV_USUARIO',
                     ['username' => $usuario->username, 'dias' => $this->ajustes->mfaRecordarDias], $usuario->id, $ip, $ua);
@@ -277,7 +277,7 @@ final readonly class LoginController
 
         $viaSso = 'sso' === ($payload['amr'] ?? null);
         $respuesta = new JsonResponse();
-        $resultado = $this->conexion->transactional(function () use ($usuario, $payload, $jti, $sesion, $ahora, $authTime, $viaSso, $ip, $ua, $respuesta): ?array {
+        $resultado = $this->transaccion->ejecutar(function () use ($usuario, $payload, $jti, $sesion, $ahora, $authTime, $viaSso, $ip, $ua, $respuesta): ?array {
             if (!$this->gobierno->revocarJtiUnaVez($jti, 'refresh', Tokens::expira($payload), $usuario->id)) {
                 $previa = $this->gobierno->revocadoEn($jti) ?? $ahora;
                 if ($ahora->getTimestamp() - $previa->getTimestamp() > $this->ajustes->graciaReusoRefreshSegundos) {
@@ -330,7 +330,7 @@ final readonly class LoginController
             $candidatos[] = [$m[1], 'access'];
         }
 
-        $revocados = $this->conexion->transactional(function () use ($candidatos, $ip, $ua): array {
+        $revocados = $this->transaccion->ejecutar(function () use ($candidatos, $ip, $ua): array {
             $usuario = null;
             $revocados = [];
             foreach ($candidatos as [$crudo, $tipo]) {
@@ -373,7 +373,7 @@ final readonly class LoginController
     public function logoutTodo(Request $request, UsuarioActual $actual): Response
     {
         $u = $actual->usuario();
-        $this->conexion->transactional(function () use ($u, $request): void {
+        $this->transaccion->ejecutar(function () use ($u, $request): void {
             $this->gobierno->revocarTodo($u->id, Reloj::ahora()->modify('+'.($this->ajustes->refreshDias + 1).' days'));
             $this->gobierno->registrarAuditoria('LOGOUT_ALL', 'INV_USUARIO', ['username' => $u->username], $u->id,
                 ClienteHttp::ip($request), ClienteHttp::userAgent($request));
@@ -413,7 +413,7 @@ final readonly class LoginController
             return $generica;
         }
         [$plano, $hash] = CodigosSeguridad::tokenRestablecimiento();
-        $this->conexion->transactional(function () use ($usuario, $hash, $request): void {
+        $this->transaccion->ejecutar(function () use ($usuario, $hash, $request): void {
             $this->credenciales->invalidarResets($usuario->id);
             $this->credenciales->crearReset($usuario->id, $hash, Reloj::ahora()->modify("+{$this->ajustes->resetExpiraMinutos} minutes"));
             $this->gobierno->registrarAuditoria('PASSWORD_RESET_REQUEST', 'INV_USUARIO', ['username' => $usuario->username],
@@ -454,7 +454,7 @@ final readonly class LoginController
         }
         // Se valida antes de consumir: una contraseña rechazada no gasta el enlace.
         $this->cambio->validar($usuario, (string) $nueva);
-        $this->conexion->transactional(function () use ($usuario, $hash, $nueva, $request, $invalido): void {
+        $this->transaccion->ejecutar(function () use ($usuario, $hash, $nueva, $request, $invalido): void {
             if (null === $this->credenciales->consumirReset($hash)) {
                 throw $invalido; // otro uso simultáneo del mismo enlace
             }
@@ -509,7 +509,7 @@ final readonly class LoginController
         if (null === $sesion || $sesion['usuario'] !== $u->id) {
             throw new ErrorApi(404, 'SESSION_NOT_FOUND');
         }
-        $this->conexion->transactional(function () use ($sesion, $u, $sessionId, $request): void {
+        $this->transaccion->ejecutar(function () use ($sesion, $u, $sessionId, $request): void {
             if ($this->cierre->cerrar($sesion['id'], $u->id, 'cerrada_por_titular')) {
                 $this->gobierno->registrarAuditoria('SESSION_CLOSED', 'SYS_SESION', [
                     'username' => $u->username, 'sesion' => $sessionId, 'dispositivo' => $sesion['dispositivo'], 'por' => 'titular',
@@ -542,7 +542,7 @@ final readonly class LoginController
             throw new ErrorApi(400, 'INCORRECT_CURRENT_PASSWORD');
         }
         $this->cambio->validar($u, (string) $nueva);
-        $this->conexion->transactional(function () use ($u, $nueva, $ip, $ua): void {
+        $this->transaccion->ejecutar(function () use ($u, $nueva, $ip, $ua): void {
             $this->cambio->aplicar($u, (string) $nueva, false);
             $this->gobierno->registrarAuditoria('PASSWORD_CHANGE', 'INV_USUARIO',
                 ['username' => $u->username, 'self_service' => true], $u->id, $ip, $ua);
@@ -559,7 +559,7 @@ final readonly class LoginController
      */
     private function registrarFallo(Usuario $u, \DateTimeImmutable $ahora, ?string $motivo, string $origen, ?string $ip, ?string $ua): bool
     {
-        return $this->conexion->transactional(function () use ($u, $ahora, $motivo, $origen, $ip, $ua): bool {
+        return $this->transaccion->ejecutar(function () use ($u, $ahora, $motivo, $origen, $ip, $ua): bool {
             $bloqueada = $this->bloqueo->registrarFallo($u, $ahora, $ip);
             $this->usuarios->guardarEstadoAcceso($u);
             if (null !== $motivo) {
@@ -582,7 +582,7 @@ final readonly class LoginController
     /** Fallo de login que no suma intentos: persiste el estado y lo audita. */
     private function falloSinIntento(Usuario $u, string $motivo, ?string $ip, ?string $ua): void
     {
-        $this->conexion->transactional(function () use ($u, $motivo, $ip, $ua): void {
+        $this->transaccion->ejecutar(function () use ($u, $motivo, $ip, $ua): void {
             $this->usuarios->guardarEstadoAcceso($u);
             $this->gobierno->registrarAuditoria('LOGIN_FAILED', 'INV_USUARIO',
                 ['username' => $u->username, 'reason' => $motivo], $u->id, $ip, $ua);

@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Tareas;
+namespace App\Tareas\Infrastructure;
 
+use App\Tareas\TareaExclusiva;
 use App\Config\Ajustes;
 use App\Dominio\Reloj;
 use Doctrine\DBAL\Connection;

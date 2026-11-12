@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Integracion;
+namespace App\Integracion\Infrastructure;
 
 use App\Dominio\Reloj;
 use App\Seguridad\CifradoCampos;

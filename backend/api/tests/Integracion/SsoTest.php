@@ -41,7 +41,7 @@ final class SsoTest extends WebTestCase
         $this->privada = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => \OPENSSL_KEYTYPE_RSA]);
         $c = static::getContainer();
         $c->set(Sso::class, new Sso(new MockHttpClient($this->proveedorSimulado(...)), $c->get(UsuarioRepositorio::class),
-            $c->get(GobiernoRepositorio::class), $c->get(Connection::class), $c->get(Ajustes::class)));
+            $c->get(GobiernoRepositorio::class), $c->get(\App\Db\Transaccion::class), $c->get(Ajustes::class)));
     }
 
     public function testListaLosProveedoresConfigurados(): void

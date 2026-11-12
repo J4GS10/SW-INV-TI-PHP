@@ -16,7 +16,7 @@ use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\UsuarioRepositorio;
 use App\Seguridad\PoliticaSesion;
 use App\Seguridad\Tokens;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -36,7 +36,7 @@ final readonly class SsoController
         private GobiernoRepositorio $gobierno,
         private PoliticaSesion $politica,
         private Tokens $tokens,
-        private Connection $conexion,
+        private Transaccion $transaccion,
         private Ajustes $ajustes,
     ) {
     }
@@ -91,7 +91,7 @@ final readonly class SsoController
         $separador = str_contains($volverA, '#') ? '&' : '#';
 
         if ($this->sso->requiereSegundoFactor($usuario)) {
-            $this->conexion->transactional(fn () => $this->gobierno->registrarAuditoria('2FA_CHALLENGE', 'INV_USUARIO',
+            $this->transaccion->ejecutar(fn () => $this->gobierno->registrarAuditoria('2FA_CHALLENGE', 'INV_USUARIO',
                 ['username' => $usuario->username, 'metodo' => $usuario->dosFactoresMetodo, 'sso' => $provider], $usuario->id, $ip, $ua));
             if ('EMAIL' === $usuario->dosFactoresMetodo) {
                 $this->dosFactores->emitirCodigoCorreo($usuario);
@@ -107,7 +107,7 @@ final readonly class SsoController
 
         $respuesta = $this->redirigir($volverA.$separador.'sso=ok');
         $usuario->ultimoLogin = Reloj::ahora();
-        $sesion = $this->conexion->transactional(function () use ($usuario, $provider, $ip, $ua, $respuesta): array {
+        $sesion = $this->transaccion->ejecutar(function () use ($usuario, $provider, $ip, $ua, $respuesta): array {
             $this->usuarios->guardarEstadoAcceso($usuario);
             $this->gobierno->registrarAuditoria('LOGIN_SUCCESS', 'INV_USUARIO',
                 ['username' => $usuario->username, 'rol' => $usuario->rol, 'sso' => $provider], $usuario->id, $ip, $ua);

@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Security\Mfa;
+namespace App\Security\Mfa\Infrastructure;
 
+use App\Security\Mfa\MfaRequirementStore;
 use Doctrine\DBAL\Connection;
 
 final readonly class OracleMfaRequirementStore implements MfaRequirementStore

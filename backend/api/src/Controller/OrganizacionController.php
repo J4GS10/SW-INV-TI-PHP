@@ -16,7 +16,7 @@ use App\Http\ErrorApi;
 use App\Http\Limite;
 use App\Organizacion\Entidades as E;
 use App\Organizacion\Identidades;
-use App\Organizacion\Sugerencias;
+use App\Organizacion\Infrastructure\Sugerencias;
 use App\Seguridad\Alcance;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;

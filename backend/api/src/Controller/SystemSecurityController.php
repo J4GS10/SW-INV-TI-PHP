@@ -14,7 +14,7 @@ use App\Security\Mfa\MfaCannotBeDisabled;
 use App\Security\Mfa\MfaRequirementStore;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
@@ -29,7 +29,7 @@ final readonly class SystemSecurityController
         private ChangeMfaRequirement $changeRequirement,
         private GobiernoRepositorio $audit,
         private UsuarioActual $currentUser,
-        private Connection $connection,
+        private Transaccion $transaccion,
     ) {
     }
 
@@ -50,7 +50,7 @@ final readonly class SystemSecurityController
         $input->validar();
 
         try {
-            $this->connection->transactional(function () use ($required, $request): void {
+            $this->transaccion->ejecutar(function () use ($required, $request): void {
                 $this->changeRequirement->execute((bool) $required);
                 $this->audit->registrarAuditoria('MFA_REQUIREMENT_CHANGED', 'SYS_CONFIGURACION',
                     ['required' => (bool) $required], $this->currentUser->usuario()->id, ClienteHttp::ip($request));

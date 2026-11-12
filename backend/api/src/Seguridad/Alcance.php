@@ -8,7 +8,7 @@ use App\Config\Ajustes;
 use App\Db\ContextoRls;
 use App\Dominio\AlcanceDatos;
 use App\Dominio\ErrorDominio;
-use Doctrine\DBAL\Connection;
+use App\Repositorio\ConsultasComunes;
 
 /**
  * Alcance de datos por sede de la petición (capa 1, en la aplicación; la capa 2
@@ -25,7 +25,7 @@ final class Alcance
     public function __construct(
         private readonly UsuarioActual $actual,
         private readonly ContextoRls $rls,
-        private readonly Connection $conexion,
+        private readonly ConsultasComunes $consultas,
         private readonly Ajustes $ajustes,
     ) {
     }
@@ -175,13 +175,6 @@ final class Alcance
     /** @return array<string, string> */
     private function predicados(): array
     {
-        if (null === $this->predicados) {
-            $this->predicados = [];
-            foreach ($this->conexion->fetchAllAssociative('SELECT "VPD_Tabla", "VPD_Operacion", "VPD_Predicado" FROM "INV_VPD_PREDICADO"') as $f) {
-                $this->predicados[$f['VPD_Tabla'].'|'.$f['VPD_Operacion']] = (string) $f['VPD_Predicado'];
-            }
-        }
-
-        return $this->predicados;
+        return $this->predicados ??= $this->consultas->predicadosDeAlcance();
     }
 }

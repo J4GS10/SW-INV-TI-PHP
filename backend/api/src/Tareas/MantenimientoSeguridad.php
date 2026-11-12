@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tareas;
 
+use App\Tareas\Infrastructure\PurgaSeguridad;
 use App\Config\Ajustes;
 use App\Correo\Notificador;
 use App\Dominio\Ident;

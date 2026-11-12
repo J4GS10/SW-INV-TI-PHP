@@ -18,7 +18,7 @@ use App\Inventario\EdicionLote;
 use App\Inventario\Esquemas;
 use App\Inventario\Reclasificacion;
 use App\Inventario\Solicitudes;
-use App\Organizacion\Sugerencias;
+use App\Organizacion\Infrastructure\Sugerencias;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
 use Symfony\Component\HttpFoundation\JsonResponse;

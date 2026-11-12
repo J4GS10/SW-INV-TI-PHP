@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
+use App\Inventario\Infrastructure\Instalaciones;
 use App\Catalogo\ClasesActivo;
 use App\Dominio\ErrorDominio;
-use Doctrine\DBAL\Connection;
+use App\Repositorio\ConsultasComunes;
 
 /**
  * Lo que admite cada activo según la clase de su tipo (App\Catalogo\ClasesActivo):
@@ -14,16 +15,14 @@ use Doctrine\DBAL\Connection;
  */
 final readonly class ReglasClase
 {
-    public function __construct(private Connection $conexion)
+    public function __construct(private ConsultasComunes $consultas)
     {
     }
 
     /** @return array{clase: string, uso: string, software: bool, componentes: bool, red: bool, consumibles: bool} */
     public function deTipo(?int $tipo): array
     {
-        $clase = null === $tipo ? false : $this->conexion->fetchOne('SELECT "TAC_Clase" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $tipo]);
-
-        return ClasesActivo::reglas(false === $clase || null === $clase ? null : (string) $clase);
+        return ClasesActivo::reglas(null === $tipo ? null : $this->consultas->claseDeTipo($tipo));
     }
 
     /**
@@ -71,8 +70,7 @@ final readonly class ReglasClase
     /** Instalaciones y licencias por equipo solo en equipos que llevan software. */
     public function exigirSoftware(string $activoHex): void
     {
-        $tipo = $this->conexion->fetchOne('SELECT "TAC_Tipo_Activo" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => $activoHex]);
-        if (!$this->deTipo(false === $tipo ? null : (int) $tipo)['software']) {
+        if (!$this->deTipo($this->consultas->tipoDeActivo($activoHex))['software']) {
             throw ErrorDominio::noProcesable('ASSET_CLASS_NO_SOFTWARE');
         }
     }
@@ -88,8 +86,7 @@ final readonly class ReglasClase
         if (!$this->deActivo($equipo)['componentes']) {
             throw ErrorDominio::noProcesable('ASSET_CLASS_NO_COMPONENTS');
         }
-        $permitidos = array_map('intval', $this->conexion->fetchFirstColumn(
-            'SELECT "TAC_Componente" FROM "INV_TIPO_COMPONENTE" WHERE "TAC_Padre" = :t', ['t' => (int) $equipo['TAC_Tipo_Activo']]));
+        $permitidos = $this->consultas->componentesAdmitidos((int) $equipo['TAC_Tipo_Activo']);
         $valido = [] !== $permitidos
             ? \in_array((int) $componente['TAC_Tipo_Activo'], $permitidos, true)
             : ClasesActivo::COMPONENTE === $this->deActivo($componente)['uso'];

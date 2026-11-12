@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Correo;
+namespace App\Correo\Infrastructure;
 
+use App\Correo\CorreoEnCola;
 use App\Dominio\Reloj;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;

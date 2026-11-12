@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Documentos;
 
-use App\Inventario\Reportes;
+use App\Inventario\Infrastructure\Reportes;
 use App\Inventario\Tomas;
 use Doctrine\DBAL\Connection;
 

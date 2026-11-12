@@ -28,7 +28,7 @@ final readonly class DescargaLogo
 
     private HttpClientInterface $cliente;
 
-    public function __construct(private LoggerInterface $logger, ?HttpClientInterface $cliente = null, private ?\Doctrine\DBAL\Connection $conexion = null)
+    public function __construct(private LoggerInterface $logger, ?HttpClientInterface $cliente = null, private ?\App\Repositorio\ConsultasComunes $consultas = null)
     {
         // Siempre envuelto: ni el cliente inyectado puede llegar a la red interna.
         $this->cliente = new NoPrivateNetworkHttpClient($cliente ?? HttpClient::create());
@@ -38,10 +38,10 @@ final readonly class DescargaLogo
     {
         $url = trim((string) $url);
         // El logo subido al sistema se lee de la base: no hay descarga ni red.
-        if (str_starts_with($url, '/api/v1/gov/config/logo') && null !== $this->conexion) {
-            $bytes = $this->conexion->fetchOne('SELECT "SYS_Logo_Image" FROM "SYS_CONFIGURACION" WHERE "SYS_Configuracion" = 1');
+        if (str_starts_with($url, '/api/v1/gov/config/logo') && null !== $this->consultas) {
+            $bytes = $this->consultas->logoGuardado();
 
-            return \is_string($bytes) ? Logo::desdeBytes($bytes) : null;
+            return null === $bytes ? null : Logo::desdeBytes($bytes);
         }
         if (!self::esUrlAdmitida($url)) {
             if ('' !== $url) {

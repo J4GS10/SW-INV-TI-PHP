@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Notificaciones;
+namespace App\Notificaciones\Infrastructure;
 
+use App\Notificaciones\ReglaNotificacion;
+use App\Notificaciones\EventoNotificacion;
 use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;

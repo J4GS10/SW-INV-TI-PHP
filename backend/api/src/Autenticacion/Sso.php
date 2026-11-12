@@ -9,7 +9,7 @@ use App\Dominio\Usuario;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\UsuarioRepositorio;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -40,7 +40,7 @@ final readonly class Sso
         private HttpClientInterface $http,
         private UsuarioRepositorio $usuarios,
         private GobiernoRepositorio $gobierno,
-        private Connection $conexion,
+        private Transaccion $transaccion,
         private Ajustes $ajustes,
     ) {
     }
@@ -383,7 +383,7 @@ final readonly class Sso
 
     private function auditarRechazo(string $proveedor, string $correo, string $motivo, ?string $ip, ?string $ua, ?Usuario $u = null): void
     {
-        $this->conexion->transactional(fn () => $this->gobierno->registrarAuditoria('LOGIN_FAILED', 'INV_USUARIO',
+        $this->transaccion->ejecutar(fn () => $this->gobierno->registrarAuditoria('LOGIN_FAILED', 'INV_USUARIO',
             ['provider' => $proveedor, 'email' => $correo, 'reason' => $motivo], $u?->id, $ip, $ua));
     }
 

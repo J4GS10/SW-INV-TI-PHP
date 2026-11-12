@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
+use App\Inventario\Infrastructure\Operador;
 use App\Db\Transaccion;
 use App\Dominio\ErrorDominio;
 use App\Dominio\Ident;

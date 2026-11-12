@@ -14,7 +14,7 @@ final class ConsultaKardex
     /**
      * Lee los filtros; los errores quedan en `$e` (el que llama valida).
      *
-     * @return array<string, mixed> filtros para App\Inventario\Kardex::filtros()
+     * @return array<string, mixed> filtros para App\Inventario\Infrastructure\Kardex::filtros()
      */
     public static function filtros(Request $request, Entrada $e): array
     {

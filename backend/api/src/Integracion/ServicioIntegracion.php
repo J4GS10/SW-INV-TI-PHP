@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Integracion;
 
+use App\Integracion\Infrastructure\RepositorioIntegracion;
 use App\Config\Ajustes;
-use App\Correo\ColaCorreos;
+use App\Correo\Infrastructure\ColaCorreos;
 use App\Correo\Cortacircuitos;
 use App\Correo\EntregaCorreo;
 use App\Correo\ErrorEnvioCorreo;
@@ -13,7 +14,7 @@ use App\Directorio\ErrorAutenticacionDirectorio;
 use App\Directorio\ErrorDirectorio;
 use App\Directorio\FabricaDirectorio;
 use App\Repositorio\GobiernoRepositorio;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 
 /**
  * Cuenta de servicio (correo + AD) desde la interfaz: lectura sin secretos,
@@ -39,7 +40,7 @@ final readonly class ServicioIntegracion
         'ad_bind_usuario'];
 
     public function __construct(
-        private Connection $conexion,
+        private Transaccion $transaccion,
         private RepositorioIntegracion $repositorio,
         private FabricaConfigIntegracion $fabrica,
         private FuenteIntegracion $fuente,
@@ -67,7 +68,7 @@ final readonly class ServicioIntegracion
      */
     public function guardar(array $datos, ?string $usuarioHex, ?string $ip): array
     {
-        $valores = $this->conexion->transactional(function () use ($datos, $usuarioHex, $ip): ?array {
+        $valores = $this->transaccion->ejecutar(function () use ($datos, $usuarioHex, $ip): ?array {
             if (!$this->repositorio->existe()) {
                 // Primer guardado desde la interfaz: los secretos que el formulario deja
                 // «sin cambios» se heredan del entorno.

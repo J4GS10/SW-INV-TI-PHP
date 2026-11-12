@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Inventario\Kardex;
+use App\Inventario\Infrastructure\Kardex;
 use PHPUnit\Framework\TestCase;
 
 final class KardexDocumentoTest extends TestCase

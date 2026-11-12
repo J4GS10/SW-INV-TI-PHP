@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Crud;
+namespace App\Crud\Infrastructure;
 
+use App\Crud\Operaciones;
+use App\Crud\Esquema;
+use App\Crud\Entidad;
 use App\Db\InsercionOracle;
 use App\Dominio\Ident;
 use Doctrine\DBAL\Connection;

@@ -8,7 +8,7 @@ use App\Crud\Campo;
 use App\Dominio\Roles;
 use App\Http\Entrada;
 use App\Http\Limite;
-use App\Inventario\Productividad;
+use App\Inventario\Infrastructure\Productividad;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
 use Symfony\Component\HttpFoundation\JsonResponse;

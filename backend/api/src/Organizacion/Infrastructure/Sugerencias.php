@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Organizacion;
+namespace App\Organizacion\Infrastructure;
 
 use App\Dominio\Ident;
 use App\Dominio\Roles;

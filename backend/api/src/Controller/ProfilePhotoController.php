@@ -15,7 +15,7 @@ use App\ProfilePhoto\Infrastructure\ProfilePhotoRepository;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -32,7 +32,7 @@ final readonly class ProfilePhotoController
     public function __construct(
         private ProfilePhotoRepository $photos,
         private GobiernoRepositorio $audit,
-        private Connection $connection,
+        private Transaccion $transaccion,
         private UsuarioActual $current,
     ) {
     }
@@ -48,7 +48,7 @@ final readonly class ProfilePhotoController
         }
         $photo = ProfilePhoto::fromUpload($upload->contenido) ?? throw new ErrorApi(400, 'PHOTO_MUST_BE_AN_IMAGE');
         $user = $this->current->usuario()->id;
-        $this->connection->transactional(function () use ($user, $photo, $request): void {
+        $this->transaccion->ejecutar(function () use ($user, $photo, $request): void {
             $this->photos->save($user, $photo);
             $this->audit->registrarAuditoria('UPDATE', 'INV_USUARIO_FOTO', ['cambios' => ['foto' => 'nueva']], $user, ClienteHttp::ip($request));
         });
@@ -61,7 +61,7 @@ final readonly class ProfilePhotoController
     public function remove(Request $request): Response
     {
         $user = $this->current->usuario()->id;
-        $this->connection->transactional(function () use ($user, $request): void {
+        $this->transaccion->ejecutar(function () use ($user, $request): void {
             if ($this->photos->delete($user)) {
                 $this->audit->registrarAuditoria('DELETE', 'INV_USUARIO_FOTO', ['cambios' => ['foto' => 'quitada']], $user, ClienteHttp::ip($request));
             }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integracion;
 
 use App\Config\Ajustes;
-use App\Correo\ColaCorreos;
+use App\Correo\Infrastructure\ColaCorreos;
 use App\Correo\ConfigCorreo;
 use App\Correo\Cortacircuitos;
 use App\Correo\EntregaCorreo;

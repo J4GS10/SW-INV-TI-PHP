@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
+use App\Inventario\Infrastructure\Kardex;
+use App\Inventario\Infrastructure\Operador;
+use App\Inventario\Infrastructure\Instalaciones;
+use App\Inventario\Infrastructure\Secuencias;
 use App\Catalogo\CatalogoGenerico;
 use App\Correo\Notificador;
 use App\Crud\Esquema;

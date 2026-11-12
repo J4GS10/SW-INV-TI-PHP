@@ -10,7 +10,7 @@ use App\Documentos\FormatoLocal;
 use App\Documentos\LibroExcel;
 use App\Dominio\ErrorDominio;
 use App\Inventario\Activos;
-use App\Inventario\Secuencias;
+use App\Inventario\Infrastructure\Secuencias;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;

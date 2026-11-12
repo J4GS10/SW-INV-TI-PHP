@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Correo;
 
+use App\Correo\Infrastructure\ColaCorreos;
 use App\Config\Ajustes;
 use App\Integracion\FuenteIntegracion;
 use App\Notificaciones\Destinatario;

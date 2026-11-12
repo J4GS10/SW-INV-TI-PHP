@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tareas;
+namespace App\Tareas\Infrastructure;
 
 use Doctrine\DBAL\Connection;
 use Psr\Log\LoggerInterface;

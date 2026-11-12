@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Crud;
 
+use App\Crud\Infrastructure\RepositorioEntidad;
 use App\Http\ClienteHttp;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;

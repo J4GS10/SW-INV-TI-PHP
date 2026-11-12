@@ -9,7 +9,7 @@ use App\Documentos\Pdf;
 use App\GoodsReceipt\Domain\GoodsReceiptStatus;
 use App\GoodsReceipt\Infrastructure\GoodsReceiptRepository;
 use App\Dominio\ErrorDominio;
-use Doctrine\DBAL\Connection;
+use App\Repositorio\ConsultasComunes;
 
 /** The receipt act handed to purchasing once IT has confirmed what truly arrived. */
 final readonly class GoodsReceiptAct
@@ -23,7 +23,7 @@ final readonly class GoodsReceiptAct
             'declared' => 'Dichiarato', 'received' => 'Ricevuto', 'cost' => 'Costo unitario', 'registered' => 'Registrato da', 'confirmed' => 'Confermato da', 'reason' => 'Motivo della differenza'],
     ];
 
-    public function __construct(private GoodsReceiptRepository $receipts, private Connection $connection)
+    public function __construct(private GoodsReceiptRepository $receipts, private ConsultasComunes $lookups)
     {
     }
 
@@ -40,7 +40,7 @@ final readonly class GoodsReceiptAct
             $rows .= '<tr><td>'.$e($line['GRL_ITEM_TEXT']).'</td><td class="n">'.(int) $line['GRL_QUANTITY_DECLARED'].'</td><td class="n">'.(int) $line['GRL_QUANTITY_RECEIVED'].'</td><td class="n">'
                 .$e(bcadd((string) $line['GRL_UNIT_COST'], '0', 2)).' '.$e($receipt['GRC_CURRENCY']).'</td></tr>';
         }
-        $company = (string) ($this->connection->fetchOne('SELECT "SYS_Nombre_Empresa" FROM "SYS_CONFIGURACION" WHERE "SYS_Configuracion" = 1') ?: '');
+        $company = $this->lookups->nombreDeEmpresa();
         $reason = null === $receipt['GRC_DIFFERENCE_REASON'] ? '' : '<p><b>'.$e($t['reason']).':</b> '.$e($receipt['GRC_DIFFERENCE_REASON']).'</p>';
         $body = '<h1>'.$e($t['title']).'</h1><p class="c">'.$e($company).'</p>'
             .'<table class="d"><tr><th>'.$e($t['code']).'</th><td>'.$e($receipt['GRC_CODE']).'</td><th>'.$e($t['date']).'</th><td>'.$e($receipt['RECEIVED_DATE']).'</td></tr>'
@@ -56,6 +56,6 @@ final readonly class GoodsReceiptAct
 
     private function username(mixed $user): string
     {
-        return null === $user ? '' : (string) $this->connection->fetchOne('SELECT "USU_Username" FROM "INV_USUARIO" WHERE "USU_Usuario" = :u', ['u' => $user]);
+        return $this->lookups->nombreDeUsuario($user);
     }
 }

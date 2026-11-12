@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Inventario;
+namespace App\Inventario\Infrastructure;
 
+use App\Inventario\Movimientos;
 use App\Config\Ajustes;
 use App\Crud\Esquema;
 use App\Dominio\Ident;

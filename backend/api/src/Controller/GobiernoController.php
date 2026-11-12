@@ -16,7 +16,7 @@ use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
-use App\Tareas\PurgaSeguridad;
+use App\Tareas\Infrastructure\PurgaSeguridad;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;

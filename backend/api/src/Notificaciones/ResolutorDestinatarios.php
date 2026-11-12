@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Notificaciones;
 
+use App\Notificaciones\Infrastructure\ReglasNotificacion;
 use App\Config\Ajustes;
 use App\Directorio\Directorio;
 use App\Directorio\ErrorDirectorio;
 use App\Directorio\FabricaDirectorio;
 use App\Integracion\FuenteIntegracion;
-use Doctrine\DBAL\ArrayParameterType;
-use Doctrine\DBAL\Connection;
+use App\Repositorio\ConsultasComunes;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -21,7 +21,7 @@ use Psr\Log\LoggerInterface;
 final readonly class ResolutorDestinatarios
 {
     public function __construct(
-        private Connection $conexion,
+        private ConsultasComunes $consultas,
         private ReglasNotificacion $reglas,
         private FuenteIntegracion $fuente,
         private FabricaDirectorio $directorios,
@@ -95,12 +95,7 @@ final readonly class ResolutorDestinatarios
         if ([] === $afectados) {
             return [];
         }
-        $correos = $this->conexion->fetchFirstColumn(
-            'SELECT j."PER_Email_Corporativo" FROM "INV_PERSONA" p JOIN "INV_PERSONA" j ON j."PER_Persona" = p."PER_Jefe" '
-            .'WHERE LOWER(p."PER_Email_Corporativo") IN (:correos) AND j."PER_Estado" = 1',
-            ['correos' => $afectados],
-            ['correos' => ArrayParameterType::STRING],
-        );
+        $correos = $this->consultas->correosDeJefes($afectados);
 
         return array_values(array_filter(array_map(static fn (mixed $c): string => strtolower((string) $c), $correos)));
     }

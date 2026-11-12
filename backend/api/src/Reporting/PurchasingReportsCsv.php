@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Reporting;
 
+use App\Reporting\Infrastructure\PurchasingReports;
 use App\Documentos\ArchivoCsv;
 use App\Documentos\Idioma;
 

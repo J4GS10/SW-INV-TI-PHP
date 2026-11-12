@@ -20,7 +20,7 @@ use App\Integracion\FuenteIntegracion;
 use App\Integracion\ServicioIntegracion;
 use App\Notificaciones\Destinatario;
 use App\Notificaciones\ReglaNotificacion;
-use App\Notificaciones\ReglasNotificacion;
+use App\Notificaciones\Infrastructure\ReglasNotificacion;
 use App\Notificaciones\ResolutorDestinatarios;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
