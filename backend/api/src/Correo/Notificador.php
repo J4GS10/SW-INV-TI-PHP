@@ -9,8 +9,7 @@ use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Http\TareasPosteriores;
 use App\Integracion\FuenteIntegracion;
-use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\ParameterType;
+use App\Correo\Infrastructure\ColaCorreos;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -37,7 +36,7 @@ final readonly class Notificador
         private FuenteIntegracion $fuente,
         private EntregaCorreo $entrega,
         private TareasPosteriores $tareas,
-        private Connection $conexion,
+        private ColaCorreos $cola,
         private Ajustes $ajustes,
         private LoggerInterface $logger,
     ) {
@@ -164,26 +163,17 @@ final readonly class Notificador
     ): void {
         $json = static fn (?array $v): ?string => null === $v ? null
             : json_encode($v, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR);
-        $ahora = Reloj::aBd(Reloj::ahora());
-        $this->conexion->executeStatement(
-            'INSERT INTO "SYS_EMAIL_OUTBOX" ("EOB_Id", "EOB_Plantilla", "EOB_Asunto", "EOB_Html", "EOB_Para", '
-            .'"EOB_Afectados", "EOB_Cc_Admins", "EOB_Resolver", "EOB_Reply_To", "EOB_Estado", "EOB_Intentos", '
-            .'"EOB_Proximo_Intento", "EOB_Creado_En") VALUES (:id, :plantilla, :asunto, :html, :para, :afectados, '
-            .":cc, :resolver, :reply, 'PENDIENTE', 0, :ahora, :ahora)",
-            [
-                'id' => Ident::nuevo(),
-                'plantilla' => $plantilla,
-                'asunto' => mb_substr($asunto, 0, 255),
-                'html' => $html,
-                'para' => $json($para),
-                'afectados' => $json($afectados),
-                'cc' => $copiarAdmins ? 1 : 0,
-                'resolver' => $resolver ? 1 : 0,
-                'reply' => null === $responderA || '' === $responderA ? null : mb_substr($responderA, 0, 150),
-                'ahora' => $ahora,
-            ],
-            ['html' => ParameterType::LARGE_OBJECT, 'para' => ParameterType::LARGE_OBJECT, 'afectados' => ParameterType::LARGE_OBJECT],
-        );
+        $this->cola->encolar([
+            'id' => Ident::nuevo(),
+            'plantilla' => $plantilla,
+            'asunto' => mb_substr($asunto, 0, 255),
+            'html' => $html,
+            'para' => $json($para),
+            'afectados' => $json($afectados),
+            'cc' => $copiarAdmins,
+            'resolver' => $resolver,
+            'reply' => null === $responderA || '' === $responderA ? null : mb_substr($responderA, 0, 150),
+        ], Reloj::ahora());
     }
 
     /** @param list<string> $para */

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Catalogo;
 
-use Doctrine\DBAL\Connection;
+use App\Catalogo\Infrastructure\SpecificationStore;
 
 /**
  * Especificaciones por tipo de activo: un tipo sin ninguna configurada recibe
@@ -44,49 +44,33 @@ final readonly class PlantillaEspecificaciones
         'AUDIOVISUAL' => [['Tamaño Pantalla', 'PULGADAS', false, null], ['Dirección IP', null, false, null]],
     ];
 
-    public function __construct(private Connection $conexion)
+    public function __construct(private SpecificationStore $store)
     {
     }
 
     /** Aplica la plantilla al tipo si aún no tiene especificaciones. Devuelve cuántas creó. */
     public function aplicar(int $tipoId): int
     {
-        $tipo = $this->conexion->fetchAssociative(
-            'SELECT "TAC_Nombre", "TAC_Clase" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t',
-            ['t' => $tipoId],
-        );
-        $configurado = $this->conexion->fetchOne(
-            'SELECT 1 FROM "INV_ESPECIFICACION_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t FETCH FIRST 1 ROWS ONLY',
-            ['t' => $tipoId],
-        );
-        if (false === $tipo || false !== $configurado) {
+        $tipo = $this->store->assetType($tipoId);
+        if (null === $tipo || $this->store->hasSpecifications($tipoId)) {
             return 0;
         }
         /** @var list<array{0: string, 1: ?string, 2: bool, 3: list<string>|null}> $especificaciones */
         $especificaciones = [];
-        foreach (self::POR_TIPO[mb_strtolower(trim((string) $tipo['TAC_Nombre']))] ?? [] as [$n, $u, $o]) {
+        foreach (self::POR_TIPO[mb_strtolower(trim($tipo['TAC_Nombre']))] ?? [] as [$n, $u, $o]) {
             $especificaciones[] = [$n, $u, $o, null];
         }
         if ([] === $especificaciones) {
-            $especificaciones = self::POR_CLASE[(string) $tipo['TAC_Clase']] ?? [];
+            $especificaciones = self::POR_CLASE[$tipo['TAC_Clase']] ?? [];
         }
 
         $creadas = 0;
         foreach ($especificaciones as $orden => [$nombre, $unidad, $obligatoria, $valores]) {
             $tes = $this->tipoEspecificacion($nombre, $unidad);
-            $existe = $this->conexion->fetchOne(
-                'SELECT 1 FROM "INV_ESPECIFICACION_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t AND "TES_Tipo_Especificacion" = :e',
-                ['t' => $tipoId, 'e' => $tes],
-            );
-            if (false === $existe) {
-                $this->conexion->executeStatement(
-                    'INSERT INTO "INV_ESPECIFICACION_TIPO_ACTIVO" ("TAC_Tipo_Activo", "TES_Tipo_Especificacion", "ETA_Obligatoria", '
-                    .'"ETA_Orden") VALUES (:t, :e, :o, :r)',
-                    ['t' => $tipoId, 'e' => $tes, 'o' => $obligatoria ? 1 : 0, 'r' => ($orden + 1) * 10],
-                );
+            if (!$this->store->uses($tipoId, $tes)) {
+                $this->store->addToAssetType($tipoId, $tes, $obligatoria, ($orden + 1) * 10);
                 foreach ($valores ?? [] as $posicion => $valor) {
-                    $this->conexion->executeStatement('INSERT INTO CAT_SPEC_ALLOWED_VALUE (ASV_TAC_ASSET_TYPE, ASV_TES_SPECIFICATION_TYPE, ASV_VALUE, ASV_SORT_ORDER) VALUES (:t, :e, :v, :o)',
-                        ['t' => $tipoId, 'e' => $tes, 'v' => $valor, 'o' => ($posicion + 1) * 10]);
+                    $this->store->addAllowedValue($tipoId, $tes, $valor, ($posicion + 1) * 10);
                 }
                 ++$creadas;
             }
@@ -98,23 +82,12 @@ final readonly class PlantillaEspecificaciones
     /** Tipo de especificación por nombre (sin distinguir mayúsculas); se crea si no existe. */
     private function tipoEspecificacion(string $nombre, ?string $unidad): int
     {
-        $buscar = static fn (Connection $c): mixed => $c->fetchOne(
-            'SELECT "TES_Tipo_Especificacion" FROM "INV_TIPO_ESPECIFICACION" WHERE LOWER(TRIM("TES_Nombre")) = LOWER(:n)',
-            ['n' => $nombre],
-        );
-        $tes = $buscar($this->conexion);
-        if (false !== $tes) {
-            return (int) $tes;
+        $tes = $this->store->specificationTypeByName($nombre);
+        if (null !== $tes) {
+            return $tes;
         }
-        $medida = null === $unidad ? false : $this->conexion->fetchAssociative(
-            'SELECT "UME_Unidad", "UME_Simbolo" FROM "INV_UNIDAD_MEDIDA" WHERE "UME_Codigo" = :c',
-            ['c' => $unidad],
-        );
-        $this->conexion->executeStatement(
-            'INSERT INTO "INV_TIPO_ESPECIFICACION" ("TES_Nombre", "TES_Unidad_Medida", "UME_Unidad") VALUES (:n, :s, :u)',
-            ['n' => $nombre, 's' => false === $medida ? null : $medida['UME_Simbolo'], 'u' => false === $medida ? null : $medida['UME_Unidad']],
-        );
+        $this->store->createSpecificationType($nombre, $unidad);
 
-        return (int) $buscar($this->conexion);
+        return (int) $this->store->specificationTypeByName($nombre);
     }
 }

@@ -6,7 +6,7 @@ namespace App\Documentos;
 
 use App\Inventario\Infrastructure\Reportes;
 use App\Inventario\Tomas;
-use Doctrine\DBAL\Connection;
+use App\Documentos\Infrastructure\ConsultasDocumentos;
 
 /**
  * CSV del inventario: kardex, custodia a una fecha, licencias y resultado de una
@@ -47,7 +47,7 @@ final readonly class ReportesCsv
     private const array GRUPOS_TOMA = ['faltantes', 'otra_ubicacion', 'otra_sede', 'de_baja', 'no_registrados'];
 
     public function __construct(
-        private Connection $conexion,
+        private ConsultasDocumentos $consultas,
         private Reportes $reportes,
         private Tomas $tomas,
         private FormatoLocal $formato,
@@ -73,7 +73,7 @@ final readonly class ReportesCsv
 
     public function custodia(?string $fecha, ?string $persona, ?int $area, ?int $sede, Idioma $idioma): string
     {
-        $sedes = $this->conexion->fetchAllKeyValue('SELECT "SED_Sede", "SED_Nombre" FROM "INV_SEDE"');
+        $sedes = $this->consultas->nombresDeSedes();
 
         return ArchivoCsv::minimo($idioma->de(self::CABECERAS['custodia']))->filas(array_map(fn (array $i): array => [
             $i['activo_codigo'], $i['activo_serie'],
@@ -88,10 +88,7 @@ final readonly class ReportesCsv
     public function licencias(Idioma $idioma): string
     {
         $hoy = new \DateTimeImmutable($this->formato->ahora()->format('Y-m-d'));
-        $filas = $this->conexion->fetchAllAssociative('SELECT s."SOF_Nombre", s."SOF_Version", s."SOF_Fabricante", t."TLI_Nombre", l."LIC_Cantidad_Total", '
-            .'l."LIC_Cantidad_Usada", l."LIC_Fecha_Vencimiento", l."LIC_Costo", l."LIC_Moneda" FROM "INV_LICENCIA" l '
-            .'JOIN "INV_SOFTWARE" s ON s."SOF_Software" = l."SOF_Software" LEFT JOIN "INV_TIPO_LICENCIA" t ON t."TLI_Tipo_Licencia" = l."TLI_Tipo_Licencia" '
-            .'ORDER BY s."SOF_Nombre", l."LIC_Licencia"');
+        $filas = $this->consultas->licencias();
 
         return ArchivoCsv::minimo($idioma->de(self::CABECERAS['licencias']))->filas(array_map(function (array $l) use ($hoy): array {
             $total = (int) $l['LIC_Cantidad_Total'];

@@ -24,6 +24,23 @@ final readonly class ColaCorreos
     }
 
     /**
+     * Deja un correo PENDIENTE en la cola, listo para el primer intento.
+     *
+     * @param array{id: string, plantilla: string, asunto: string, html: string, para: ?string, afectados: ?string, cc: bool, resolver: bool, reply: ?string} $correo `para` y `afectados` en JSON
+     */
+    public function encolar(array $correo, \DateTimeImmutable $ahora): void
+    {
+        $this->conexion->executeStatement(
+            'INSERT INTO "SYS_EMAIL_OUTBOX" ("EOB_Id", "EOB_Plantilla", "EOB_Asunto", "EOB_Html", "EOB_Para", '
+            .'"EOB_Afectados", "EOB_Cc_Admins", "EOB_Resolver", "EOB_Reply_To", "EOB_Estado", "EOB_Intentos", '
+            .'"EOB_Proximo_Intento", "EOB_Creado_En") VALUES (:id, :plantilla, :asunto, :html, :para, :afectados, '
+            .":cc, :resolver, :reply, 'PENDIENTE', 0, :ahora, :ahora)",
+            [...$correo, 'cc' => $correo['cc'] ? 1 : 0, 'resolver' => $correo['resolver'] ? 1 : 0, 'ahora' => Reloj::aBd($ahora)],
+            ['html' => ParameterType::LARGE_OBJECT, 'para' => ParameterType::LARGE_OBJECT, 'afectados' => ParameterType::LARGE_OBJECT],
+        );
+    }
+
+    /**
      * Reclama hasta `$lote` correos vencidos: suma un intento y fija el arriendo.
      *
      * @return list<string> ids reclamados

@@ -9,7 +9,7 @@ use App\Http\ClienteHttp;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\UsuarioActual;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -22,7 +22,7 @@ final readonly class Operaciones
         public RepositorioEntidad $repositorio,
         private GobiernoRepositorio $gobierno,
         private UsuarioActual $actual,
-        private Connection $conexion,
+        private Transaccion $transaccion,
     ) {
     }
 
@@ -35,11 +35,7 @@ final readonly class Operaciones
     /** 409 si la tabla hija tiene filas que apuntan al registro. */
     public function sinHijos(string $tablaHija, string $columna, int|string $id, string $codigo): void
     {
-        $hay = $this->conexion->fetchOne(
-            'SELECT 1 FROM "'.$tablaHija.'" WHERE "'.$columna.'" = :id FETCH FIRST 1 ROWS ONLY',
-            ['id' => $id],
-        );
-        if (false !== $hay) {
+        if ($this->repositorio->tieneHijos($tablaHija, $columna, $id)) {
             throw ErrorDominio::conflicto($codigo);
         }
     }
@@ -52,7 +48,7 @@ final readonly class Operaciones
      */
     public function crear(Entidad $e, array $datos, Request $request, array $snapshot, ?int $sede = null): array
     {
-        return $this->conexion->transactional(function () use ($e, $datos, $request, $snapshot, $sede): array {
+        return $this->transaccion->ejecutar(function () use ($e, $datos, $request, $snapshot, $sede): array {
             $id = $this->repositorio->insertar($e, $datos);
             $this->auditar('CREATE', $e->tabla, $snapshot, $request, $sede);
 
@@ -70,7 +66,7 @@ final readonly class Operaciones
      */
     public function actualizar(Entidad $e, int|string $id, array $cambios, Request $request, ?array $snapshot = null, ?int $sede = null): array
     {
-        return $this->conexion->transactional(function () use ($e, $id, $cambios, $request, $snapshot, $sede): array {
+        return $this->transaccion->ejecutar(function () use ($e, $id, $cambios, $request, $snapshot, $sede): array {
             $this->repositorio->actualizar($e, $id, $cambios);
             $this->auditar('UPDATE', $e->tabla, $snapshot ?? ['id' => $id, 'cambios' => (object) $cambios], $request, $sede);
 
@@ -81,7 +77,7 @@ final readonly class Operaciones
     /** @param array<string, mixed> $snapshot */
     public function eliminar(Entidad $e, int|string $id, Request $request, array $snapshot, ?int $sede = null): void
     {
-        $this->conexion->transactional(function () use ($e, $id, $request, $snapshot, $sede): void {
+        $this->transaccion->ejecutar(function () use ($e, $id, $request, $snapshot, $sede): void {
             $this->repositorio->eliminar($e, $id);
             $this->auditar('DELETE', $e->tabla, $snapshot, $request, $sede);
         });

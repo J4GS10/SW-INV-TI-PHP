@@ -12,7 +12,7 @@ use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\SesionRepositorio;
 use App\Repositorio\UsuarioRepositorio;
 use App\Seguridad\PoliticaSesion;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 
 /**
  * "Skip for now": an account that must use MFA may skip setting it up once, in
@@ -22,7 +22,7 @@ use Doctrine\DBAL\Connection;
 final readonly class SkipMfaEnrollment
 {
     public function __construct(
-        private Connection $connection,
+        private Transaccion $transaccion,
         private PoliticaSesion $policy,
         private UsuarioRepositorio $users,
         private SesionRepositorio $sessions,
@@ -49,13 +49,9 @@ final readonly class SkipMfaEnrollment
             throw ErrorDominio::noAutenticado('TOKEN_REVOKED');
         }
 
-        $this->connection->transactional(function () use ($user, $ip, $ua): void {
+        $this->transaccion->ejecutar(function () use ($user, $ip, $ua): void {
             // Only once, even with two clicks at the same time.
-            $updated = $this->connection->executeStatement(
-                'UPDATE "INV_USUARIO" SET "USU_MFA_Omitido_En" = :now WHERE "USU_Usuario" = :id AND "USU_MFA_Omitido_En" IS NULL',
-                ['now' => Reloj::aBd(Reloj::ahora()), 'id' => $user->id],
-            );
-            if (1 !== $updated) {
+            if (!$this->users->marcarMfaOmitido($user->id, Reloj::ahora())) {
                 throw ErrorDominio::conflicto('MFA_SKIP_ALREADY_USED');
             }
             $this->audit->registrarAuditoria('MFA_ENROLLMENT_SKIPPED', 'INV_USUARIO', ['username' => $user->username], $user->id, $ip, $ua);

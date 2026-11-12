@@ -8,7 +8,7 @@ use App\Config\Ajustes;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Usuario;
-use Doctrine\DBAL\Connection;
+use App\Security\Mfa\Infrastructure\TrustedDeviceStore;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -27,7 +27,7 @@ final readonly class TrustedDevices
     public const string COOKIE = 'inv_mfa_device';
     private const string PATH = '/api/v1/login';
 
-    public function __construct(private Connection $connection, private Ajustes $settings)
+    public function __construct(private TrustedDeviceStore $store, private Ajustes $settings)
     {
     }
 
@@ -45,12 +45,7 @@ final readonly class TrustedDevices
         $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $now = Reloj::ahora();
         $expires = $now->modify('+'.$this->settings->mfaRecordarDias.' days');
-        $this->connection->executeStatement(
-            'INSERT INTO SYS_TRUSTED_DEVICE (TDV_USER, TDV_TOKEN_HASH, TDV_STAMP, TDV_DEVICE, TDV_IP, TDV_CREATED_AT, TDV_EXPIRES_AT) '
-            .'VALUES (:u, :h, :s, :d, :ip, :now, :exp)',
-            ['u' => $user->id, 'h' => hash('sha256', $token), 's' => $this->stamp($user), 'd' => null === $device ? null : mb_substr($device, 0, 120),
-                'ip' => $ip, 'now' => Reloj::aBd($now), 'exp' => Reloj::aBd($expires)],
-        );
+        $this->store->add($user->id, hash('sha256', $token), $this->stamp($user), null === $device ? null : mb_substr($device, 0, 120), $ip, $now, $expires);
         $response->headers->setCookie(Cookie::create(self::COOKIE)
             ->withValue($token)
             ->withExpires($expires->getTimestamp())
@@ -67,15 +62,12 @@ final readonly class TrustedDevices
         if (!$this->enabled() || '' === $token) {
             return false;
         }
-        $row = $this->connection->fetchAssociative(
-            'SELECT TDV_ID, TDV_STAMP FROM SYS_TRUSTED_DEVICE WHERE TDV_TOKEN_HASH = :h AND TDV_USER = :u AND TDV_EXPIRES_AT > :now',
-            ['h' => hash('sha256', $token), 'u' => $user->id, 'now' => Reloj::aBd(Reloj::ahora())],
-        );
-        if (false === $row || !hash_equals((string) $row['TDV_STAMP'], $this->stamp($user))) {
+        $now = Reloj::ahora();
+        $known = $this->store->findLive($user->id, hash('sha256', $token), $now);
+        if (null === $known || !hash_equals($known['stamp'], $this->stamp($user))) {
             return false;
         }
-        $this->connection->executeStatement('UPDATE SYS_TRUSTED_DEVICE SET TDV_LAST_USED_AT = :now WHERE TDV_ID = :id',
-            ['now' => Reloj::aBd(Reloj::ahora()), 'id' => $row['TDV_ID']]);
+        $this->store->markUsed($known['id'], $now);
 
         return true;
     }
@@ -83,11 +75,7 @@ final readonly class TrustedDevices
     /** @return list<array{id: int, device: ?string, ip: ?string, created_at: ?string, expires_at: ?string, last_used_at: ?string}> */
     public function listFor(string $userHex): array
     {
-        $rows = $this->connection->fetchAllAssociative(
-            'SELECT TDV_ID, TDV_DEVICE, TDV_IP, TDV_CREATED_AT, TDV_EXPIRES_AT, TDV_LAST_USED_AT FROM SYS_TRUSTED_DEVICE '
-            .'WHERE TDV_USER = :u AND TDV_EXPIRES_AT > :now ORDER BY TDV_CREATED_AT DESC',
-            ['u' => $userHex, 'now' => Reloj::aBd(Reloj::ahora())],
-        );
+        $rows = $this->store->live($userHex, Reloj::ahora());
 
         return array_map(static fn (array $r): array => [
             'id' => (int) $r['TDV_ID'],
@@ -102,13 +90,12 @@ final readonly class TrustedDevices
     /** Removes one trusted device of the account; false if it was not there. */
     public function forget(string $userHex, int $id): bool
     {
-        return 1 === $this->connection->executeStatement('DELETE FROM SYS_TRUSTED_DEVICE WHERE TDV_ID = :id AND TDV_USER = :u',
-            ['id' => $id, 'u' => $userHex]);
+        return $this->store->remove($userHex, $id);
     }
 
     public function forgetAll(string $userHex): int
     {
-        return (int) $this->connection->executeStatement('DELETE FROM SYS_TRUSTED_DEVICE WHERE TDV_USER = :u', ['u' => $userHex]);
+        return $this->store->removeAll($userHex);
     }
 
     /** Fingerprint of the password and MFA secret the device was trusted with. */

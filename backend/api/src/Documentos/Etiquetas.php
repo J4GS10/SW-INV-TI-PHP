@@ -10,7 +10,7 @@ use chillerlan\QRCode\Common\EccLevel;
 use chillerlan\QRCode\Output\QRMarkupSVG;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
-use Doctrine\DBAL\Connection;
+use App\Documentos\Infrastructure\ConsultasDocumentos;
 
 /**
  * Etiquetas imprimibles con QR del código interno, en hojas carta con cuadrícula
@@ -46,7 +46,7 @@ final readonly class Etiquetas
         .host{top:0.42in;font-size:7pt}
         .serie{top:0.60in;font-size:7pt}';
 
-    public function __construct(private Connection $conexion, private Alcance $alcance)
+    public function __construct(private ConsultasDocumentos $consultas)
     {
     }
 
@@ -108,25 +108,10 @@ final readonly class Etiquetas
     private function cargar(array $activos, array $codigos): array
     {
         $codigos = array_values(array_filter(array_map('trim', $codigos), static fn (string $c): bool => '' !== $c));
-        $condiciones = [];
-        $p = [];
-        foreach (['ACT_Activo' => $activos, 'ACT_Codigo_Interno' => $codigos] as $columna => $valores) {
-            if ([] === $valores) {
-                continue;
-            }
-            $nombres = [];
-            foreach ($valores as $i => $v) {
-                $nombres[] = ":{$columna}_{$i}";
-                $p["{$columna}_{$i}"] = $v;
-            }
-            $condiciones[] = "a.\"{$columna}\" IN (".implode(', ', $nombres).')';
-        }
-        if ([] === $condiciones) {
+        if ([] === $activos && [] === $codigos) {
             throw ErrorDominio::invalido('LABEL_ASSETS_REQUIRED');
         }
-        [$alcance, $pa] = $this->alcance->lectura('INV_ACTIVO', 'a');
-        $filas = $this->conexion->fetchAllAssociative('SELECT a."ACT_Codigo_Interno", a."ACT_Serie_Fabricante", a."ACT_Hostname" FROM "INV_ACTIVO" a '
-            .'WHERE ('.implode(' OR ', $condiciones).') AND '.$alcance.' ORDER BY a."ACT_Codigo_Interno"', [...$p, ...$pa]);
+        $filas = $this->consultas->activosParaEtiquetas($activos, $codigos);
         if ([] === $filas) {
             throw ErrorDominio::noEncontrado('ASSETS_NOT_FOUND');
         }

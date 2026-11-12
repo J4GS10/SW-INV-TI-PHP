@@ -12,7 +12,7 @@ use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\UsuarioRepositorio;
 use App\Seguridad\PoliticaSesion;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 
 /**
  * Temporary MFA exemption for one account (e.g. a person who cannot install an
@@ -23,7 +23,7 @@ use Doctrine\DBAL\Connection;
 final readonly class MfaExemption
 {
     public function __construct(
-        private Connection $connection,
+        private Transaccion $transaccion,
         private UsuarioRepositorio $users,
         private GobiernoRepositorio $audit,
         private PoliticaSesion $policy,
@@ -52,11 +52,8 @@ final readonly class MfaExemption
             throw ErrorDominio::noProcesable('MFA_EXEMPTION_TOO_LONG');
         }
 
-        $this->connection->transactional(function () use ($target, $end, $reason, $requester, $ip): void {
-            $this->connection->executeStatement(
-                'UPDATE "INV_USUARIO" SET "USU_MFA_Exento_Hasta" = :h, "USU_MFA_Exento_Motivo" = :m WHERE "USU_Usuario" = :id',
-                ['h' => Reloj::aBd($end), 'm' => $reason, 'id' => $target->id],
-            );
+        $this->transaccion->ejecutar(function () use ($target, $end, $reason, $requester, $ip): void {
+            $this->users->guardarExencionMfa($target->id, $end, $reason);
             $this->audit->registrarAuditoria('MFA_EXEMPTION_GRANTED', 'INV_USUARIO',
                 ['target_username' => $target->username, 'until' => Reloj::iso($end), 'reason' => $reason], $requester->id, $ip);
         });
@@ -67,11 +64,8 @@ final readonly class MfaExemption
     public function revoke(string $targetHex, Usuario $requester, ?string $ip): void
     {
         $target = $this->target($targetHex, $requester);
-        $this->connection->transactional(function () use ($target, $requester, $ip): void {
-            $this->connection->executeStatement(
-                'UPDATE "INV_USUARIO" SET "USU_MFA_Exento_Hasta" = NULL, "USU_MFA_Exento_Motivo" = NULL WHERE "USU_Usuario" = :id',
-                ['id' => $target->id],
-            );
+        $this->transaccion->ejecutar(function () use ($target, $requester, $ip): void {
+            $this->users->guardarExencionMfa($target->id, null, null);
             $this->audit->registrarAuditoria('MFA_EXEMPTION_REVOKED', 'INV_USUARIO', ['target_username' => $target->username], $requester->id, $ip);
         });
     }

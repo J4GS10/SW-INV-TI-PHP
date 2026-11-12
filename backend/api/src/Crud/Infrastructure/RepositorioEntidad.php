@@ -100,6 +100,12 @@ final readonly class RepositorioEntidad
         return $this->borrado->archive($e->tabla, $e->clave, $this->clave($e, $id)) ? 1 : 0;
     }
 
+    /** ¿Alguna fila de la tabla hija apunta al registro por esa columna? */
+    public function tieneHijos(string $tablaHija, string $columna, int|string $id): bool
+    {
+        return false !== $this->conexion->fetchOne('SELECT 1 FROM "'.$tablaHija.'" WHERE "'.$columna.'" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id]);
+    }
+
     /**
      * ¿Existe una fila con `$columna` = `$valor` (sin distinguir mayúsculas ni espacios)?
      *

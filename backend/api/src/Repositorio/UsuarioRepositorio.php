@@ -91,6 +91,24 @@ final readonly class UsuarioRepositorio
         );
     }
 
+    /** Exención temporal del segundo factor: su fin y su motivo, o ambos null para quitarla. */
+    public function guardarExencionMfa(string $usuarioHex, ?\DateTimeImmutable $hasta, ?string $motivo): void
+    {
+        $this->conexion->executeStatement(
+            'UPDATE "INV_USUARIO" SET "USU_MFA_Exento_Hasta" = :h, "USU_MFA_Exento_Motivo" = :m WHERE "USU_Usuario" = :id',
+            ['h' => Reloj::aBd($hasta), 'm' => $motivo, 'id' => $usuarioHex],
+        );
+    }
+
+    /** Anota la única omisión del segundo factor. false si la cuenta ya la había usado (dos clics a la vez: solo uno la marca). */
+    public function marcarMfaOmitido(string $usuarioHex, \DateTimeImmutable $ahora): bool
+    {
+        return 1 === $this->conexion->executeStatement(
+            'UPDATE "INV_USUARIO" SET "USU_MFA_Omitido_En" = :now WHERE "USU_Usuario" = :id AND "USU_MFA_Omitido_En" IS NULL',
+            ['now' => Reloj::aBd($ahora), 'id' => $usuarioHex],
+        );
+    }
+
     /** Contraseña nueva: deja de ser temporal y se limpia el bloqueo por intentos (no el administrativo). */
     public function guardarNuevaContrasena(Usuario $usuario): void
     {

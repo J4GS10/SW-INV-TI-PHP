@@ -20,7 +20,7 @@ use chillerlan\QRCode\Common\EccLevel;
 use chillerlan\QRCode\Output\QRMarkupSVG;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
 
 /**
  * Segundo factor: TOTP (app autenticadora; secreto cifrado con Fernet) o código
@@ -31,7 +31,7 @@ use Doctrine\DBAL\Connection;
 final readonly class DosFactores
 {
     public function __construct(
-        private Connection $conexion,
+        private Transaccion $transaccion,
         private UsuarioRepositorio $usuarios,
         private CredencialesRepositorio $credenciales,
         private GobiernoRepositorio $gobierno,
@@ -67,7 +67,7 @@ final readonly class DosFactores
     /** @return list<string> códigos de recuperación (se muestran una sola vez) */
     public function activarTotp(Usuario $u, string $codigo, ?string $ip, ?string $ua): array
     {
-        return $this->conexion->transactional(function () use ($u, $codigo, $ip, $ua): array {
+        return $this->transaccion->ejecutar(function () use ($u, $codigo, $ip, $ua): array {
             $this->exigirNoHabilitado($u);
             if (null === $u->dosFactoresSecreto) {
                 throw ErrorDominio::invalido('2FA_SETUP_NOT_STARTED');
@@ -89,7 +89,7 @@ final readonly class DosFactores
     /** @return list<string> */
     public function activarCorreo(Usuario $u, string $codigo, ?string $ip, ?string $ua): array
     {
-        return $this->conexion->transactional(function () use ($u, $codigo, $ip, $ua): array {
+        return $this->transaccion->ejecutar(function () use ($u, $codigo, $ip, $ua): array {
             $this->exigirNoHabilitado($u);
             if (!$this->comprobarCodigoCorreo($u, $codigo)) {
                 throw ErrorDominio::invalido('INVALID_2FA_CODE');
@@ -116,7 +116,7 @@ final readonly class DosFactores
         if ($this->politica->rolExigeMfa($u->rol)) {
             throw ErrorDominio::prohibido('2FA_REQUIRED_FOR_THIS_ROLE');
         }
-        $this->conexion->transactional(function () use ($u, $ip, $ua): void {
+        $this->transaccion->ejecutar(function () use ($u, $ip, $ua): void {
             $u->dosFactoresHabilitado = false;
             $u->dosFactoresMetodo = null;
             $u->dosFactoresSecreto = null;
@@ -134,7 +134,7 @@ final readonly class DosFactores
             throw ErrorDominio::invalido('2FA_NOT_ENABLED');
         }
 
-        return $this->conexion->transactional(function () use ($u, $ip, $ua): array {
+        return $this->transaccion->ejecutar(function () use ($u, $ip, $ua): array {
             $codigos = $this->nuevosCodigosRecuperacion($u);
             $this->gobierno->registrarAuditoria('2FA_RECOVERY_REGENERATED', 'INV_USUARIO', ['username' => $u->username], $u->id, $ip, $ua);
 
@@ -182,7 +182,7 @@ final readonly class DosFactores
     public function emitirCodigoCorreo(Usuario $u): void
     {
         $codigo = CodigosSeguridad::otpNumerico();
-        $this->conexion->transactional(function () use ($u, $codigo): void {
+        $this->transaccion->ejecutar(function () use ($u, $codigo): void {
             $this->credenciales->invalidarOtps($u->id);
             $this->credenciales->crearOtp($u->id, $this->codigos->hash($codigo),
                 Reloj::ahora()->modify("+{$this->ajustes->otpCorreoMinutos} minutes"));

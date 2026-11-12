@@ -12,7 +12,7 @@ use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
+use App\Documentos\Infrastructure\ConsultasDocumentos;
 
 /**
  * Actas de entrega y hojas de descargo de uno o varios movimientos de la misma
@@ -26,8 +26,7 @@ final readonly class Actas
     private const string CODIGO_FORMULARIO = 'F.IT.GUA.04.01';
 
     public function __construct(
-        private Connection $conexion,
-        private Alcance $alcance,
+        private ConsultasDocumentos $consultas,
         private DescargaLogo $logos,
         private FormatoLocal $formato,
         private ActaPdf $pdf,
@@ -75,8 +74,7 @@ final readonly class Actas
             }
         }
 
-        $config = $this->conexion->fetchAssociative('SELECT "SYS_Nombre_Empresa", "SYS_Logo_URL", "SYS_Ciudad", "SYS_Codigo_Formulario" '
-            .'FROM "SYS_CONFIGURACION" WHERE "SYS_Configuracion" = 1') ?: [];
+        $config = $this->consultas->datosDeLaEmpresa();
         $empresa = trim((string) ($config['SYS_Nombre_Empresa'] ?? '')) ?: 'Mi Empresa';
         $mensajero = trim((string) $mensajero);
 
@@ -99,15 +97,7 @@ final readonly class Actas
     /** @return array<string, mixed> */
     private function movimiento(string $id): array
     {
-        [$alcance, $p] = $this->alcance->lectura('INV_MOVIMIENTO', 'm');
-        $fila = $this->conexion->fetchAssociative('SELECT m."MOV_Movimiento", m."PER_Persona", m."MOV_Fecha_Asignacion", m."MOV_Fecha_Devolucion", '
-            .'m."MOV_Observacion", p."PER_Primer_Nombre", p."PER_Primer_Apellido", a."ACT_Codigo_Interno", a."ACT_Serie_Fabricante", a."ACT_Hostname", '
-            .'t."TAC_Nombre", mo."MOD_Nombre", ma."MAR_Nombre" FROM "INV_MOVIMIENTO" m JOIN "INV_PERSONA" p ON p."PER_Persona" = m."PER_Persona" '
-            .'LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" LEFT JOIN "INV_TIPO_ACTIVO" t ON t."TAC_Tipo_Activo" = a."TAC_Tipo_Activo" '
-            .'LEFT JOIN "INV_MODELO" mo ON mo."MOD_Modelo" = a."MOD_Modelo" LEFT JOIN "INV_MARCA" ma ON ma."MAR_Marca" = mo."MAR_Marca" '
-            .'WHERE m."MOV_Movimiento" = :id AND '.$alcance, [...$p, 'id' => $id]);
-
-        return $fila ?: throw ErrorDominio::noEncontrado('MOVEMENT_NOT_FOUND: '.Ident::aTexto($id));
+        return $this->consultas->movimientoParaActa($id) ?? throw ErrorDominio::noEncontrado('MOVEMENT_NOT_FOUND: '.Ident::aTexto($id));
     }
 
     /**
