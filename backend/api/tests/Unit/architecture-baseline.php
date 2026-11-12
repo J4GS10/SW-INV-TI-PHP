@@ -66,14 +66,11 @@ return array (
   array (
     0 => 'Controller/CatalogoTecnicoController.php',
     1 => 'Controller/CatalogosController.php',
-    2 => 'Controller/DirectorioController.php',
-    3 => 'Controller/GobiernoController.php',
-    4 => 'Controller/OrganizacionController.php',
-    5 => 'Controller/SaludController.php',
-    6 => 'Controller/SoftwareController.php',
-    7 => 'Controller/UbicacionController.php',
-    8 => 'EventListener/ErroresListener.php',
-    9 => 'Http/Idempotencia.php',
+    2 => 'Controller/GobiernoController.php',
+    3 => 'Controller/OrganizacionController.php',
+    4 => 'Controller/SaludController.php',
+    5 => 'EventListener/ErroresListener.php',
+    6 => 'Http/Idempotencia.php',
   ),
   'dominio-puro' => 
   array (

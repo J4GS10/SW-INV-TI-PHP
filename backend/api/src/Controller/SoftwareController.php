@@ -227,10 +227,10 @@ final readonly class SoftwareController
 
     #[Route('/personas/{persona}/instalaciones', methods: ['GET'])]
     #[Autenticado(roles: Roles::LECTURA_PERSONAS)]
-    public function instalacionesPersona(Request $request, \Doctrine\DBAL\Connection $conexion): JsonResponse
+    public function instalacionesPersona(Request $request, \App\Repositorio\ConsultasComunes $consultas): JsonResponse
     {
         $persona = Entrada::uuidDeRuta($request, 'persona');
-        if (false === $conexion->fetchOne('SELECT 1 FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $persona])) {
+        if (!$consultas->existePersona($persona)) {
             throw new \App\Http\ErrorApi(404, 'PERSON_NOT_FOUND');
         }
 

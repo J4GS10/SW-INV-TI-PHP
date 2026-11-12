@@ -14,7 +14,7 @@ use App\Http\ErrorApi;
 use App\Seguridad\Alcance;
 use App\Seguridad\Autenticado;
 use App\Ubicacion\Entidades as E;
-use Doctrine\DBAL\Connection;
+use App\Ubicacion\Infrastructure\ConsultasUbicacion;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -33,7 +33,7 @@ final readonly class UbicacionController
         private Operaciones $crud,
         private Alcance $alcance,
         private CatalogoGenerico $catalogos,
-        private Connection $conexion,
+        private ConsultasUbicacion $consultas,
     ) {
     }
 
@@ -370,16 +370,7 @@ final readonly class UbicacionController
     #[Route('/areas/all', methods: ['GET'], priority: 10)]
     public function areasJerarquia(): JsonResponse
     {
-        [$filtro, $parametros] = $this->alcance->filtroSede('e."SED_Sede"');
-        $filas = $this->conexion->fetchAllAssociative(
-            'SELECT a."ARE_Area", a."ARE_Nombre", a."ARE_Tipo_Acceso", a."TAR_Tipo_Area", ta."TAR_Codigo", a."NIV_Nivel", '
-            .'e."SED_Sede", s."SED_Nombre", e."EDI_Nombre", n."NIV_Numero_Piso" '
-            .'FROM "INV_AREA" a JOIN "INV_NIVEL" n ON n."NIV_Nivel" = a."NIV_Nivel" '
-            .'JOIN "INV_EDIFICIO" e ON e."EDI_Edificio" = n."EDI_Edificio" JOIN "INV_SEDE" s ON s."SED_Sede" = e."SED_Sede" '
-            .'LEFT JOIN "INV_TIPO_AREA" ta ON ta."TAR_Tipo_Area" = a."TAR_Tipo_Area" '
-            .'WHERE '.$filtro.' ORDER BY a."ARE_Nombre", a."ARE_Area"',
-            $parametros,
-        );
+        $filas = $this->consultas->areasConSuRuta();
 
         return new JsonResponse(array_map(static fn (array $f): array => [
             'ARE_Area' => (int) $f['ARE_Area'],

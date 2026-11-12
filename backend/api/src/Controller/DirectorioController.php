@@ -24,7 +24,7 @@ use App\Notificaciones\Infrastructure\ReglasNotificacion;
 use App\Notificaciones\ResolutorDestinatarios;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
-use Doctrine\DBAL\Connection;
+use App\Repositorio\ConsultasComunes;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -48,7 +48,7 @@ final readonly class DirectorioController
         private ReglasNotificacion $reglas,
         private ResolutorDestinatarios $resolutor,
         private UsuarioActual $actual,
-        private Connection $conexion,
+        private ConsultasComunes $consultas,
     ) {
     }
 
@@ -234,12 +234,11 @@ final readonly class DirectorioController
         $tipo = ReglasNotificacion::evento($evento);
         $afectados = [];
         if (null !== $personaId) {
-            $correo = $this->conexion->fetchOne('SELECT "PER_Email_Corporativo" FROM "INV_PERSONA" WHERE "PER_Persona" = :p',
-                ['p' => Ident::aHex((string) $personaId)]);
+            $correo = $this->consultas->correoDePersona(Ident::aHex((string) $personaId));
             if (false === $correo) {
                 throw new ErrorApi(404, 'PERSON_NOT_FOUND');
             }
-            $afectados = [(string) $correo];
+            $afectados = [$correo];
         }
         $destinatarios = $this->resolutor->resolver($tipo->value, $afectados, $afectados);
 

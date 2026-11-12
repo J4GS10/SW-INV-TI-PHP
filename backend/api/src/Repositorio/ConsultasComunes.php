@@ -98,6 +98,19 @@ final readonly class ConsultasComunes
         return null === $usuario ? '' : (string) $this->conexion->fetchOne('SELECT "USU_Username" FROM "INV_USUARIO" WHERE "USU_Usuario" = :u', ['u' => $usuario]);
     }
 
+    public function existePersona(string $persona): bool
+    {
+        return false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $persona]);
+    }
+
+    /** @return string|false the person's corporate e-mail; false when there is no such person */
+    public function correoDePersona(string $persona): string|false
+    {
+        $correo = $this->conexion->fetchOne('SELECT "PER_Email_Corporativo" FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $persona]);
+
+        return false === $correo ? false : (string) $correo;
+    }
+
     /**
      * @param list<string> $correos lower-case corporate e-mails
      *
