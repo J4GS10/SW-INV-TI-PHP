@@ -11,8 +11,7 @@ use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Inventario\Activos;
 use App\Repositorio\GobiernoRepositorio;
-use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
+use App\Adjuntos\Infrastructure\AdjuntosStore;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -25,13 +24,8 @@ use Psr\Log\LoggerInterface;
  */
 final readonly class Adjuntos
 {
-    private const string COLUMNAS = 'j."ADJ_Adjunto", j."ADJ_Nombre_Original", j."ADJ_Nombre_Almacenado", j."ADJ_Tipo_MIME", j."ADJ_Tamano_Bytes", '
-        .'j."ADJ_Storage_Backend", j."ADJ_Bucket", j."ADJ_Object_Key", j."ADJ_Checksum_SHA256", j."ADJ_Categoria", j."ADJ_Descripcion", '
-        .'j."ADJ_Fecha_Subida", j."ACT_Activo", j."LIC_Licencia", j."GRC_Goods_Receipt", j."USU_Usuario"';
-
     public function __construct(
-        private Connection $conexion,
-        private Alcance $alcance,
+        private AdjuntosStore $store,
         private Almacenes $almacenes,
         private Activos $activos,
         private \App\GoodsReceipt\Infrastructure\GoodsReceiptRepository $goodsReceipts,
@@ -47,10 +41,7 @@ final readonly class Adjuntos
     public function listar(Dueno $dueno): array
     {
         $this->exigirDueno($dueno);
-        [$alcance, $p] = $this->alcance->lectura('INV_ADJUNTO', 'j');
-
-        return array_map(self::aApi(...), $this->conexion->fetchAllAssociative('SELECT '.self::COLUMNAS.' FROM "INV_ADJUNTO" j WHERE j."'
-            .$dueno->tipo->columna().'" = :dueno AND '.$alcance.' ORDER BY j."ADJ_Fecha_Subida" DESC', [...$p, 'dueno' => $dueno->id]));
+        return array_map(self::aApi(...), $this->store->deDueno($dueno->tipo->columna(), $dueno->id));
     }
 
     /** @return array<string, mixed> AdjuntoResponse */
@@ -86,12 +77,12 @@ final readonly class Adjuntos
         try {
             $id = $this->transaccion->ejecutar(function () use ($dueno, $objeto, $original, $almacenado, $mime, $categoria, $descripcion, $usuario, $ip): string {
                 $id = Ident::nuevo();
-                $this->conexion->insert('"INV_ADJUNTO"', [
-                    '"ADJ_Adjunto"' => $id, '"ADJ_Nombre_Original"' => $original, '"ADJ_Nombre_Almacenado"' => $almacenado,
-                    '"ADJ_Storage_Backend"' => $objeto->backend, '"ADJ_Bucket"' => $objeto->bucket, '"ADJ_Object_Key"' => $objeto->clave,
-                    '"ADJ_Checksum_SHA256"' => $objeto->sha256, '"ADJ_Tipo_MIME"' => $mime, '"ADJ_Tamano_Bytes"' => $objeto->tamano,
-                    '"ADJ_Categoria"' => $categoria, '"ADJ_Descripcion"' => $descripcion, '"ADJ_Fecha_Subida"' => Reloj::aBd(Reloj::ahora()),
-                    '"USU_Usuario"' => $usuario, '"'.$dueno->tipo->columna().'"' => $dueno->id,
+                $this->store->insertar([
+                    'ADJ_Adjunto' => $id, 'ADJ_Nombre_Original' => $original, 'ADJ_Nombre_Almacenado' => $almacenado,
+                    'ADJ_Storage_Backend' => $objeto->backend, 'ADJ_Bucket' => $objeto->bucket, 'ADJ_Object_Key' => $objeto->clave,
+                    'ADJ_Checksum_SHA256' => $objeto->sha256, 'ADJ_Tipo_MIME' => $mime, 'ADJ_Tamano_Bytes' => $objeto->tamano,
+                    'ADJ_Categoria' => $categoria, 'ADJ_Descripcion' => $descripcion, 'ADJ_Fecha_Subida' => Reloj::aBd(Reloj::ahora()),
+                    'USU_Usuario' => $usuario, $dueno->tipo->columna() => $dueno->id,
                 ]);
                 $this->gobierno->registrarAuditoria('CREATE', 'INV_ADJUNTO', ['dueno' => $dueno->tipo->value.':'.$dueno->idEnRuta(),
                     'nombre' => mb_substr($original, 0, 255), 'categoria' => $categoria, 'tamano' => $objeto->tamano], $usuario, $ip);
@@ -144,10 +135,7 @@ final readonly class Adjuntos
     /** @return array<string, mixed> */
     private function filaO404(string $id): array
     {
-        [$alcance, $p] = $this->alcance->lectura('INV_ADJUNTO', 'j');
-        $fila = $this->conexion->fetchAssociative('SELECT '.self::COLUMNAS.' FROM "INV_ADJUNTO" j WHERE j."ADJ_Adjunto" = :id AND '.$alcance, [...$p, 'id' => $id]);
-
-        return false === $fila ? throw ErrorDominio::noEncontrado('ATTACHMENT_NOT_FOUND') : $fila;
+        return $this->store->porId($id) ?? throw ErrorDominio::noEncontrado('ATTACHMENT_NOT_FOUND');
     }
 
     private function exigirDueno(Dueno $dueno): void
@@ -155,7 +143,7 @@ final readonly class Adjuntos
         match ($dueno->tipo) {
             TipoDueno::Activo => $this->activos->filaO404((string) $dueno->id),
             TipoDueno::Ingreso => null !== $this->goodsReceipts->find((int) $dueno->id) || throw ErrorDominio::noEncontrado('GOODS_RECEIPT_NOT_FOUND'),
-            TipoDueno::Licencia => false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA" WHERE "LIC_Licencia" = :id', ['id' => $dueno->id])
+            TipoDueno::Licencia => $this->store->existeLicencia($dueno->id)
                 || throw ErrorDominio::noEncontrado('LICENSE_NOT_FOUND'),
         };
     }
@@ -163,7 +151,7 @@ final readonly class Adjuntos
     /** Código del catálogo de tipos de evidencia activos (los de sistema van en minúscula). */
     private function categoriaValida(string $categoria): string
     {
-        $validos = $this->conexion->fetchFirstColumn('SELECT "TEV_Codigo" FROM "INV_TIPO_EVIDENCIA" WHERE "TEV_Activo" = 1 AND "TEV_Codigo" IS NOT NULL');
+        $validos = $this->store->categoriasValidas();
         $categoria = trim($categoria) ?: 'otro';
         if (!\in_array($categoria, $validos, true) && \in_array(strtolower($categoria), $validos, true)) {
             $categoria = strtolower($categoria);

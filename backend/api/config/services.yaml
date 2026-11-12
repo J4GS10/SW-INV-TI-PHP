@@ -31,6 +31,7 @@ parameters:
         - '../src/Esquema/{ScriptSql,FuentePlsql,ObjetoPlsql,PoliticaVpd,PoliticasVpd,DefinicionSeguridad}.php'
         # Fase 11: excepción del borrado lógico.
         - '../src/Db/RecordInUse.php'
+        - '../src/Directorio/Infrastructure/CatalogosPersona.php'
 
 services:
     _defaults:

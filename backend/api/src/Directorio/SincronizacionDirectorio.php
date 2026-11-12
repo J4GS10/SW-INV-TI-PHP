@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Directorio;
 
+use App\Directorio\Infrastructure\CatalogosPersona;
 use App\Config\Ajustes;
 use App\Correo\Notificador;
 use App\Dominio\Ident;
@@ -15,7 +16,7 @@ use App\Integracion\FuenteIntegracion;
 use App\Organizacion\Identidades;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
+use App\Directorio\Infrastructure\PersonasDirectorio;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -39,10 +40,9 @@ final readonly class SincronizacionDirectorio
     public const string ACCION_BITACORA = 'AD_SYNC';
 
     public function __construct(
-        private Connection $conexion,
+        private PersonasDirectorio $datos,
         private FuenteIntegracion $fuente,
         private FabricaDirectorio $directorios,
-        private Alcance $alcance,
         private Identidades $identidades,
         private GobiernoRepositorio $gobierno,
         private Notificador $notificador,
@@ -67,20 +67,18 @@ final readonly class SincronizacionDirectorio
         }
 
         $r = new ResultadoSincronizacion($simulacion, \count($usuarios));
-        $this->conexion->beginTransaction();
+        $this->datos->abrirTransaccion();
         try {
             $this->aplicar($usuarios, $config, $r, $forzarBajas);
             if ($simulacion) {
-                $this->conexion->rollBack();
+                $this->datos->descartar();
 
                 return $r->aApi();
             }
             $this->gobierno->registrarAuditoria(self::ACCION_BITACORA, 'INV_PERSONA', $r->aBitacora(), $usuarioHex, $ip);
-            $this->conexion->commit();
+            $this->datos->confirmar();
         } catch (\Throwable $e) {
-            if ($this->conexion->isTransactionActive()) {
-                $this->conexion->rollBack();
-            }
+            $this->datos->descartar();
             throw $e;
         }
         $this->logger->info('ad_sync.done', array_filter($r->aBitacora(), 'is_int'));
@@ -98,10 +96,7 @@ final readonly class SincronizacionDirectorio
      */
     public function ultima(): ?array
     {
-        $snapshot = $this->conexion->fetchOne(
-            'SELECT "AUD_Snapshot_JSON" FROM "INV_AUDITORIA_SISTEMA" WHERE "AUD_Accion" = :a ORDER BY "AUD_Fecha_Hora" DESC FETCH FIRST 1 ROWS ONLY',
-            ['a' => self::ACCION_BITACORA],
-        );
+        $snapshot = $this->datos->ultimaSincronizacion(self::ACCION_BITACORA);
         $datos = false === $snapshot || null === $snapshot ? null : json_decode((string) $snapshot, true);
 
         return \is_array($datos) ? ResultadoSincronizacion::contrato($datos) : null;
@@ -110,11 +105,7 @@ final readonly class SincronizacionDirectorio
     /** @param list<UsuarioDirectorio> $usuarios */
     private function aplicar(array $usuarios, ConfigAd $config, ResultadoSincronizacion $r, bool $forzarBajas): void
     {
-        [$filtro, $parametros] = $this->alcance->lectura('INV_PERSONA', 'p');
-        $personas = [];
-        foreach ($this->conexion->fetchAllAssociative('SELECT p.* FROM "INV_PERSONA" p WHERE '.$filtro, $parametros) as $fila) {
-            $personas[(string) $fila['PER_Persona']] = $fila;
-        }
+        $personas = $this->datos->personasVisibles();
         $porGuid = [];
         $porCorreo = [];
         foreach ($personas as $id => $p) {
@@ -123,7 +114,7 @@ final readonly class SincronizacionDirectorio
             }
             $porCorreo[strtolower((string) $p['PER_Email_Corporativo'])] = $id;
         }
-        $catalogos = new CatalogosPersona($this->conexion);
+        $catalogos = $this->datos->catalogos();
 
         $guidsVistos = [];
         $correosVistos = [];
@@ -177,7 +168,7 @@ final readonly class SincronizacionDirectorio
                 }
                 if ($u->habilitado && !$this->activa($personas[$id]) && $vinculada) {
                     $personas[$id]['PER_Estado'] = 1;
-                    $this->conexion->executeStatement('UPDATE "INV_PERSONA" SET "PER_Estado" = 1 WHERE "PER_Persona" = :id', ['id' => $id]);
+                    $this->datos->reactivar((string) $id);
                     ++$r->reactivados;
                 }
             }
@@ -213,7 +204,7 @@ final readonly class SincronizacionDirectorio
             $jefe = $jefe === $id ? null : $jefe;
             if ($personas[$id]['PER_Jefe'] !== $jefe) {
                 $personas[$id]['PER_Jefe'] = $jefe;
-                $this->conexion->executeStatement('UPDATE "INV_PERSONA" SET "PER_Jefe" = :jefe WHERE "PER_Persona" = :id', ['jefe' => $jefe, 'id' => $id]);
+                $this->datos->fijarJefe((string) $id, $jefe);
                 ++$r->jefesAsignados;
             }
         }
@@ -227,19 +218,17 @@ final readonly class SincronizacionDirectorio
     {
         // El directorio no puede dejar el sistema sin un SUPER_ADMIN activo
         // (p. ej. la cuenta de emergencia vinculada por correo y luego eliminada del AD).
-        $superAdmins = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_USUARIO" WHERE "USU_Rol" = :r AND "USU_Estado" = 1', ['r' => Roles::SUPER_ADMIN]);
+        $superAdmins = $this->datos->superAdministradoresActivos();
         foreach ($ids as $id) {
             $p = $personas[$id];
             $resumen = ['persona_id' => Ident::aTexto($id), 'nombre' => $p['PER_Primer_Nombre'].' '.$p['PER_Primer_Apellido'], 'email' => (string) $p['PER_Email_Corporativo']];
             // Decide con todas las custodias: quien sincroniza puede ser un rol sin acceso a los datos de negocio.
-            $activos = (int) $this->alcance->elevado(fn (): mixed => $this->conexion->fetchOne(
-                'SELECT COUNT(*) FROM "INV_MOVIMIENTO" WHERE "PER_Persona" = :p AND "MOV_Fecha_Devolucion" IS NULL', ['p' => $id]));
+            $activos = $this->datos->custodiasAbiertas((string) $id);
             if ($activos > 0) {
                 $r->pendientesConActivos[] = [...$resumen, 'activos' => $activos];
                 continue;
             }
-            $cuentas = $this->conexion->fetchAllAssociative(
-                'SELECT "USU_Usuario", "USU_Rol" FROM "INV_USUARIO" WHERE "PER_Persona" = :p AND "USU_Estado" = 1', ['p' => $id]);
+            $cuentas = $this->datos->cuentasActivas((string) $id);
             $propios = \count(array_filter($cuentas, static fn (array $c): bool => Roles::SUPER_ADMIN === $c['USU_Rol']));
             if ($propios > 0 && $superAdmins - $propios < 1) {
                 $r->protegidos[] = [...$resumen, 'motivo' => 'LAST_SUPER_ADMIN'];
@@ -248,11 +237,7 @@ final readonly class SincronizacionDirectorio
             }
             $superAdmins -= $propios;
             $personas[$id]['PER_Estado'] = 0;
-            $this->conexion->executeStatement('UPDATE "INV_PERSONA" SET "PER_Estado" = 0, "UPDATED_AT" = :ahora WHERE "PER_Persona" = :id',
-                ['ahora' => Reloj::aBd(Reloj::ahora()), 'id' => $id]);
-            // Columna de identidad protegida: se escribe sin el filtro de alcance.
-            $this->alcance->elevado(fn (): int => $this->conexion->executeStatement(
-                'UPDATE "INV_USUARIO" SET "USU_Estado" = 0 WHERE "PER_Persona" = :p', ['p' => $id]));
+            $this->datos->desactivar((string) $id, Reloj::ahora());
             foreach ($cuentas as $cuenta) {
                 $this->identidades->revocarAcceso((string) $cuenta['USU_Usuario']);
             }
@@ -289,9 +274,7 @@ final readonly class SincronizacionDirectorio
     {
         $fila = ['PER_Persona' => $id, ...$this->valores($u, $config, $catalogos), 'PER_Estado' => 1,
             'PER_AD_Sincronizado_En' => Reloj::aBd(Reloj::ahora()), 'PER_Jefe' => null];
-        $columnas = array_keys($fila);
-        $this->conexion->executeStatement(
-            'INSERT INTO "INV_PERSONA" ("'.implode('", "', $columnas).'") VALUES (:'.implode(', :', $columnas).')', $fila);
+        $this->datos->insertar($fila);
 
         return $fila;
     }
@@ -311,11 +294,7 @@ final readonly class SincronizacionDirectorio
             }
             $p[$columna] = $valor;
         }
-        $sets = implode(', ', array_map(static fn (string $c): string => "\"{$c}\" = :{$c}", array_keys($valores)));
-        $this->conexion->executeStatement(
-            "UPDATE \"INV_PERSONA\" SET {$sets}, \"PER_AD_Sincronizado_En\" = :sincronizado, \"UPDATED_AT\" = :sincronizado WHERE \"PER_Persona\" = :id",
-            [...$valores, 'sincronizado' => Reloj::aBd(Reloj::ahora()), 'id' => $p['PER_Persona']],
-        );
+        $this->datos->actualizar((string) $p['PER_Persona'], $valores, Reloj::ahora());
 
         return [$p, $cambio];
     }

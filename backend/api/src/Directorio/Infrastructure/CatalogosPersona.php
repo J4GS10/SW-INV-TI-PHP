@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Directorio;
+namespace App\Directorio\Infrastructure;
 
 use App\Db\InsercionOracle;
 use Doctrine\DBAL\Connection;

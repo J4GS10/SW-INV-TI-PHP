@@ -10,7 +10,7 @@ use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
-use Doctrine\DBAL\Connection;
+use App\Inventario\Infrastructure\DatosActivos;
 
 /**
  * Edición en lote: ubicación (área), costo y moneda, garantía, proveedor y
@@ -23,7 +23,7 @@ final readonly class EdicionLote
     public const array CAMPOS = ['ARE_Area_Ubicacion', 'ACT_Costo', 'ACT_Moneda', 'ACT_Fin_Garantia', 'PRV_Proveedor', 'ACT_Factura'];
 
     public function __construct(
-        private Connection $conexion,
+        private DatosActivos $datos,
         private Activos $activos,
         private Kardex $kardex,
         private GobiernoRepositorio $gobierno,
@@ -103,10 +103,9 @@ final readonly class EdicionLote
     {
         if (null !== ($campos['ARE_Area_Ubicacion'] ?? null)) {
             $area = (int) $campos['ARE_Area_Ubicacion'];
-            $sede = $this->conexion->fetchOne('SELECT e."SED_Sede" FROM "INV_AREA" a JOIN "INV_NIVEL" n ON n."NIV_Nivel" = a."NIV_Nivel" '
-                .'JOIN "INV_EDIFICIO" e ON e."EDI_Edificio" = n."EDI_Edificio" WHERE a."ARE_Area" = :a', ['a' => $area]);
+            $sede = $this->datos->sedeDeArea($area);
             if (false === $sede) {
-                if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_AREA" WHERE "ARE_Area" = :a', ['a' => $area])) {
+                if (!$this->datos->existeArea($area)) {
                     throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
                 }
                 $sede = null;
@@ -124,7 +123,7 @@ final readonly class EdicionLote
             throw ErrorDominio::invalido('WARRANTY_DATE_CANNOT_BE_BEFORE_PURCHASE_DATE');
         }
         if (null !== ($campos['PRV_Proveedor'] ?? null)
-            && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :p', ['p' => $campos['PRV_Proveedor']])) {
+            && !$this->datos->existeProveedor($campos['PRV_Proveedor'])) {
             throw ErrorDominio::noEncontrado('SUPPLIER_NOT_FOUND');
         }
     }
@@ -146,13 +145,12 @@ final readonly class EdicionLote
         $detalle = [];
         foreach ($specs as $s) {
             $tipo = $s['TES_Tipo_Especificacion'];
-            if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ESPECIFICACION" WHERE "TES_Tipo_Especificacion" = :t', ['t' => $tipo])) {
+            if (!$this->datos->existeTipoEspecificacion($tipo)) {
                 throw ErrorDominio::noEncontrado('SPECIFICATION_TYPE_NOT_FOUND');
             }
             $valor = trim((string) ($s['valor'] ?? ''));
             $valor = '' === $valor ? null : $this->specificationRules->normalize((int) $activo['TAC_Tipo_Activo'], (int) $tipo, $valor);
-            $actual = $this->conexion->fetchAssociative('SELECT "ESP_Especificacion", "ESP_Valor" FROM "INV_ESPECIFICACION" WHERE "ACT_Activo" = :a AND '
-                .'"TES_Tipo_Especificacion" = :t FETCH FIRST 1 ROWS ONLY', ['a' => $activo['ACT_Activo'], 't' => $tipo]);
+            $actual = $this->datos->especificacionDe($activo['ACT_Activo'], $tipo);
             $antes = false === $actual ? null : $actual['ESP_Valor'];
             if ($antes === $valor) {
                 continue;
@@ -160,12 +158,11 @@ final readonly class EdicionLote
             $anteriores[] = ['TES_Tipo_Especificacion' => $tipo, 'valor' => $antes];
             $detalle[] = ['tipo' => $tipo, 'antes' => $antes, 'despues' => $valor];
             if (null === $valor && false !== $actual) {
-                $this->conexion->executeStatement('DELETE FROM "INV_ESPECIFICACION" WHERE "ESP_Especificacion" = :id', ['id' => $actual['ESP_Especificacion']]);
+                $this->datos->quitarEspecificacion($actual['ESP_Especificacion']);
             } elseif (false !== $actual) {
-                $this->conexion->executeStatement('UPDATE "INV_ESPECIFICACION" SET "ESP_Valor" = :v WHERE "ESP_Especificacion" = :id', ['v' => $valor, 'id' => $actual['ESP_Especificacion']]);
+                $this->datos->cambiarEspecificacion($actual['ESP_Especificacion'], $valor);
             } else {
-                $this->conexion->executeStatement('INSERT INTO "INV_ESPECIFICACION" ("ESP_Valor", "ACT_Activo", "TES_Tipo_Especificacion") VALUES (:v, :a, :t)',
-                    ['v' => $valor, 'a' => $activo['ACT_Activo'], 't' => $tipo]);
+                $this->datos->agregarEspecificacion($activo['ACT_Activo'], $tipo, $valor);
             }
         }
         if ([] !== $detalle) {

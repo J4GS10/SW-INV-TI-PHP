@@ -2,8 +2,13 @@
 
 declare(strict_types=1);
 
-namespace App\Documentos;
+namespace App\Documentos\Infrastructure;
 
+use App\Documentos\Traducciones;
+use App\Documentos\JsonLegible;
+use App\Documentos\Idioma;
+use App\Documentos\FormatoLocal;
+use App\Documentos\ArchivoCsv;
 use App\Dominio\ErrorDominio;
 use App\Dominio\Ident;
 use App\Repositorio\BitacoraRepositorio;

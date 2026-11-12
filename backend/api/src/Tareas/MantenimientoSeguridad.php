@@ -12,7 +12,8 @@ use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Organizacion\Identidades;
 use App\Repositorio\GobiernoRepositorio;
-use Doctrine\DBAL\Connection;
+use App\Db\Transaccion;
+use App\Tareas\Infrastructure\MantenimientoStore;
 
 /**
  * Mantenimiento periódico de seguridad (tarea del sistema, sin alcance por sede):
@@ -30,7 +31,8 @@ final readonly class MantenimientoSeguridad implements TareaExclusiva
     public const int RETENCION_MINIMA_DIAS = 365;
 
     public function __construct(
-        private Connection $conexion,
+        private MantenimientoStore $datos,
+        private Transaccion $transaccion,
         private Identidades $identidades,
         private GobiernoRepositorio $gobierno,
         private Notificador $notificador,
@@ -52,12 +54,9 @@ final readonly class MantenimientoSeguridad implements TareaExclusiva
     public function ejecutar(): array
     {
         $ahora = Reloj::ahora();
-        [$expiradas, $purgadas] = $this->conexion->transactional(fn (): array => [
-            $this->conexion->executeStatement(
-                "UPDATE \"SYS_SESION\" SET \"SES_Cerrada_En\" = :ahora, \"SES_Motivo_Cierre\" = 'expirada' "
-                .'WHERE "SES_Cerrada_En" IS NULL AND "SES_Expira" <= :ahora', ['ahora' => Reloj::aBd($ahora)]),
-            $this->conexion->executeStatement('DELETE FROM "SYS_SESION" WHERE "SES_Creada_En" < :limite',
-                ['limite' => Reloj::aBd($ahora->modify("-{$this->ajustes->historialSesionesDias} days"))]),
+        [$expiradas, $purgadas] = $this->transaccion->ejecutar(fn (): array => [
+            $this->datos->cerrarSesionesVencidas($ahora),
+            $this->datos->purgarSesionesAnterioresA($ahora->modify("-{$this->ajustes->historialSesionesDias} days")),
         ]);
 
         return [
@@ -75,19 +74,12 @@ final readonly class MantenimientoSeguridad implements TareaExclusiva
         if ($dias <= 0) {
             return [];
         }
-        $desactivadas = $this->conexion->transactional(function () use ($dias): array {
-            $candidatas = $this->conexion->fetchAllAssociative(
-                'SELECT u."USU_Usuario", u."USU_Username", u."USU_Rol", u."USU_Ultimo_Login", p."PER_Primer_Nombre", '
-                .'p."PER_Primer_Apellido", p."PER_Email_Corporativo" FROM "INV_USUARIO" u '
-                .'LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = u."PER_Persona" '
-                .'WHERE u."USU_Estado" = 1 AND COALESCE(u."USU_Ultimo_Login", u."USU_Creado_En") < :limite',
-                ['limite' => Reloj::aBd(Reloj::ahora()->modify("-{$dias} days"))],
-            );
+        $desactivadas = $this->transaccion->ejecutar(function () use ($dias): array {
+            $candidatas = $this->datos->cuentasSinIngresoDesde(Reloj::ahora()->modify("-{$dias} days"));
             if ([] === $candidatas) {
                 return [];
             }
-            $superAdmins = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_USUARIO" WHERE "USU_Rol" = :r AND "USU_Estado" = 1',
-                ['r' => Roles::SUPER_ADMIN]);
+            $superAdmins = $this->datos->superAdministradoresActivos();
             $desactivadas = [];
             foreach ($candidatas as $u) {
                 if (Roles::SUPER_ADMIN === $u['USU_Rol']) {
@@ -97,7 +89,7 @@ final readonly class MantenimientoSeguridad implements TareaExclusiva
                     --$superAdmins;
                 }
                 $id = (string) $u['USU_Usuario'];
-                $this->conexion->executeStatement('UPDATE "INV_USUARIO" SET "USU_Estado" = 0 WHERE "USU_Usuario" = :u', ['u' => $id]);
+                $this->datos->desactivarCuenta($id);
                 $this->identidades->revocarAcceso($id);
                 $this->gobierno->registrarAuditoria('ACCOUNT_AUTO_DISABLED', 'INV_USUARIO', [
                     'target_id' => Ident::aTexto($id), 'target_username' => $u['USU_Username'], 'rol' => $u['USU_Rol'],
@@ -128,16 +120,8 @@ final readonly class MantenimientoSeguridad implements TareaExclusiva
         $dias = max($configurada, self::RETENCION_MINIMA_DIAS);
         $corte = Reloj::ahora()->modify("-{$dias} days");
 
-        return $this->conexion->transactional(function () use ($corte, $dias): int {
-            // Modo PURGA del contexto: el disparador append-only solo deja borrar eventos
-            // de más de un año. El contexto dura la sesión de Oracle: se limpia siempre.
-            $this->conexion->executeStatement("BEGIN INV_CTX.modo('PURGA'); END;");
-            try {
-                $borrados = $this->conexion->executeStatement('DELETE FROM "INV_AUDITORIA_SISTEMA" WHERE "AUD_Fecha_Hora" < :corte',
-                    ['corte' => Reloj::aBd($corte)]);
-            } finally {
-                $this->conexion->executeStatement('BEGIN INV_CTX.limpiar; END;');
-            }
+        return $this->transaccion->ejecutar(function () use ($corte, $dias): int {
+            $borrados = $this->datos->purgarBitacoraAnteriorA($corte);
             if ($borrados > 0) {
                 $this->gobierno->registrarAuditoria('AUDIT_RETENTION_PURGE', 'INV_AUDITORIA_SISTEMA', [
                     'registros_eliminados' => $borrados, 'anteriores_a' => Reloj::iso($corte), 'retencion_dias' => $dias,

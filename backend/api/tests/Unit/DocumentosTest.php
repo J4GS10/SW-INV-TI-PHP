@@ -190,9 +190,9 @@ final class DocumentosTest extends TestCase
 
     public function testUnExporteQueSuperaElLimitePideFiltrosEnVezDeCortarse(): void
     {
-        \App\Documentos\Exportaciones::exigirTamano(\App\Documentos\Exportaciones::MAX_ACTIVOS);
+        \App\Documentos\Infrastructure\Exportaciones::exigirTamano(\App\Documentos\Infrastructure\Exportaciones::MAX_ACTIVOS);
         try {
-            \App\Documentos\Exportaciones::exigirTamano(\App\Documentos\Exportaciones::MAX_ACTIVOS + 1);
+            \App\Documentos\Infrastructure\Exportaciones::exigirTamano(\App\Documentos\Infrastructure\Exportaciones::MAX_ACTIVOS + 1);
             self::fail("Debía rechazarse.");
         } catch (ErrorDominio $e) {
             self::assertSame(422, \App\EventListener\ErroresListener::estadoHttp($e->motivo));

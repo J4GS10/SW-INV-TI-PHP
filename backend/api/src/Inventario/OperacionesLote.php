@@ -10,7 +10,8 @@ use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
-use Doctrine\DBAL\Connection;
+use App\Inventario\Infrastructure\DatosActivos;
+use App\Inventario\Infrastructure\DatosMovimientos;
 
 /**
  * Varias operaciones de custodia en UNA transacción: si un equipo no se puede
@@ -24,7 +25,8 @@ final readonly class OperacionesLote
     public const int VENTANA_DESHACER_MIN = 30;
 
     public function __construct(
-        private Connection $conexion,
+        private DatosActivos $datosActivos,
+        private DatosMovimientos $datos,
         private Activos $activos,
         private Movimientos $movimientos,
         private Software $software,
@@ -40,14 +42,7 @@ final readonly class OperacionesLote
      */
     private function codigos(array $ids): array
     {
-        $p = [];
-        foreach ($ids as $i => $id) {
-            $p["a{$i}"] = $id;
-        }
-        $codigos = [];
-        foreach ($this->conexion->fetchAllAssociative('SELECT "ACT_Activo", "ACT_Codigo_Interno" FROM "INV_ACTIVO" WHERE "ACT_Activo" IN (:'.implode(', :', array_keys($p)).')', $p) as $f) {
-            $codigos[(string) $f['ACT_Activo']] = (string) $f['ACT_Codigo_Interno'];
-        }
+        $codigos = $this->datosActivos->codigosDe($ids);
         if (\count($codigos) !== \count($ids)) {
             throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
         }
@@ -62,7 +57,7 @@ final readonly class OperacionesLote
 
     private function tipoAsignacion(): int
     {
-        $t = $this->conexion->fetchOne('SELECT "TMO_Tipo_Movimiento" FROM "INV_TIPO_MOVIMIENTO" WHERE "TMO_Nombre" = :n FETCH FIRST 1 ROWS ONLY', ['n' => Movimientos::ASIGNACION]);
+        $t = $this->datos->tipoDeMovimiento(Movimientos::ASIGNACION);
 
         return false === $t ? throw ErrorDominio::interno('SYSTEM_CONFIG_ERROR_MISSING_MOVEMENT_TYPE') : (int) $t;
     }
@@ -82,7 +77,7 @@ final readonly class OperacionesLote
             $codigos = $this->codigos($d['activos']);
             $custodios = [];
             foreach ($d['activos'] as $a) {
-                $c = $this->conexion->fetchOne('SELECT "PER_Persona" FROM "INV_MOVIMIENTO" WHERE "ACT_Activo" = :a AND "MOV_Fecha_Devolucion" IS NULL', ['a' => $a]);
+                $c = $this->datos->custodioActual($a);
                 $custodios[$a] = false === $c ? null : (string) $c;
             }
             $tipo = $this->tipoAsignacion();
@@ -171,14 +166,13 @@ final readonly class OperacionesLote
     {
         return $this->transaccion->ejecutar(function () use ($movimientos, $instalaciones, $usuario, $rol, $ip): array {
             $admin = \in_array($rol, Roles::ADMIN, true);
-            $revertido = $this->conexion->fetchOne("SELECT \"MMO_Motivo\" FROM \"INV_MOTIVO_MOVIMIENTO\" WHERE \"MMO_Codigo\" = 'REVERTIDO'");
+            $revertido = $this->datos->motivoPorCodigo('REVERTIDO');
             $revertido = false === $revertido ? null : (int) $revertido;
             $ahora = Reloj::ahora();
             $resultado = [];
             foreach ($movimientos as $id) {
-                $mov = $this->conexion->fetchAssociative('SELECT "MOV_Movimiento", "ACT_Activo", "MOV_Fecha_Asignacion", "MOV_Fecha_Devolucion", "MOV_Usuario_Registra" '
-                    .'FROM "INV_MOVIMIENTO" WHERE "MOV_Movimiento" = :m', ['m' => $id]) ?: throw ErrorDominio::noEncontrado('MOVEMENT_NOT_FOUND');
-                $codigo = (string) $this->conexion->fetchOne('SELECT "ACT_Codigo_Interno" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => $mov['ACT_Activo']]);
+                $mov = $this->datos->movimiento($id) ?: throw ErrorDominio::noEncontrado('MOVEMENT_NOT_FOUND');
+                $codigo = (string) $this->datosActivos->codigoDe($mov['ACT_Activo']);
                 $asignado = Reloj::desdeBd((string) $mov['MOV_Fecha_Asignacion']);
                 try {
                     if (null !== $mov['MOV_Fecha_Devolucion']) {
@@ -191,9 +185,7 @@ final readonly class OperacionesLote
                         throw ErrorDominio::prohibido('MOVEMENT_UNDO_NOT_OWNER');
                     }
                     // ¿Venía de otra persona? La custodia anterior se cerró al crear esta.
-                    $anterior = $this->conexion->fetchAssociative('SELECT "PER_Persona", "ARE_Area" FROM "INV_MOVIMIENTO" WHERE "ACT_Activo" = :a AND "MOV_Movimiento" <> :m '
-                        .'AND "MOV_Fecha_Devolucion" IS NOT NULL AND "MOV_Fecha_Devolucion" >= :desde ORDER BY "MOV_Fecha_Devolucion" DESC FETCH FIRST 1 ROWS ONLY',
-                        ['a' => $mov['ACT_Activo'], 'm' => $id, 'desde' => Reloj::aBd($asignado->modify('-5 seconds'))]);
+                    $anterior = $this->datos->custodiaAnterior($mov['ACT_Activo'], $id, $asignado->modify('-5 seconds'));
                     if (false !== $anterior) {
                         $this->movimientos->transferir(['ACT_Activo' => (string) $mov['ACT_Activo'], 'PER_Persona_Destino' => (string) $anterior['PER_Persona'],
                             'ARE_Area_Destino' => (int) $anterior['ARE_Area'], 'MOV_Motivo' => 'Revertido: se deshizo la transferencia'], $usuario, $ip);
@@ -209,7 +201,7 @@ final readonly class OperacionesLote
                 $resultado[] = ['codigo' => $codigo, 'operacion' => $operacion];
             }
             foreach ($instalaciones as $ins) {
-                $i = $this->conexion->fetchAssociative('SELECT "LIC_Licencia", "ACT_Activo", "PER_Persona", "INS_Estado" FROM "INV_INSTALACION" WHERE "INS_Instalacion" = :i', ['i' => $ins]);
+                $i = $this->datos->instalacion($ins);
                 if (false === $i || 1 !== (int) $i['INS_Estado']) {
                     continue;
                 }

@@ -95,7 +95,8 @@ final class TareasTest extends KernelTestCase
         $c->executeStatement('INSERT INTO "INV_AUDITORIA_SISTEMA" ("AUD_Auditoria", "AUD_Fecha_Hora", "AUD_Accion", "AUD_Entidad_Afectada") VALUES (:id, :f, :a, :e)',
             ['id' => Ident::nuevo(), 'f' => Reloj::aBd(Reloj::ahora()->modify('-800 days')), 'a' => $marca, 'e' => 'PRUEBA']);
         $ajustes = Ajustes::desdeEntorno([...$_SERVER, ...$_ENV, 'AUDIT_RETENTION_DAYS' => '30']);
-        $mantenimiento = new MantenimientoSeguridad($this->conexionApp(), $this->servicio(\App\Organizacion\Identidades::class),
+        $mantenimiento = new MantenimientoSeguridad(new \App\Tareas\Infrastructure\MantenimientoStore($this->conexionApp()),
+            $this->servicio(\App\Db\Transaccion::class), $this->servicio(\App\Organizacion\Identidades::class),
             $this->servicio(\App\Repositorio\GobiernoRepositorio::class), $this->servicio(Notificador::class), $ajustes);
 
         self::assertGreaterThanOrEqual(1, $mantenimiento->aplicarRetencion());

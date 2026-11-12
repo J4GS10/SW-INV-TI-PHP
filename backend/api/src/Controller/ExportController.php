@@ -6,7 +6,7 @@ namespace App\Controller;
 
 use App\Crud\Campo;
 use App\Documentos\Descarga;
-use App\Documentos\Exportaciones;
+use App\Documentos\Infrastructure\Exportaciones;
 use App\Documentos\Idioma;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
