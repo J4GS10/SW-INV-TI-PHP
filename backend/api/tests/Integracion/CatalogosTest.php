@@ -23,8 +23,11 @@ final class CatalogosTest extends WebTestCase
 
     public function testTipoDeActivoConClaseDeducidaReglasYPlantilla(): void
     {
-        // Nombre propio de la prueba: la clase se deduce de la palabra «impresora» y no se toca el tipo real.
-        $nombre = 'Impresora '.D::sufijo();
+        // La clase se deduce del nombre exacto. Un tipo real con ese nombre no se borra: la prueba se salta.
+        $nombre = 'Plotter';
+        if (0 < D::contar('SELECT COUNT(*) FROM "INV_TIPO_ACTIVO" WHERE UPPER("TAC_Nombre") = UPPER(:n)', ['n' => $nombre])) {
+            self::markTestSkipped("Ya existe un tipo de activo «{$nombre}» con datos reales.");
+        }
 
         [$e, $tipo] = $this->pedir('POST', '/api/v1/cat/tipos-activo', ['TAC_Nombre' => $nombre]);
         self::assertSame(201, $e);
