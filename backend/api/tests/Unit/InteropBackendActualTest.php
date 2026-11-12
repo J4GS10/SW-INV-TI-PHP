@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
+use App\Dominio\ErrorDominio;
 use App\Config\Ajustes;
 use App\Seguridad\Contrasenas;
 use App\Seguridad\PoliticaSesion;
@@ -95,9 +96,9 @@ final class InteropBackendActualTest extends TestCase
             try {
                 $tokens->decodificar($token);
                 self::fail("Se esperaba {$esperado}");
-            } catch (\App\Http\ErrorApi $e) {
+            } catch (ErrorDominio $e) {
                 self::assertSame($esperado, $e->detalle);
-                self::assertSame(401, $e->estado);
+                self::assertSame(401, \App\EventListener\ErroresListener::estadoHttp($e->motivo));
             }
         }
     }

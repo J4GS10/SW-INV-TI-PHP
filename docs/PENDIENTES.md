@@ -41,7 +41,7 @@ Hecho el 2026-11-11: Docker limpiado por completo (contenedores, imágenes, vol�
 
 ### Media: primeros meses
 
-- Capas: la lógica de negocio de `Inventario/`, `Organizacion/` y `Catalogo/` escribe su SQL de Oracle y lanza errores con código HTTP (24 de 35 servicios), y 8 de 32 controladores consultan la base. Solo `GoodsReceipt` y `ProfilePhoto` separan dominio, aplicación e infraestructura. Cambiar la base o el marco hoy toca esos servicios: migrar módulo por módulo a repositorios con interfaz, empezando por `Movimientos` y `Activos` (los más grandes, ~900 líneas cada uno).
+- Capas: quedan 61 archivos de negocio y 15 de la capa de entrega con SQL propio, y 12 de negocio que dependen de HTTP (lista exacta en `backend/api/tests/Unit/architecture-baseline.php`). Migrar módulo por módulo a puertos y repositorios como `Inventario/Compras`, con la suite completa en verde en cada paso; siguen `Movimientos` y `Activos`, y sacar las transacciones de `LoginController` a casos de uso.
 - Suite de navegador por rol: `herramientas/qa/e2e` (Playwright) sigue atada al entorno QA retirado. El 2026-11-11 se validó a mano desde el navegador (custodia, componentes, bajas con aprobación, alcance por sede y matriz de permisos de los 7 roles); falta adaptarla al ciclo de `pruebas_produccion.sh` para repetirlo sin intervención.
 - Dos campos de formulario sin etiqueta asociada en la pantalla de Activos (aviso de accesibilidad del navegador).
 

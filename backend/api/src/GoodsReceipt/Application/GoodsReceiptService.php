@@ -12,7 +12,7 @@ use App\Dominio\Reloj;
 use App\GoodsReceipt\Domain\GoodsReceiptStatus;
 use App\GoodsReceipt\Domain\SpecificationValue;
 use App\GoodsReceipt\Infrastructure\GoodsReceiptRepository;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Http\ErrorValidacion;
 use App\Inventario\Activos;
 use App\Inventario\EstadosActivo;
@@ -146,10 +146,10 @@ final readonly class GoodsReceiptService
         return $this->transaction->ejecutar(function () use ($id, $input, $user, $ip): array {
             $receipt = $this->required($id, true);
             if (GoodsReceiptStatus::Registered->value !== $receipt['GRC_STATUS']) {
-                throw new ErrorApi(409, 'GOODS_RECEIPT_NOT_CONFIRMABLE');
+                throw ErrorDominio::conflicto('GOODS_RECEIPT_NOT_CONFIRMABLE');
             }
             if ((string) $receipt['GRC_USU_CREATED_BY'] === $user) {
-                throw new ErrorApi(403, 'GOODS_RECEIPT_CANNOT_CONFIRM_OWN');
+                throw ErrorDominio::prohibido('GOODS_RECEIPT_CANNOT_CONFIRM_OWN');
             }
             $differences = $this->classifyLines($id, $input['lines'] ?? null, $user);
             $this->receipts->updateHeader($id, ['GRC_USU_CONFIRMED_BY' => $user, 'GRC_CONFIRMED_AT' => Reloj::aBd(Reloj::ahora())]);
@@ -159,7 +159,7 @@ final readonly class GoodsReceiptService
                 return $this->present($id);
             }
             $reason = self::optionalText($input['difference_reason'] ?? null, 500, 'difference_reason')
-                ?? throw new ErrorApi(400, 'GOODS_RECEIPT_DIFFERENCE_REQUIRES_REASON');
+                ?? throw ErrorDominio::invalido('GOODS_RECEIPT_DIFFERENCE_REQUIRES_REASON');
             $approval = $this->approvals->crear('RECEPCION_DIFERENCIA', ['goods_receipt' => $id, 'differences' => $differences], $user,
                 "Ingreso {$receipt['GRC_CODE']}: diferencia en lo recibido", $reason, sede: (int) $receipt['GRC_SED_SITE'], ip: $ip);
             $this->receipts->updateHeader($id, ['GRC_STATUS' => GoodsReceiptStatus::PendingApproval->value, 'GRC_DIFFERENCE_REASON' => $reason, 'GRC_APR_APPROVAL' => $approval]);
@@ -176,7 +176,7 @@ final readonly class GoodsReceiptService
     {
         $receipt = $this->required($id, true);
         if (GoodsReceiptStatus::PendingApproval->value !== $receipt['GRC_STATUS']) {
-            throw new ErrorApi(409, 'GOODS_RECEIPT_NOT_CONFIRMABLE');
+            throw ErrorDominio::conflicto('GOODS_RECEIPT_NOT_CONFIRMABLE');
         }
         $this->enterInventory($id, $confirmedBy, $ip, $approval);
     }
@@ -206,15 +206,15 @@ final readonly class GoodsReceiptService
             $this->connection->fetchOne('SELECT 1 FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a FOR UPDATE', ['a' => $asset]);
             $receipt = $this->receipts->receiptOfAsset($asset);
             if (null === $receipt || 1 !== (int) $row['ACT_Pending_Completion']) {
-                throw new ErrorApi(409, 'ASSET_NOT_PENDING_COMPLETION');
+                throw ErrorDominio::conflicto('ASSET_NOT_PENDING_COMPLETION');
             }
             $serial = self::requiredText($input['serial'] ?? null, 100, 'SERIAL_NUMBER_REQUIRED');
             if ($this->serialExists($serial, $asset)) {
-                throw new ErrorApi(409, 'SERIAL_NUMBER_ALREADY_EXISTS');
+                throw ErrorDominio::conflicto('SERIAL_NUMBER_ALREADY_EXISTS');
             }
             $hostname = self::optionalText($input['hostname'] ?? null, 100, 'hostname');
             if (null !== $hostname && $this->hostnameExists($hostname, $asset)) {
-                throw new ErrorApi(409, 'HOSTNAME_ALREADY_EXISTS');
+                throw ErrorDominio::conflicto('HOSTNAME_ALREADY_EXISTS');
             }
             $missing = $this->applySpecifications($asset, $row, $input['specifications'] ?? [], $user, $ip);
             $pending = [] !== $missing ? 1 : 0;
@@ -239,9 +239,9 @@ final readonly class GoodsReceiptService
     public function completeLicenseKeys(int $line, array $keys, string $user, ?string $ip): array
     {
         return $this->transaction->ejecutar(function () use ($line, $keys, $user, $ip): array {
-            $row = $this->receipts->lineForUpdate($line) ?? throw new ErrorApi(404, 'GOODS_RECEIPT_LINE_NOT_FOUND');
+            $row = $this->receipts->lineForUpdate($line) ?? throw ErrorDominio::noEncontrado('GOODS_RECEIPT_LINE_NOT_FOUND');
             if ('LICENSE' !== $row['GRL_LINE_TYPE'] || null === $row['GRL_LIC_LICENSE']) {
-                throw new ErrorApi(409, 'GOODS_RECEIPT_LINE_NOT_A_LICENSE');
+                throw ErrorDominio::conflicto('GOODS_RECEIPT_LINE_NOT_A_LICENSE');
             }
             $receipt = (int) $row['GRL_GRC_GOODS_RECEIPT'];
             $this->software->addKeys((int) $row['GRL_LIC_LICENSE'], $keys, $user, $ip);
@@ -261,7 +261,7 @@ final readonly class GoodsReceiptService
 
         return $this->transaction->ejecutar(function () use ($assetType, $brand, $model, $user, $ip): array {
             if (false === $this->connection->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $assetType])) {
-                throw new ErrorApi(404, 'ASSET_TYPE_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('ASSET_TYPE_NOT_FOUND');
             }
             $brandId = $this->connection->fetchOne('SELECT "MAR_Marca" FROM "INV_MARCA" WHERE LOWER(TRIM("MAR_Nombre")) = LOWER(:n) FETCH FIRST 1 ROWS ONLY', ['n' => $brand]);
             if (false === $brandId) {
@@ -315,7 +315,7 @@ final readonly class GoodsReceiptService
     {
         $type = $this->connection->fetchOne('SELECT "TAC_Tipo_Activo" FROM "INV_MODELO" WHERE "MOD_Modelo" = :m', ['m' => $model]);
 
-        return false === $type || null === $type ? throw new ErrorApi(404, 'MODEL_NOT_FOUND') : (int) $type;
+        return false === $type || null === $type ? throw ErrorDominio::noEncontrado('MODEL_NOT_FOUND') : (int) $type;
     }
 
     /** @return array<string, mixed> */
@@ -396,7 +396,7 @@ final readonly class GoodsReceiptService
     /** @return array<string, mixed> locked and in scope */
     public function required(int $id, bool $lock = false): array
     {
-        return $this->receipts->find($id, $lock) ?? throw new ErrorApi(404, 'GOODS_RECEIPT_NOT_FOUND');
+        return $this->receipts->find($id, $lock) ?? throw ErrorDominio::noEncontrado('GOODS_RECEIPT_NOT_FOUND');
     }
 
     /** @return array<string, mixed> */
@@ -404,7 +404,7 @@ final readonly class GoodsReceiptService
     {
         $receipt = $this->required($id, true);
         if (!GoodsReceiptStatus::from((string) $receipt['GRC_STATUS'])->isEditable()) {
-            throw new ErrorApi(409, 'GOODS_RECEIPT_NOT_EDITABLE');
+            throw ErrorDominio::conflicto('GOODS_RECEIPT_NOT_EDITABLE');
         }
 
         return $receipt;
@@ -413,7 +413,7 @@ final readonly class GoodsReceiptService
     private function requireFreeDocument(int $supplier, string $document): void
     {
         if ($this->receipts->documentExists($supplier, $document)) {
-            throw new ErrorApi(409, 'GOODS_RECEIPT_DOCUMENT_ALREADY_REGISTERED');
+            throw ErrorDominio::conflicto('GOODS_RECEIPT_DOCUMENT_ALREADY_REGISTERED');
         }
     }
 
@@ -435,22 +435,22 @@ final readonly class GoodsReceiptService
     {
         $supplier = self::integer($input['supplier_id'] ?? null) ?? 0;
         if (false === $this->connection->fetchOne('SELECT 1 FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :p AND "PRV_Activo" = 1', ['p' => $supplier])) {
-            throw new ErrorApi(404, 'SUPPLIER_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('SUPPLIER_NOT_FOUND');
         }
         $date = $input['received_date'] ?? $this->today();
         if (!\is_string($date)) {
-            throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_DATE');
+            throw ErrorDominio::invalido('GOODS_RECEIPT_INVALID_DATE');
         }
         $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
         if (false === $parsed || $parsed->format('Y-m-d') !== $date) {
-            throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_DATE');
+            throw ErrorDominio::invalido('GOODS_RECEIPT_INVALID_DATE');
         }
         if ($date > $this->today()) {
-            throw new ErrorApi(400, 'GOODS_RECEIPT_DATE_IN_THE_FUTURE');
+            throw ErrorDominio::invalido('GOODS_RECEIPT_DATE_IN_THE_FUTURE');
         }
         $currency = $input['currency'] ?? 'GTQ';
         if (!\in_array($currency, self::CURRENCIES, true)) {
-            throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_CURRENCY');
+            throw ErrorDominio::invalido('GOODS_RECEIPT_INVALID_CURRENCY');
         }
 
         return ['supplier_id' => $supplier, 'document_number' => self::requiredText($input['document_number'] ?? null, 60, 'GOODS_RECEIPT_REQUIRES_DOCUMENT'), 'received_date' => $date,
@@ -461,25 +461,25 @@ final readonly class GoodsReceiptService
     private function validLines(mixed $lines): array
     {
         if (!\is_array($lines) || [] === $lines) {
-            throw new ErrorApi(400, 'GOODS_RECEIPT_REQUIRES_LINES');
+            throw ErrorDominio::invalido('GOODS_RECEIPT_REQUIRES_LINES');
         }
         $valid = [];
         foreach (array_values($lines) as $line) {
             if (!\is_array($line)) {
-                throw new ErrorApi(400, 'GOODS_RECEIPT_REQUIRES_LINES');
+                throw ErrorDominio::invalido('GOODS_RECEIPT_REQUIRES_LINES');
             }
             $quantity = self::integer($line['quantity'] ?? null);
             $cost = $line['unit_cost'] ?? '';
             $cost = \is_int($cost) ? (string) $cost : $cost;
             $warranty = $line['warranty_months'] ?? null;
             if (null === $quantity || $quantity <= 0) {
-                throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_QUANTITY');
+                throw ErrorDominio::invalido('GOODS_RECEIPT_INVALID_QUANTITY');
             }
             if (!\is_string($cost) || 1 !== preg_match('/^\d{1,12}(\.\d{1,2})?$/', $cost)) {
-                throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_COST');
+                throw ErrorDominio::invalido('GOODS_RECEIPT_INVALID_COST');
             }
             if (null !== $warranty && '' !== $warranty && (null === ($warranty = self::integer($warranty)) || $warranty > 600)) {
-                throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_WARRANTY');
+                throw ErrorDominio::invalido('GOODS_RECEIPT_INVALID_WARRANTY');
             }
             $warranty = '' === $warranty ? null : $warranty;
             $valid[] = ['item' => self::requiredText($line['item_text'] ?? null, 255, 'GOODS_RECEIPT_LINE_REQUIRES_ITEM'), 'quantity' => $quantity, 'cost' => $cost, 'warranty' => null === $warranty ? null : (int) $warranty];
@@ -503,17 +503,17 @@ final readonly class GoodsReceiptService
         $byId = [];
         foreach (\is_array($input) ? $input : [] as $line) {
             if (!\is_array($line) || null === ($lineId = self::integer($line['id'] ?? null))) {
-                throw new ErrorApi(400, 'GOODS_RECEIPT_ALL_LINES_REQUIRED');
+                throw ErrorDominio::invalido('GOODS_RECEIPT_ALL_LINES_REQUIRED');
             }
             $byId[$lineId] = $line;
         }
         $differences = [];
         foreach ($this->receipts->lines($id) as $line) {
             $lineId = (int) $line['GRL_GOODS_RECEIPT_LINE'];
-            $given = $byId[$lineId] ?? throw new ErrorApi(400, 'GOODS_RECEIPT_ALL_LINES_REQUIRED');
+            $given = $byId[$lineId] ?? throw ErrorDominio::invalido('GOODS_RECEIPT_ALL_LINES_REQUIRED');
             $received = self::integer($given['received_quantity'] ?? null);
             if (null === $received) {
-                throw new ErrorApi(400, 'GOODS_RECEIPT_INVALID_QUANTITY');
+                throw ErrorDominio::invalido('GOODS_RECEIPT_INVALID_QUANTITY');
             }
             $this->receipts->updateLine($lineId, [...$this->classification($given), 'GRL_QUANTITY_RECEIVED' => $received, 'GRL_USU_CLASSIFIED_BY' => $user]);
             if ($received !== (int) $line['GRL_QUANTITY_DECLARED']) {
@@ -533,7 +533,7 @@ final readonly class GoodsReceiptService
     {
         $type = $given['line_type'] ?? '';
         if (!\is_string($type) || !\in_array($type, self::LINE_TYPES, true)) {
-            throw new ErrorApi(400, 'GOODS_RECEIPT_LINE_REQUIRES_CLASSIFICATION');
+            throw ErrorDominio::invalido('GOODS_RECEIPT_LINE_REQUIRES_CLASSIFICATION');
         }
         $empty = ['GRL_LINE_TYPE' => $type, 'GRL_TAC_ASSET_TYPE' => null, 'GRL_MOD_MODEL' => null, 'GRL_CON_CONSUMABLE' => null, 'GRL_CONSUMABLE_NAME' => null, 'GRL_CONSUMABLE_UNIT' => null,
             'GRL_SOF_SOFTWARE' => null, 'GRL_TLI_LICENSE_TYPE' => null];
@@ -541,7 +541,7 @@ final readonly class GoodsReceiptService
         return match ($type) {
             'ASSET' => [...$empty, ...$this->assetClassification($given)],
             'CONSUMABLE' => [...$empty, ...$this->consumableClassification($given)],
-            'LICENSE' => [...$empty, 'GRL_SOF_SOFTWARE' => self::integer($given['software_id'] ?? null) ?: throw new ErrorApi(400, 'GOODS_RECEIPT_LINE_REQUIRES_SOFTWARE'),
+            'LICENSE' => [...$empty, 'GRL_SOF_SOFTWARE' => self::integer($given['software_id'] ?? null) ?: throw ErrorDominio::invalido('GOODS_RECEIPT_LINE_REQUIRES_SOFTWARE'),
                 'GRL_TLI_LICENSE_TYPE' => self::optionalId($given['license_type_id'] ?? null, 'lines.license_type_id')],
             default => $empty,
         };
@@ -557,7 +557,7 @@ final readonly class GoodsReceiptService
         $assetType = self::integer($given['asset_type_id'] ?? null) ?? 0;
         $model = self::integer($given['model_id'] ?? null) ?? 0;
         if (0 === $assetType || 0 === $model) {
-            throw new ErrorApi(400, 'GOODS_RECEIPT_LINE_REQUIRES_MODEL');
+            throw ErrorDominio::invalido('GOODS_RECEIPT_LINE_REQUIRES_MODEL');
         }
         $this->classRules->exigirNoInsumo($assetType);
 
@@ -574,7 +574,7 @@ final readonly class GoodsReceiptService
         $existing = self::optionalId($given['consumable_id'] ?? null, 'lines.consumable_id');
         $name = self::optionalText($given['consumable_name'] ?? null, 100, 'lines.consumable_name');
         if (null === $existing && null === $name) {
-            throw new ErrorApi(400, 'GOODS_RECEIPT_LINE_REQUIRES_CONSUMABLE');
+            throw ErrorDominio::invalido('GOODS_RECEIPT_LINE_REQUIRES_CONSUMABLE');
         }
 
         return ['GRL_CON_CONSUMABLE' => $existing, 'GRL_CONSUMABLE_NAME' => $name, 'GRL_CONSUMABLE_UNIT' => self::optionalText($given['unit'] ?? null, 20, 'lines.unit') ?? 'unidad'];
@@ -616,9 +616,9 @@ final readonly class GoodsReceiptService
     {
         $prefix = $this->connection->fetchOne('SELECT "TAC_Prefijo" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $line['GRL_TAC_ASSET_TYPE']]);
         if (false === $prefix || null === $prefix || '' === $prefix) {
-            throw new ErrorApi(400, 'ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION');
+            throw ErrorDominio::invalido('ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION');
         }
-        $storage = $this->states->idDe(EstadosActivo::BODEGA) ?? throw new ErrorApi(500, 'OPERATIONAL_STATE_NOT_FOUND');
+        $storage = $this->states->idDe(EstadosActivo::BODEGA) ?? throw ErrorDominio::interno('OPERATIONAL_STATE_NOT_FOUND');
         $site = (int) $receipt['GRC_SED_SITE'];
         $defaults = array_filter($this->receipts->specificationsFor((int) $line['GRL_TAC_ASSET_TYPE'], (int) $line['GRL_MOD_MODEL'], null), static fn (array $s): bool => null !== $s['DEFAULT_VALUE']);
         for ($i = 0; $i < $received; ++$i) {
@@ -655,7 +655,7 @@ final readonly class GoodsReceiptService
         $site = (int) $receipt['GRC_SED_SITE'];
         $consumable = $this->resolveConsumable($line, $site);
         $row = $this->connection->fetchAssociative('SELECT "CON_Consumible", "CON_Nombre", "CON_Stock_Actual", "CON_Costo_Unitario", "CON_Moneda" FROM "INV_CONSUMIBLE" WHERE "CON_Consumible" = :c FOR UPDATE', ['c' => $consumable])
-            ?: throw new ErrorApi(404, 'CONSUMABLE_NOT_FOUND');
+            ?: throw ErrorDominio::noEncontrado('CONSUMABLE_NOT_FOUND');
         [$average, $currency, $cost] = Valoracion::entrada((int) $row['CON_Stock_Actual'], null === $row['CON_Costo_Unitario'] ? null : (string) $row['CON_Costo_Unitario'], $row['CON_Moneda'],
             $received, (string) $line['GRL_UNIT_COST'], (string) $receipt['GRC_CURRENCY']);
         $balance = (int) $row['CON_Stock_Actual'] + $received;
@@ -732,7 +732,7 @@ final readonly class GoodsReceiptService
                     $normal = SpecificationValue::normalize((string) $spec['TES_Data_Type'], null === $spec['TES_Min_Value'] ? null : (float) $spec['TES_Min_Value'],
                         null === $spec['TES_Max_Value'] ? null : (float) $spec['TES_Max_Value'], $this->specificationRules->options((int) $asset['TAC_Tipo_Activo'], $type), $value);
                 } catch (\InvalidArgumentException $e) {
-                    throw new ErrorApi(400, "{$e->getMessage()}:{$spec['TES_Nombre']}");
+                    throw ErrorDominio::invalido("{$e->getMessage()}:{$spec['TES_Nombre']}");
                 }
                 $this->saveSpecification($id, $type, $spec['CURRENT_VALUE'], $normal, $user, $ip);
                 continue;
@@ -798,7 +798,7 @@ final readonly class GoodsReceiptService
     {
         $text = \is_string($value) ? trim($value) : '';
         if ('' === $text || mb_strlen($text) > $max) {
-            throw new ErrorApi(400, $code);
+            throw ErrorDominio::invalido($code);
         }
 
         return $text;

@@ -6,7 +6,7 @@ namespace App\Organizacion;
 
 use App\Dominio\Ident;
 use App\Dominio\Roles;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
 
@@ -29,7 +29,7 @@ final readonly class Sugerencias
         [$filtro, $parametros] = $this->alcance->lectura('INV_PERSONA', 'p');
         $p = $this->conexion->fetchAssociative('SELECT p.* FROM "INV_PERSONA" p WHERE p."PER_Persona" = :id AND '.$filtro, ['id' => $personaHex, ...$parametros]);
         if (false === $p) {
-            throw new ErrorApi(404, 'PERSON_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
         }
         $dep = $this->conexion->fetchAssociative('SELECT "DEP_Departamento", "DEP_Nombre" FROM "INV_DEPARTAMENTO" WHERE "DEP_Departamento" = :d', ['d' => $p['DEP_Departamento']]);
         $car = $this->conexion->fetchAssociative('SELECT "CAR_Cargo", "CAR_Nombre" FROM "INV_CARGO" WHERE "CAR_Cargo" = :c', ['c' => $p['CAR_Cargo']]);
@@ -100,7 +100,7 @@ final readonly class Sugerencias
     public function departamento(int $depId): array
     {
         if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_DEPARTAMENTO" WHERE "DEP_Departamento" = :d', ['d' => $depId])) {
-            throw new ErrorApi(404, 'DEPARTMENT_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('DEPARTMENT_NOT_FOUND');
         }
         [$filtro, $parametros] = $this->alcance->lectura('INV_PERSONA', 'p');
         $cargo = $this->conexion->fetchAssociative(
@@ -152,7 +152,7 @@ final readonly class Sugerencias
     {
         [$filtro, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
         $a = $this->conexion->fetchAssociative('SELECT a."SED_Sede", a."ACT_Hostname" FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id AND '.$filtro,
-            [...$p, 'id' => $activoHex]) ?: throw new \App\Http\ErrorApi(404, 'ASSET_NOT_FOUND');
+            [...$p, 'id' => $activoHex]) ?: throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
         $mov = $this->conexion->fetchAssociative('SELECT "PER_Persona", "ARE_Area" FROM "INV_MOVIMIENTO" WHERE "ACT_Activo" = :a AND "MOV_Fecha_Devolucion" IS NULL '
             .'FETCH FIRST 1 ROWS ONLY', ['a' => $activoHex]);
         $custodio = false === $mov ? false : $this->conexion->fetchAssociative('SELECT p.*, d."DEP_Nombre" FROM "INV_PERSONA" p '

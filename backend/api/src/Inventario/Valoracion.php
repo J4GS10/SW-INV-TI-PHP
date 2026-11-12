@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 
 /**
  * Valoración de consumibles por COSTO PROMEDIO PONDERADO, en decimal exacto (bcmath):
@@ -29,7 +29,7 @@ final class Valoracion
             return [self::redondear($precio, 4), $moneda, $precio];
         }
         if (null !== $monedaValoracion && '' !== $monedaValoracion && $moneda !== $monedaValoracion) {
-            throw new ErrorApi(400, "CURRENCY_DIFFERS_FROM_VALUATION:{$monedaValoracion}");
+            throw ErrorDominio::invalido("CURRENCY_DIFFERS_FROM_VALUATION:{$monedaValoracion}");
         }
         $total = bcadd(bcmul((string) $existencia, $promedio, 10), bcmul((string) $cantidad, $precio, 10), 10);
 

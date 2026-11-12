@@ -11,7 +11,7 @@ use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Organizacion\Identidades;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
@@ -76,7 +76,7 @@ final readonly class Movimientos
     {
         $n = $this->conexion->fetchOne('SELECT "TMO_Nombre" FROM "INV_TIPO_MOVIMIENTO" WHERE "TMO_Tipo_Movimiento" = :id', ['id' => $id]);
 
-        return false === $n ? throw new ErrorApi(404, 'MOVEMENT_TYPE_NOT_FOUND') : ['TMO_Nombre' => $n, 'TMO_Tipo_Movimiento' => $id];
+        return false === $n ? throw ErrorDominio::noEncontrado('MOVEMENT_TYPE_NOT_FOUND') : ['TMO_Nombre' => $n, 'TMO_Tipo_Movimiento' => $id];
     }
 
     /** @return array<string, mixed> */
@@ -84,7 +84,7 @@ final readonly class Movimientos
     {
         return $this->transaccion->ejecutar(function () use ($nombre, $usuario, $ip): array {
             if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_MOVIMIENTO" WHERE LOWER("TMO_Nombre") = LOWER(:n)', ['n' => $nombre])) {
-                throw new ErrorApi(400, 'MOVEMENT_TYPE_ALREADY_EXISTS');
+                throw ErrorDominio::invalido('MOVEMENT_TYPE_ALREADY_EXISTS');
             }
             $id = (int) InsercionOracle::insertar($this->conexion, 'INV_TIPO_MOVIMIENTO', ['TMO_Nombre' => $nombre], 'TMO_Tipo_Movimiento');
             $this->gobierno->registrarAuditoria('CREATE', 'INV_TIPO_MOVIMIENTO', ['nombre' => $nombre], $usuario, $ip);
@@ -117,7 +117,7 @@ final readonly class Movimientos
             $t = $this->tipo($id);
             if ($this->alcance->elevado(fn (): bool => false !== $this->conexion->fetchOne(
                 'SELECT 1 FROM "INV_MOVIMIENTO" WHERE "TMO_Tipo_Movimiento" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id]))) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_TYPE_HAS_MOVEMENTS');
+                throw ErrorDominio::conflicto('CANNOT_DELETE_TYPE_HAS_MOVEMENTS');
             }
             $this->borrado->archive('INV_TIPO_MOVIMIENTO', 'TMO_Tipo_Movimiento', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_TIPO_MOVIMIENTO', ['id' => $id, 'nombre' => $t['TMO_Nombre']], $usuario, $ip);
@@ -218,7 +218,7 @@ final readonly class Movimientos
      */
     public function asignacionesDe(string $persona): array
     {
-        $this->persona($persona) ?? throw new ErrorApi(404, 'PERSON_NOT_FOUND');
+        $this->persona($persona) ?? throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
 
         return $this->consultar('m."PER_Persona" = :p AND m."MOV_Fecha_Devolucion" IS NULL', ['p' => $persona]);
     }
@@ -228,7 +228,7 @@ final readonly class Movimientos
     {
         $f = $this->conexion->fetchAssociative('SELECT '.self::COLUMNAS.' FROM "INV_MOVIMIENTO" m '.self::JOINS.' WHERE m."MOV_Movimiento" = :m', ['m' => $mov]);
 
-        return self::aApi($f ?: throw new ErrorApi(404, 'MOVEMENT_NOT_FOUND'));
+        return self::aApi($f ?: throw ErrorDominio::noEncontrado('MOVEMENT_NOT_FOUND'));
     }
 
     // =====================================================================
@@ -246,7 +246,7 @@ final readonly class Movimientos
 
         // Sin serie ni datos completos, el activo no puede ir a nadie.
         if (1 === (int) $this->conexion->fetchOne('SELECT "ACT_Pending_Completion" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :id', ['id' => $id])) {
-            throw new ErrorApi(409, 'ASSET_PENDING_COMPLETION');
+            throw ErrorDominio::conflicto('ASSET_PENDING_COMPLETION');
         }
 
         return $this->conexion->fetchAssociative('SELECT '.Activos::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id', ['id' => $id]) ?: null;
@@ -278,14 +278,14 @@ final readonly class Movimientos
 
     private function idEstado(string $estado): int
     {
-        return $this->estados->idDe($estado) ?? throw new ErrorApi(500, 'SYSTEM_CONFIG_ERROR_MISSING_OPERATIONAL_STATE');
+        return $this->estados->idDe($estado) ?? throw ErrorDominio::interno('SYSTEM_CONFIG_ERROR_MISSING_OPERATIONAL_STATE');
     }
 
     /** @param array<string, mixed>|null $persona No se entregan equipos a personas inactivas. */
     private static function exigirPersonaActiva(?array $persona): void
     {
         if (null !== $persona && 1 !== (int) $persona['PER_Estado']) {
-            throw new ErrorApi(400, 'PERSON_INACTIVE');
+            throw ErrorDominio::invalido('PERSON_INACTIVE');
         }
     }
 
@@ -303,14 +303,14 @@ final readonly class Movimientos
     {
         $id = (string) $activo['ACT_Activo'];
         if ($this->ticketAbierto($id)) {
-            throw new ErrorApi(409, 'ASSET_IN_MAINTENANCE');
+            throw ErrorDominio::conflicto('ASSET_IN_MAINTENANCE');
         }
         if (null !== $activo['ACT_Activo_Padre']) {
-            throw new ErrorApi(409, 'ASSET_INSTALLED_AS_COMPONENT');
+            throw ErrorDominio::conflicto('ASSET_INSTALLED_AS_COMPONENT');
         }
         if (false !== $this->conexion->fetchOne("SELECT 1 FROM \"INV_APROBACION\" WHERE \"ACT_Activo\" = :a AND \"APR_Tipo\" = 'BAJA' AND \"APR_Estado\" = 'PENDIENTE' "
             .'FETCH FIRST 1 ROWS ONLY', ['a' => $id])) {
-            throw new ErrorApi(409, 'ASSET_HAS_PENDING_DECOMMISSION');
+            throw ErrorDominio::conflicto('ASSET_HAS_PENDING_DECOMMISSION');
         }
     }
 
@@ -320,7 +320,7 @@ final readonly class Movimientos
         $sede = $this->conexion->fetchOne('SELECT e."SED_Sede" FROM "INV_AREA" a JOIN "INV_NIVEL" n ON n."NIV_Nivel" = a."NIV_Nivel" '
             .'JOIN "INV_EDIFICIO" e ON e."EDI_Edificio" = n."EDI_Edificio" WHERE a."ARE_Area" = :a', ['a' => $area]);
         if (false === $sede || null === $sede) {
-            throw new ErrorApi(400, 'AREA_WITHOUT_SEDE');
+            throw ErrorDominio::invalido('AREA_WITHOUT_SEDE');
         }
 
         return (int) $this->alcance->exigirSede((int) $sede);
@@ -375,21 +375,21 @@ final readonly class Movimientos
         $detalle = '' === $detalle ? null : $detalle;
         if (null === $id) {
             if ('' === trim((string) ($d['MOV_Motivo'] ?? ''))) {
-                throw new ErrorApi(422, 'MOVEMENT_REASON_REQUIRED');
+                throw ErrorDominio::noProcesable('MOVEMENT_REASON_REQUIRED');
             }
 
             return ['MMO_Motivo' => null, 'MOV_Motivo' => $d['MOV_Motivo'], 'MOV_Motivo_Detalle' => null];
         }
         $m = $this->conexion->fetchAssociative('SELECT "MMO_Nombre", "MMO_Activo", "MMO_Aplica_A", "MMO_Pide_Detalle" FROM "INV_MOTIVO_MOVIMIENTO" WHERE "MMO_Motivo" = :id', ['id' => $id]);
         if (false === $m || 1 !== (int) $m['MMO_Activo']) {
-            throw new ErrorApi(422, 'MOVEMENT_REASON_NOT_FOUND');
+            throw ErrorDominio::noProcesable('MOVEMENT_REASON_NOT_FOUND');
         }
         $aplica = null === $m['MMO_Aplica_A'] ? [] : (json_decode((string) $m['MMO_Aplica_A'], true) ?: []);
         if ([] !== $aplica && !\in_array($aplicaA, $aplica, true)) {
-            throw new ErrorApi(422, 'MOVEMENT_REASON_NOT_APPLICABLE');
+            throw ErrorDominio::noProcesable('MOVEMENT_REASON_NOT_APPLICABLE');
         }
         if (1 === (int) $m['MMO_Pide_Detalle'] && null === $detalle) {
-            throw new ErrorApi(422, 'MOVEMENT_REASON_DETAIL_REQUIRED');
+            throw ErrorDominio::noProcesable('MOVEMENT_REASON_DETAIL_REQUIRED');
         }
         $texto = null !== $detalle ? "{$m['MMO_Nombre']}: {$detalle}" : (string) $m['MMO_Nombre'];
 
@@ -454,40 +454,40 @@ final readonly class Movimientos
     {
         try {
             return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
-                $activo = $this->activo($d['ACT_Activo']) ?? throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+                $activo = $this->activo($d['ACT_Activo']) ?? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
                 // Una impresora o un switch se instalan en un área, no se asignan a una persona.
                 $this->reglas->exigirAsignableAPersona($activo);
                 $tipo = $this->tipoCanonico((int) $d['TMO_Tipo_Movimiento']);
                 // Este endpoint solo ABRE custodias; devolución, transferencia, ingreso y baja tienen su operación.
                 if (!\in_array($tipo, [self::ASIGNACION, self::PRESTAMO], true)) {
-                    throw new ErrorApi(400, 'MOVEMENT_TYPE_REQUIRES_SPECIFIC_OPERATION');
+                    throw ErrorDominio::invalido('MOVEMENT_TYPE_REQUIRES_SPECIFIC_OPERATION');
                 }
-                $estado = $this->estadoDe($activo) ?? throw new ErrorApi(500, 'UNKNOWN_CURRENT_STATE');
+                $estado = $this->estadoDe($activo) ?? throw ErrorDominio::interno('UNKNOWN_CURRENT_STATE');
                 EstadosActivo::validarTransicion($estado, EstadosActivo::ASIGNADO);
-                $persona = $this->persona($d['PER_Persona']) ?? throw new ErrorApi(404, 'PERSON_NOT_FOUND');
+                $persona = $this->persona($d['PER_Persona']) ?? throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
                 self::exigirPersonaActiva($persona);
                 $this->exigirOperable($activo);
                 if (!$this->existeArea((int) $d['ARE_Area'])) {
-                    throw new ErrorApi(404, 'AREA_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
                 }
                 $sede = $this->sedeDeDestino((int) $d['ARE_Area']);
                 $vigente = $this->vigente($d['ACT_Activo']);
                 $hoy = Reloj::ahora()->format('Y-m-d');
                 if (self::PRESTAMO === $tipo) {
                     if (null === ($d['MOV_Fecha_Prevista_Devolucion'] ?? null)) {
-                        throw new ErrorApi(400, 'LOAN_RETURN_DATE_REQUIRED');
+                        throw ErrorDominio::invalido('LOAN_RETURN_DATE_REQUIRED');
                     }
                     if ($d['MOV_Fecha_Prevista_Devolucion'] < $hoy) {
-                        throw new ErrorApi(400, 'LOAN_RETURN_DATE_IN_THE_PAST');
+                        throw ErrorDominio::invalido('LOAN_RETURN_DATE_IN_THE_PAST');
                     }
                 } else {
                     $d['MOV_Fecha_Prevista_Devolucion'] = null;
                 }
                 if (null !== $vigente) {
-                    throw new ErrorApi(409, 'ASSET_ALREADY_ASSIGNED_USE_TRANSFER');
+                    throw ErrorDominio::conflicto('ASSET_ALREADY_ASSIGNED_USE_TRANSFER');
                 }
                 if (!\in_array($estado, EstadosActivo::DE_ALMACEN, true)) {
-                    throw new ErrorApi(400, 'ASSET_NOT_AVAILABLE_FOR_ASSIGNMENT');
+                    throw ErrorDominio::invalido('ASSET_NOT_AVAILABLE_FOR_ASSIGNMENT');
                 }
                 $d = [...$d, ...$this->conMotivo($d, self::PRESTAMO === $tipo ? 'PRESTAMO' : 'ASIGNACION')];
                 $this->ubicarEnSede($activo, $persona, $sede, $usuario, $ip);
@@ -512,7 +512,7 @@ final readonly class Movimientos
                 return $resultado;
             });
         } catch (UniqueConstraintViolationException) {
-            throw new ErrorApi(409, 'ASSET_ALREADY_HAS_OPEN_MOVEMENT');
+            throw ErrorDominio::conflicto('ASSET_ALREADY_HAS_OPEN_MOVEMENT');
         }
     }
 
@@ -549,23 +549,23 @@ final readonly class Movimientos
     public function devolver(array $d, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
-            $vigente = $this->vigente($d['ACT_Activo']) ?? throw new ErrorApi(400, 'ASSET_IS_NOT_ASSIGNED');
-            $activo = $this->activo($d['ACT_Activo']) ?? throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+            $vigente = $this->vigente($d['ACT_Activo']) ?? throw ErrorDominio::invalido('ASSET_IS_NOT_ASSIGNED');
+            $activo = $this->activo($d['ACT_Activo']) ?? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
             $estado = $this->estadoDe($activo);
             $reparacion = $this->ticketAbierto($d['ACT_Activo']);
             if (!$reparacion) {
-                EstadosActivo::validarTransicion($estado ?? throw new ErrorApi(500, 'UNKNOWN_CURRENT_STATE'), EstadosActivo::BODEGA);
+                EstadosActivo::validarTransicion($estado ?? throw ErrorDominio::interno('UNKNOWN_CURRENT_STATE'), EstadosActivo::BODEGA);
             }
             $destino = $d['ARE_Area_Destino'] ?? null;
             if (null !== $destino) {
                 if (!$this->existeArea((int) $destino)) {
-                    throw new ErrorApi(404, 'AREA_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
                 }
                 $this->sedeDeDestino((int) $destino);
             }
             $motivo = $this->conMotivo($d, 'DEVOLUCION');
             if (!$this->cerrar((string) $vigente['MOV_Movimiento'])) {
-                throw new ErrorApi(409, 'MOVEMENT_ALREADY_CLOSED');
+                throw ErrorDominio::conflicto('MOVEMENT_ALREADY_CLOSED');
             }
             if (null !== $motivo['MOV_Motivo'] && '' !== $motivo['MOV_Motivo']) {
                 $this->conexion->executeStatement('UPDATE "INV_MOVIMIENTO" SET "MOV_Motivo" = :m WHERE "MOV_Movimiento" = :id', ['m' => $motivo['MOV_Motivo'], 'id' => $vigente['MOV_Movimiento']]);
@@ -619,24 +619,24 @@ final readonly class Movimientos
     {
         try {
             return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
-                $activo = $this->activo($d['ACT_Activo']) ?? throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+                $activo = $this->activo($d['ACT_Activo']) ?? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
                 $this->reglas->exigirAsignableAPersona($activo);
-                EstadosActivo::validarTransicion($this->estadoDe($activo) ?? throw new ErrorApi(500, 'UNKNOWN_CURRENT_STATE'), EstadosActivo::ASIGNADO);
-                $vigente = $this->vigente($d['ACT_Activo']) ?? throw new ErrorApi(400, 'ASSET_IS_NOT_ASSIGNED_CANNOT_TRANSFER');
-                $persona = $this->persona($d['PER_Persona_Destino']) ?? throw new ErrorApi(404, 'DESTINATION_PERSON_NOT_FOUND');
+                EstadosActivo::validarTransicion($this->estadoDe($activo) ?? throw ErrorDominio::interno('UNKNOWN_CURRENT_STATE'), EstadosActivo::ASIGNADO);
+                $vigente = $this->vigente($d['ACT_Activo']) ?? throw ErrorDominio::invalido('ASSET_IS_NOT_ASSIGNED_CANNOT_TRANSFER');
+                $persona = $this->persona($d['PER_Persona_Destino']) ?? throw ErrorDominio::noEncontrado('DESTINATION_PERSON_NOT_FOUND');
                 self::exigirPersonaActiva($persona);
                 $this->exigirOperable($activo);
                 if ((string) $vigente['PER_Persona'] === $d['PER_Persona_Destino'] && (int) $vigente['ARE_Area'] === (int) $d['ARE_Area_Destino']) {
-                    throw new ErrorApi(400, 'TRANSFER_TO_SAME_CUSTODIAN');
+                    throw ErrorDominio::invalido('TRANSFER_TO_SAME_CUSTODIAN');
                 }
                 if (!$this->existeArea((int) $d['ARE_Area_Destino'])) {
-                    throw new ErrorApi(404, 'DESTINATION_AREA_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('DESTINATION_AREA_NOT_FOUND');
                 }
                 $sede = $this->sedeDeDestino((int) $d['ARE_Area_Destino']);
                 // La nueva custodia se registra como "Transferencia" (o "Asignación" si el catálogo no lo tiene).
                 $tipo = $this->idTipo(self::TRANSFERENCIA) ?? $this->idTipo(self::ASIGNACION)
                     ?? ((int) $this->conexion->fetchOne("SELECT MIN(\"TMO_Tipo_Movimiento\") FROM \"INV_TIPO_MOVIMIENTO\" WHERE LOWER(\"TMO_Nombre\") LIKE '%asignaci%'") ?: null)
-                    ?? throw new ErrorApi(500, 'SYSTEM_CONFIG_ERROR_MISSING_ASSIGNMENT_TYPE');
+                    ?? throw ErrorDominio::interno('SYSTEM_CONFIG_ERROR_MISSING_ASSIGNMENT_TYPE');
                 $motivo = $this->conMotivo($d, 'TRANSFERENCIA');
                 $this->cerrar((string) $vigente['MOV_Movimiento']);
                 $sedeOrigen = null === $activo['SED_Sede'] ? null : (int) $activo['SED_Sede'];
@@ -663,7 +663,7 @@ final readonly class Movimientos
                 return $this->porId($mov);
             });
         } catch (UniqueConstraintViolationException) {
-            throw new ErrorApi(409, 'ASSET_ALREADY_HAS_OPEN_MOVEMENT');
+            throw ErrorDominio::conflicto('ASSET_ALREADY_HAS_OPEN_MOVEMENT');
         }
     }
 
@@ -682,7 +682,7 @@ final readonly class Movimientos
     public function offboarding(string $personaId, bool $desactivarUsuario, string $usuario, string $rol, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($personaId, $desactivarUsuario, $usuario, $rol, $ip): array {
-            $persona = $this->persona($personaId) ?? throw new ErrorApi(404, 'PERSON_NOT_FOUND');
+            $persona = $this->persona($personaId) ?? throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
             $sedePersona = null === $persona['SED_Sede'] ? null : (int) $persona['SED_Sede'];
             $this->alcance->exigirPropio($sedePersona);
             // Si alguna custodia está en una sede fuera del alcance, se haría a medias.
@@ -691,7 +691,7 @@ final readonly class Movimientos
             $visibles = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_MOVIMIENTO" m WHERE '.$donde.' AND '.$alcance, [...$pa, 'p' => $personaId]);
             $totales = (int) $this->alcance->elevado(fn (): mixed => $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_MOVIMIENTO" m WHERE '.$donde, ['p' => $personaId]));
             if ($totales !== $visibles) {
-                throw new ErrorApi(403, 'OFFBOARDING_REQUIRES_SCOPE_OVER_ALL_ASSETS');
+                throw ErrorDominio::prohibido('OFFBOARDING_REQUIRES_SCOPE_OVER_ALL_ASSETS');
             }
             $estabaActiva = 1 === (int) $persona['PER_Estado'];
             // La cuenta solo se desactiva si se puede (nunca el último SUPER_ADMIN, ni la propia, ni fuera de la jerarquía).
@@ -699,13 +699,13 @@ final readonly class Movimientos
                 ['p' => $personaId]);
             if (false !== $cuenta && 1 === (int) $cuenta['USU_Estado']) {
                 if (Roles::SUPER_ADMIN === $cuenta['USU_Rol'] && (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"INV_USUARIO\" WHERE \"USU_Rol\" = 'SUPER_ADMIN' AND \"USU_Estado\" = 1") <= 1) {
-                    throw new ErrorApi(400, 'CANNOT_OFFBOARD_LAST_SUPER_ADMIN');
+                    throw ErrorDominio::invalido('CANNOT_OFFBOARD_LAST_SUPER_ADMIN');
                 }
                 if ((string) $cuenta['USU_Usuario'] === $usuario) {
-                    throw new ErrorApi(403, 'CANNOT_MODIFY_OWN_ACCOUNT');
+                    throw ErrorDominio::prohibido('CANNOT_MODIFY_OWN_ACCOUNT');
                 }
                 if (!self::puedeDesactivarEnSalida($rol, (string) $cuenta['USU_Rol'])) {
-                    throw new ErrorApi(403, 'OFFBOARDING_ACCOUNT_REQUIRES_IAM');
+                    throw ErrorDominio::prohibido('OFFBOARDING_ACCOUNT_REQUIRES_IAM');
                 }
             }
             // Cerrojo único en todo el sistema: activos (en orden) -> movimientos -> sello del kardex.
@@ -790,7 +790,7 @@ final readonly class Movimientos
         $f = $this->conexion->fetchAssociative('SELECT a."ACT_Activo", a."ACT_Codigo_Interno", a."ACT_Instalado", a."ARE_Area_Ubicacion", ar."ARE_Nombre", '
             .'a."ACT_Responsable", p."PER_Primer_Nombre", p."PER_Primer_Apellido" FROM "INV_ACTIVO" a LEFT JOIN "INV_AREA" ar ON ar."ARE_Area" = a."ARE_Area_Ubicacion" '
             .'LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = a."ACT_Responsable" WHERE a."ACT_Activo" = :a', ['a' => $activo])
-            ?: throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+            ?: throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
 
         return ['ACT_Activo' => Ident::aTexto((string) $f['ACT_Activo']), 'ACT_Codigo_Interno' => $f['ACT_Codigo_Interno'], 'ACT_Instalado' => 1 === (int) $f['ACT_Instalado'],
             'ARE_Area' => null === $f['ARE_Area_Ubicacion'] ? null : (int) $f['ARE_Area_Ubicacion'], 'area' => $f['ARE_Nombre'],
@@ -808,29 +808,29 @@ final readonly class Movimientos
     public function instalarEnArea(array $d, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
-            $activo = $this->activo($d['ACT_Activo']) ?? throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+            $activo = $this->activo($d['ACT_Activo']) ?? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
             $estado = $this->estadoDe($activo);
             $this->reglas->exigirInstalableEnArea($activo);
             if (!\in_array($estado, [EstadosActivo::BODEGA, EstadosActivo::INSTALADO], true)) {
-                throw new ErrorApi(409, 'ASSET_NOT_AVAILABLE_FOR_INSTALLATION');
+                throw ErrorDominio::conflicto('ASSET_NOT_AVAILABLE_FOR_INSTALLATION');
             }
             EstadosActivo::validarTransicion((string) $estado, EstadosActivo::INSTALADO);
             $this->exigirOperable($activo);
             if (null !== $this->vigente($d['ACT_Activo'], false)) {
-                throw new ErrorApi(409, 'ASSET_HAS_CUSTODIAN_RETURN_FIRST');
+                throw ErrorDominio::conflicto('ASSET_HAS_CUSTODIAN_RETURN_FIRST');
             }
             $area = (int) $d['ARE_Area'];
             $nombreArea = $this->conexion->fetchOne('SELECT "ARE_Nombre" FROM "INV_AREA" WHERE "ARE_Area" = :a', ['a' => $area]);
             if (false === $nombreArea) {
-                throw new ErrorApi(404, 'AREA_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
             }
             $responsableId = $d['PER_Responsable'] ?? null;
             if (EstadosActivo::INSTALADO === $estado && (int) $activo['ARE_Area_Ubicacion'] === $area && ($activo['ACT_Responsable'] ?? null) === $responsableId) {
-                throw new ErrorApi(409, 'ASSET_ALREADY_INSTALLED_THERE');
+                throw ErrorDominio::conflicto('ASSET_ALREADY_INSTALLED_THERE');
             }
             $responsable = null;
             if (null !== $responsableId) {
-                $responsable = $this->conexion->fetchAssociative('SELECT * FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $responsableId]) ?: throw new ErrorApi(404, 'PERSON_NOT_FOUND');
+                $responsable = $this->conexion->fetchAssociative('SELECT * FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $responsableId]) ?: throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
                 self::exigirPersonaActiva($responsable);
             }
             $motivo = $this->conMotivo($d, 'INSTALACION');
@@ -866,16 +866,16 @@ final readonly class Movimientos
     public function retirarDeArea(array $d, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
-            $activo = $this->activo($d['ACT_Activo']) ?? throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+            $activo = $this->activo($d['ACT_Activo']) ?? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
             if (EstadosActivo::INSTALADO !== $this->estadoDe($activo)) {
-                throw new ErrorApi(409, 'ASSET_NOT_INSTALLED');
+                throw ErrorDominio::conflicto('ASSET_NOT_INSTALLED');
             }
             $this->exigirOperable($activo);
             $destino = $d['ARE_Area_Destino'] ?? null;
             $sede = null === $activo['SED_Sede'] ? null : (int) $activo['SED_Sede'];
             if (null !== $destino) {
                 if (!$this->existeArea((int) $destino)) {
-                    throw new ErrorApi(404, 'AREA_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
                 }
                 $sede = $this->sedeDeDestino((int) $destino);
                 $this->ubicarEnSede($activo, null, $sede, $usuario, $ip);

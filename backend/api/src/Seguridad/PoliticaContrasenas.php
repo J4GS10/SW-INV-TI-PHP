@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Seguridad;
 
 use App\Config\Ajustes;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 
 /**
  * Política de contraseñas (fuente única, configurable por PASSWORD_*). Mismas
@@ -64,7 +64,7 @@ final readonly class PoliticaContrasenas
     {
         $errores = $this->errores($password, $username, $datosPersonales);
         if ([] !== $errores) {
-            throw new ErrorApi(400, 'PASSWORD_POLICY_VIOLATION:'.implode(',', $errores));
+            throw ErrorDominio::invalido('PASSWORD_POLICY_VIOLATION:'.implode(',', $errores));
         }
     }
 

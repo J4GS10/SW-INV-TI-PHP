@@ -11,7 +11,7 @@ use App\Db\InsercionOracle;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
@@ -54,7 +54,7 @@ final readonly class Mantenimientos
     {
         $n = $this->conexion->fetchOne('SELECT "TMA_Nombre" FROM "INV_TIPO_MANTENIMIENTO" WHERE "TMA_Tipo_Mantenimiento" = :id', ['id' => $id]);
 
-        return false === $n ? throw new ErrorApi(404, 'MAINTENANCE_TYPE_NOT_FOUND') : ['TMA_Nombre' => $n, 'TMA_Tipo_Mantenimiento' => $id];
+        return false === $n ? throw ErrorDominio::noEncontrado('MAINTENANCE_TYPE_NOT_FOUND') : ['TMA_Nombre' => $n, 'TMA_Tipo_Mantenimiento' => $id];
     }
 
     /** @return array<string, mixed> */
@@ -92,7 +92,7 @@ final readonly class Mantenimientos
             $t = $this->tipo($id);
             if ($this->alcance->elevado(fn (): bool => false !== $this->conexion->fetchOne(
                 'SELECT 1 FROM "INV_MANTENIMIENTO" WHERE "TMA_Tipo_Mantenimiento" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id]))) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_TYPE_HAS_TICKETS');
+                throw ErrorDominio::conflicto('CANNOT_DELETE_TYPE_HAS_TICKETS');
             }
             $this->borrado->archive('INV_TIPO_MANTENIMIENTO', 'TMA_Tipo_Mantenimiento', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_TIPO_MANTENIMIENTO', ['id' => $id, 'nombre' => $t['TMA_Nombre']], $usuario, $ip);
@@ -162,7 +162,7 @@ final readonly class Mantenimientos
     /** @return array<string, mixed> */
     public function uno(string $id): array
     {
-        return $this->consultar('m."MAN_Mantenimiento" = :id', ['id' => $id], 1)[0] ?? throw new ErrorApi(404, 'MAINTENANCE_TICKET_NOT_FOUND');
+        return $this->consultar('m."MAN_Mantenimiento" = :id', ['id' => $id], 1)[0] ?? throw ErrorDominio::noEncontrado('MAINTENANCE_TICKET_NOT_FOUND');
     }
 
     /** «Nombre del catálogo: detalle», sin repetir el nombre si el texto ya lo trae. */
@@ -185,14 +185,14 @@ final readonly class Mantenimientos
         $texto = trim((string) ($d['DMA_Accion_Realizada'] ?? ''));
         if (null === ($d['AMA_Accion'] ?? null)) {
             if (mb_strlen($texto) < 5) {
-                throw new ErrorApi(422, 'MAINTENANCE_ACTION_REQUIRED');
+                throw ErrorDominio::noProcesable('MAINTENANCE_ACTION_REQUIRED');
             }
 
             return $texto;
         }
         $nombre = $this->catalogos->nombreVigente('acciones-mantenimiento', (int) $d['AMA_Accion']);
         if (1 === (int) $this->conexion->fetchOne('SELECT "AMA_Pide_Detalle" FROM "INV_ACCION_MANTENIMIENTO" WHERE "AMA_Accion" = :a', ['a' => $d['AMA_Accion']]) && '' === $texto) {
-            throw new ErrorApi(422, 'MAINTENANCE_ACTION_DETAIL_REQUIRED');
+            throw ErrorDominio::noProcesable('MAINTENANCE_ACTION_DETAIL_REQUIRED');
         }
 
         return mb_substr(self::conPrefijo($nombre, $texto), 0, 255);
@@ -210,35 +210,35 @@ final readonly class Mantenimientos
             return $this->transaccion->ejecutar(function () use ($d, $detalles, $usuario, $ip): array {
                 [$alcance, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
                 $activo = $this->conexion->fetchAssociative('SELECT '.Activos::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id AND '.$alcance.' FOR UPDATE',
-                    [...$p, 'id' => $d['ACT_Activo']]) ?: throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+                    [...$p, 'id' => $d['ACT_Activo']]) ?: throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
                 $persona = $this->conexion->fetchAssociative('SELECT "PER_Primer_Nombre", "PER_Primer_Apellido", "PER_Email_Corporativo", "PER_Estado" FROM "INV_PERSONA" '
-                    .'WHERE "PER_Persona" = :p', ['p' => $d['PER_Persona_Solicita']]) ?: throw new ErrorApi(404, 'REQUESTING_PERSON_NOT_FOUND');
+                    .'WHERE "PER_Persona" = :p', ['p' => $d['PER_Persona_Solicita']]) ?: throw ErrorDominio::noEncontrado('REQUESTING_PERSON_NOT_FOUND');
                 if (1 !== (int) $persona['PER_Estado']) {
-                    throw new ErrorApi(400, 'PERSON_INACTIVE');
+                    throw ErrorDominio::invalido('PERSON_INACTIVE');
                 }
                 if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_MANTENIMIENTO" WHERE "ACT_Activo" = :a AND "MAN_Fecha_Cierre" IS NULL FETCH FIRST 1 ROWS ONLY',
                     ['a' => $d['ACT_Activo']])) {
-                    throw new ErrorApi(409, 'ASSET_ALREADY_HAS_OPEN_MAINTENANCE_TICKET');
+                    throw ErrorDominio::conflicto('ASSET_ALREADY_HAS_OPEN_MAINTENANCE_TICKET');
                 }
                 $reparacion = $this->conexion->fetchOne("SELECT \"EOP_Estado_Operativo\" FROM \"INV_ESTADO_OPERATIVO\" WHERE LOWER(\"EOP_Nombre\") LIKE '%reparación%' "
                     .'ORDER BY "EOP_Estado_Operativo" FETCH FIRST 1 ROWS ONLY') ?: $this->estados->idDe(EstadosActivo::REPARACION);
                 if (null === $reparacion) {
-                    throw new ErrorApi(500, 'SYSTEM_CONFIG_ERROR_MISSING_OPERATIONAL_STATE');
+                    throw ErrorDominio::interno('SYSTEM_CONFIG_ERROR_MISSING_OPERATIONAL_STATE');
                 }
                 // Solo entra a reparación lo que la máquina de estados permite (no una baja ni un tránsito).
                 $actual = $this->estados->canonicoDeId((int) $activo['EOP_Estado_Operativo']);
                 if (null !== $actual && !EstadosActivo::permitida($actual, EstadosActivo::REPARACION)) {
-                    throw new ErrorApi(400, 'ASSET_STATE_DOES_NOT_ALLOW_MAINTENANCE');
+                    throw ErrorDominio::invalido('ASSET_STATE_DOES_NOT_ALLOW_MAINTENANCE');
                 }
                 $texto = trim((string) $d['MAN_Descripcion_Falla']);
                 if (null === $d['TFA_Tipo_Falla']) {
                     if ('' === $texto) {
-                        throw new ErrorApi(422, 'FAULT_DESCRIPTION_REQUIRED');
+                        throw ErrorDominio::noProcesable('FAULT_DESCRIPTION_REQUIRED');
                     }
                 } else {
                     $nombre = $this->catalogos->nombreVigente('tipos-falla', (int) $d['TFA_Tipo_Falla']);
                     if (1 === (int) $this->conexion->fetchOne('SELECT "TFA_Pide_Detalle" FROM "INV_TIPO_FALLA" WHERE "TFA_Tipo_Falla" = :t', ['t' => $d['TFA_Tipo_Falla']]) && '' === $texto) {
-                        throw new ErrorApi(422, 'FAULT_DESCRIPTION_REQUIRED');
+                        throw ErrorDominio::noProcesable('FAULT_DESCRIPTION_REQUIRED');
                     }
                     $texto = mb_substr(self::conPrefijo($nombre, $texto), 0, 2000);
                 }
@@ -273,7 +273,7 @@ final readonly class Mantenimientos
             });
         } catch (UniqueConstraintViolationException) {
             // Choque del índice único parcial: otro ticket abierto se creó a la vez.
-            throw new ErrorApi(409, 'ASSET_ALREADY_HAS_OPEN_MAINTENANCE_TICKET');
+            throw ErrorDominio::conflicto('ASSET_ALREADY_HAS_OPEN_MAINTENANCE_TICKET');
         }
     }
 
@@ -287,21 +287,21 @@ final readonly class Mantenimientos
         return $this->transaccion->ejecutar(function () use ($id, $costo, $moneda, $fecha, $usuario, $ip): array {
             $m = $this->uno($id);
             if (null !== $m['MAN_Fecha_Cierre']) {
-                throw new ErrorApi(400, 'TICKET_ALREADY_CLOSED');
+                throw ErrorDominio::invalido('TICKET_ALREADY_CLOSED');
             }
             $ahora = Reloj::ahora();
             $fecha ??= $ahora;
             $ingreso = Reloj::desdeBd((string) $this->conexion->fetchOne('SELECT "MAN_Fecha_Ingreso" FROM "INV_MANTENIMIENTO" WHERE "MAN_Mantenimiento" = :id', ['id' => $id]));
             if ($fecha < $ingreso) {
-                throw new ErrorApi(400, 'CLOSE_DATE_CANNOT_BE_BEFORE_ENTRY_DATE');
+                throw ErrorDominio::invalido('CLOSE_DATE_CANNOT_BE_BEFORE_ENTRY_DATE');
             }
             if ($fecha > $ahora->modify('+5 minutes')) {
-                throw new ErrorApi(400, 'CLOSE_DATE_CANNOT_BE_IN_THE_FUTURE');
+                throw ErrorDominio::invalido('CLOSE_DATE_CANNOT_BE_IN_THE_FUTURE');
             }
             $moneda ??= $m['MAN_Moneda'];
             if (1 !== $this->conexion->executeStatement('UPDATE "INV_MANTENIMIENTO" SET "MAN_Fecha_Cierre" = :f, "MAN_Costo_Total" = :c, "MAN_Moneda" = :m '
                 .'WHERE "MAN_Mantenimiento" = :id AND "MAN_Fecha_Cierre" IS NULL', ['f' => Reloj::aBd($fecha), 'c' => $costo, 'm' => $moneda, 'id' => $id])) {
-                throw new ErrorApi(400, 'TICKET_ALREADY_CLOSED');
+                throw ErrorDominio::invalido('TICKET_ALREADY_CLOSED');
             }
             $activoId = Ident::aHex((string) $m['ACT_Activo']);
             $custodia = $this->conexion->fetchOne('SELECT "PER_Persona" FROM "INV_MOVIMIENTO" WHERE "ACT_Activo" = :a AND "MOV_Fecha_Devolucion" IS NULL', ['a' => $activoId]);
@@ -313,7 +313,7 @@ final readonly class Mantenimientos
                 : ($instalado ? $this->estados->idDe(EstadosActivo::INSTALADO) : ($this->conexion->fetchOne(
                     "SELECT \"EOP_Estado_Operativo\" FROM \"INV_ESTADO_OPERATIVO\" WHERE LOWER(\"EOP_Nombre\") LIKE '%bodega%' ORDER BY 1 FETCH FIRST 1 ROWS ONLY") ?: null));
             if (null === $nuevo) {
-                throw new ErrorApi(500, 'SYSTEM_CONFIG_ERROR_MISSING_OPERATIONAL_STATE');
+                throw ErrorDominio::interno('SYSTEM_CONFIG_ERROR_MISSING_OPERATIONAL_STATE');
             }
             // Un equipo dado de baja mientras estaba en taller no "resucita".
             if (null !== $activo && (int) $activo['EOP_Estado_Operativo'] !== $this->estados->idDe(EstadosActivo::BAJA)) {
@@ -340,7 +340,7 @@ final readonly class Mantenimientos
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $m = $this->uno($id);
             if (null === $m['MAN_Fecha_Cierre']) {
-                throw new ErrorApi(400, 'CANNOT_DELETE_OPEN_TICKET');
+                throw ErrorDominio::invalido('CANNOT_DELETE_OPEN_TICKET');
             }
             // Se archiva con sus detalles y evidencias (ON DELETE CASCADE → también archivados).
             $this->borrado->archive('INV_MANTENIMIENTO', 'MAN_Mantenimiento', $id);
@@ -368,7 +368,7 @@ final readonly class Mantenimientos
     {
         return $this->transaccion->ejecutar(function () use ($ticket, $d, $usuario, $ip): array {
             if (null !== $this->uno($ticket)['MAN_Fecha_Cierre']) {
-                throw new ErrorApi(400, 'CANNOT_ADD_DETAILS_TO_CLOSED_TICKET');
+                throw ErrorDominio::invalido('CANNOT_ADD_DETAILS_TO_CLOSED_TICKET');
             }
             $texto = $this->textoDeDetalle($d);
             $id = (int) InsercionOracle::insertar($this->conexion, 'INV_DETALLE_MANT', ['DMA_Accion_Realizada' => $texto, 'AMA_Accion' => $d['AMA_Accion'],
@@ -387,7 +387,7 @@ final readonly class Mantenimientos
         $d = $this->conexion->fetchAssociative('SELECT "DMA_Detalle_Mant", "DMA_Accion_Realizada", "DMA_Costo_Item", "AMA_Accion", "MAN_Mantenimiento" FROM "INV_DETALLE_MANT" '
             .'WHERE "DMA_Detalle_Mant" = :id', ['id' => $id]);
         if (false === $d) {
-            throw new ErrorApi(404, 'MAINTENANCE_DETAIL_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('MAINTENANCE_DETAIL_NOT_FOUND');
         }
         $this->uno((string) $d['MAN_Mantenimiento']);
 
@@ -404,7 +404,7 @@ final readonly class Mantenimientos
         return $this->transaccion->ejecutar(function () use ($id, $d, $usuario, $ip): array {
             $actual = $this->detalle($id);
             if (null !== $this->uno($actual['_ticket'])['MAN_Fecha_Cierre']) {
-                throw new ErrorApi(400, 'CANNOT_MODIFY_DETAILS_OF_CLOSED_TICKET');
+                throw ErrorDominio::invalido('CANNOT_MODIFY_DETAILS_OF_CLOSED_TICKET');
             }
             $d['DMA_Accion_Realizada'] = $this->textoDeDetalle($d);
             $this->conexion->executeStatement('UPDATE "INV_DETALLE_MANT" SET "DMA_Accion_Realizada" = :t, "AMA_Accion" = :a, "DMA_Costo_Item" = :c WHERE "DMA_Detalle_Mant" = :id',
@@ -422,7 +422,7 @@ final readonly class Mantenimientos
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $actual = $this->detalle($id);
             if (null !== $this->uno($actual['_ticket'])['MAN_Fecha_Cierre']) {
-                throw new ErrorApi(400, 'CANNOT_DELETE_DETAILS_OF_CLOSED_TICKET');
+                throw ErrorDominio::invalido('CANNOT_DELETE_DETAILS_OF_CLOSED_TICKET');
             }
             $this->borrado->archive('INV_DETALLE_MANT', 'DMA_Detalle_Mant', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_DETALLE_MANT', ['detalle_id' => $id], $usuario, $ip);

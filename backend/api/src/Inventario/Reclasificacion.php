@@ -7,7 +7,7 @@ namespace App\Inventario;
 use App\Catalogo\ClasesActivo;
 use App\Db\InsercionOracle;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use Doctrine\DBAL\Connection;
 
@@ -64,9 +64,9 @@ final readonly class Reclasificacion
     public function vistaPrevia(int $tipo, ?int $sede): array
     {
         $t = $this->conexion->fetchAssociative('SELECT "TAC_Nombre", "TAC_Clase" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $tipo])
-            ?: throw new ErrorApi(404, 'ASSET_TYPE_NOT_FOUND');
+            ?: throw ErrorDominio::noEncontrado('ASSET_TYPE_NOT_FOUND');
         if (ClasesActivo::INSUMO !== ClasesActivo::reglas($t['TAC_Clase'])['uso']) {
-            throw new ErrorApi(409, 'ASSET_TYPE_IS_NOT_SUPPLY');
+            throw ErrorDominio::conflicto('ASSET_TYPE_IS_NOT_SUPPLY');
         }
         $activos = $this->activos($tipo, $sede);
         $bloqueados = [];
@@ -108,11 +108,11 @@ final readonly class Reclasificacion
         }
         $activos = $this->activos($tipoId, $sede);
         if ([] === $activos) {
-            throw new ErrorApi(409, 'RECLASSIFY_NOTHING_TO_CONVERT');
+            throw ErrorDominio::conflicto('RECLASSIFY_NOTHING_TO_CONVERT');
         }
         foreach ($activos as $a) {
             if (null !== $this->bloqueo($a)) {
-                throw new ErrorApi(409, 'RECLASSIFY_ASSETS_IN_USE');
+                throw ErrorDominio::conflicto('RECLASSIFY_ASSETS_IN_USE');
             }
         }
         // Consumible destino: el que ya existe con ese nombre en la sede, o uno nuevo.
@@ -120,7 +120,7 @@ final readonly class Reclasificacion
         $con = $this->conexion->fetchAssociative('SELECT "CON_Consumible", "SED_Sede", "CON_Moneda" FROM "INV_CONSUMIBLE" WHERE LOWER("CON_Nombre") = :n '
             .'FETCH FIRST 1 ROWS ONLY', ['n' => mb_strtolower($nombre)]);
         if (false !== $con && (int) $con['SED_Sede'] !== $sede) {
-            throw new ErrorApi(409, 'CONSUMABLE_NAME_IN_OTHER_SEDE');
+            throw ErrorDominio::conflicto('CONSUMABLE_NAME_IN_OTHER_SEDE');
         }
         if (false === $con) {
             $id = (int) InsercionOracle::insertar($this->conexion, 'INV_CONSUMIBLE', ['CON_Nombre' => $nombre,

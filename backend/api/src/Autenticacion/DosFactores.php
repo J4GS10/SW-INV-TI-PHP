@@ -8,7 +8,7 @@ use App\Config\Ajustes;
 use App\Correo\Notificador;
 use App\Dominio\Reloj;
 use App\Dominio\Usuario;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\CredencialesRepositorio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\UsuarioRepositorio;
@@ -70,10 +70,10 @@ final readonly class DosFactores
         return $this->conexion->transactional(function () use ($u, $codigo, $ip, $ua): array {
             $this->exigirNoHabilitado($u);
             if (null === $u->dosFactoresSecreto) {
-                throw new ErrorApi(400, '2FA_SETUP_NOT_STARTED');
+                throw ErrorDominio::invalido('2FA_SETUP_NOT_STARTED');
             }
             if (!$this->aceptarTotp($u, $codigo)) {
-                throw new ErrorApi(400, 'INVALID_2FA_CODE');
+                throw ErrorDominio::invalido('INVALID_2FA_CODE');
             }
 
             return $this->habilitar($u, 'TOTP', $ip, $ua);
@@ -92,7 +92,7 @@ final readonly class DosFactores
         return $this->conexion->transactional(function () use ($u, $codigo, $ip, $ua): array {
             $this->exigirNoHabilitado($u);
             if (!$this->comprobarCodigoCorreo($u, $codigo)) {
-                throw new ErrorApi(400, 'INVALID_2FA_CODE');
+                throw ErrorDominio::invalido('INVALID_2FA_CODE');
             }
             // En el método EMAIL no se guarda secreto TOTP.
             $u->dosFactoresSecreto = null;
@@ -108,13 +108,13 @@ final readonly class DosFactores
     public function desactivar(Usuario $u, bool $passwordCorrecta, ?string $ip, ?string $ua): void
     {
         if (!$passwordCorrecta) {
-            throw new ErrorApi(400, 'INCORRECT_CURRENT_PASSWORD');
+            throw ErrorDominio::invalido('INCORRECT_CURRENT_PASSWORD');
         }
         if (!$u->dosFactoresHabilitado) {
             return;
         }
         if ($this->politica->rolExigeMfa($u->rol)) {
-            throw ErrorApi::prohibido('2FA_REQUIRED_FOR_THIS_ROLE');
+            throw ErrorDominio::prohibido('2FA_REQUIRED_FOR_THIS_ROLE');
         }
         $this->conexion->transactional(function () use ($u, $ip, $ua): void {
             $u->dosFactoresHabilitado = false;
@@ -131,7 +131,7 @@ final readonly class DosFactores
     public function regenerarRecuperacion(Usuario $u, ?string $ip, ?string $ua): array
     {
         if (!$u->dosFactoresHabilitado) {
-            throw new ErrorApi(400, '2FA_NOT_ENABLED');
+            throw ErrorDominio::invalido('2FA_NOT_ENABLED');
         }
 
         return $this->conexion->transactional(function () use ($u, $ip, $ua): array {
@@ -255,7 +255,7 @@ final readonly class DosFactores
     private function exigirNoHabilitado(Usuario $u): void
     {
         if ($u->dosFactoresHabilitado) {
-            throw new ErrorApi(409, '2FA_ALREADY_ENABLED');
+            throw ErrorDominio::conflicto('2FA_ALREADY_ENABLED');
         }
     }
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Catalogo;
 
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\ConstraintViolationException;
@@ -66,7 +66,7 @@ final class CatalogoGenerico
         $d = RegistroCatalogos::definicion($clave);
         $f = $this->fila($d, $id);
         if (null === $f || 1 !== (int) $f[$d['prefijo'].'_Activo']) {
-            throw new ErrorApi(422, "CATALOG_ITEM_NOT_FOUND:{$clave}");
+            throw ErrorDominio::noProcesable("CATALOG_ITEM_NOT_FOUND:{$clave}");
         }
         $nombre = (string) $f[$d['prefijo'].'_Nombre'];
 
@@ -100,11 +100,11 @@ final class CatalogoGenerico
         $d = RegistroCatalogos::definicion($clave);
         $p = $d['prefijo'];
         if (!$d['permite_crear']) {
-            throw new ErrorApi(409, 'CATALOG_CLOSED');
+            throw ErrorDominio::conflicto('CATALOG_CLOSED');
         }
         $nombre = trim((string) $datos['nombre']);
         if (mb_strlen($nombre) > $d['largo_nombre']) {
-            throw new ErrorApi(422, 'CATALOG_NAME_TOO_LONG');
+            throw ErrorDominio::noProcesable('CATALOG_NAME_TOO_LONG');
         }
 
         return $this->conexion->transactional(function () use ($d, $p, $datos, $nombre, $auditar): array {
@@ -133,7 +133,7 @@ final class CatalogoGenerico
         $p = $d['prefijo'];
 
         return $this->conexion->transactional(function () use ($d, $p, $id, $datos, $auditar): array {
-            $f = $this->fila($d, $id) ?? throw new ErrorApi(404, 'CATALOG_ITEM_NOT_FOUND');
+            $f = $this->fila($d, $id) ?? throw ErrorDominio::noEncontrado('CATALOG_ITEM_NOT_FOUND');
             $esSistema = $d['codigo'] && \in_array($f["{$p}_Codigo"], $d['sistema'], true);
             $cambios = [];
             if (null !== ($datos['nombre'] ?? null)) {
@@ -141,10 +141,10 @@ final class CatalogoGenerico
                 if ($nombre !== $f["{$p}_Nombre"]) {
                     // La interfaz traduce los registros del sistema por su código: renombrarlos no tendría efecto.
                     if ($esSistema) {
-                        throw new ErrorApi(409, 'CATALOG_SYSTEM_ITEM');
+                        throw ErrorDominio::conflicto('CATALOG_SYSTEM_ITEM');
                     }
                     if (mb_strlen($nombre) > $d['largo_nombre']) {
-                        throw new ErrorApi(422, 'CATALOG_NAME_TOO_LONG');
+                        throw ErrorDominio::noProcesable('CATALOG_NAME_TOO_LONG');
                     }
                     $this->nombreLibre($d, $nombre, $id);
                     $cambios["{$p}_Nombre"] = $nombre;
@@ -158,10 +158,10 @@ final class CatalogoGenerico
             }
             if (null !== ($datos['activo'] ?? null) && $datos['activo'] !== (1 === (int) $f["{$p}_Activo"])) {
                 if ($esSistema && !$datos['activo']) {
-                    throw new ErrorApi(409, 'CATALOG_SYSTEM_ITEM');
+                    throw ErrorDominio::conflicto('CATALOG_SYSTEM_ITEM');
                 }
                 if ($datos['activo'] && null !== $f["{$p}_Fusionado_En"]) {
-                    throw new ErrorApi(409, 'CATALOG_ITEM_MERGED');
+                    throw ErrorDominio::conflicto('CATALOG_ITEM_MERGED');
                 }
                 $cambios["{$p}_Activo"] = $datos['activo'];
             }
@@ -218,7 +218,7 @@ final class CatalogoGenerico
         $p = $d['prefijo'];
         // Los catálogos son globales: fusionar mueve registros de todas las sedes.
         if ($this->alcance->actual()?->restringido()) {
-            throw ErrorApi::prohibido('CATALOG_MERGE_REQUIRES_GLOBAL_SCOPE');
+            throw ErrorDominio::prohibido('CATALOG_MERGE_REQUIRES_GLOBAL_SCOPE');
         }
 
         return $this->conexion->transactional(function () use ($d, $p, $clave, $origenId, $destinoId, $auditar): array {
@@ -251,7 +251,7 @@ final class CatalogoGenerico
                     }
                 }
             } catch (ConstraintViolationException) {
-                throw new ErrorApi(409, 'CATALOG_MERGE_CONFLICT');
+                throw ErrorDominio::conflicto('CATALOG_MERGE_CONFLICT');
             }
             $this->actualizar($d, $origenId, ["{$p}_Activo" => false, "{$p}_Fusionado_En" => $destinoId, "{$p}_Fusionado_Fecha" => Reloj::aBd(Reloj::ahora())]);
             $auditar('CATALOG_MERGE', $d['tabla'], [
@@ -362,22 +362,22 @@ final class CatalogoGenerico
     {
         $p = $d['prefijo'];
         if ($origenId === $destinoId) {
-            throw new ErrorApi(422, 'CATALOG_MERGE_SAME_ITEM');
+            throw ErrorDominio::noProcesable('CATALOG_MERGE_SAME_ITEM');
         }
-        $origen = $this->fila($d, $origenId) ?? throw new ErrorApi(404, 'CATALOG_ITEM_NOT_FOUND');
-        $destino = $this->fila($d, $destinoId) ?? throw new ErrorApi(404, 'CATALOG_ITEM_NOT_FOUND');
+        $origen = $this->fila($d, $origenId) ?? throw ErrorDominio::noEncontrado('CATALOG_ITEM_NOT_FOUND');
+        $destino = $this->fila($d, $destinoId) ?? throw ErrorDominio::noEncontrado('CATALOG_ITEM_NOT_FOUND');
         if ($d['codigo'] && \in_array($origen["{$p}_Codigo"], $d['sistema'], true)) {
-            throw new ErrorApi(409, 'CATALOG_SYSTEM_ITEM');
+            throw ErrorDominio::conflicto('CATALOG_SYSTEM_ITEM');
         }
         if (null !== $origen["{$p}_Fusionado_En"]) {
-            throw new ErrorApi(409, 'CATALOG_ITEM_MERGED');
+            throw ErrorDominio::conflicto('CATALOG_ITEM_MERGED');
         }
         if (1 !== (int) $destino["{$p}_Activo"]) {
-            throw new ErrorApi(409, 'CATALOG_MERGE_TARGET_INACTIVE');
+            throw ErrorDominio::conflicto('CATALOG_MERGE_TARGET_INACTIVE');
         }
         // «RAM» (number, GB) and «Tipo de RAM» (text) are different data: merging them would corrupt what the assets recorded.
         if ('tipos-especificacion' === $d['clave'] && ([$origen['TES_Data_Type'], $origen['UME_Unidad']] != [$destino['TES_Data_Type'], $destino['UME_Unidad']])) {
-            throw new ErrorApi(422, 'CATALOG_MERGE_INCOMPATIBLE');
+            throw ErrorDominio::noProcesable('CATALOG_MERGE_INCOMPATIBLE');
         }
 
         return [$origen, $destino];
@@ -445,7 +445,7 @@ final class CatalogoGenerico
             $parametros['e'] = $excepto;
         }
         if (false !== $this->conexion->fetchOne($sql.' FETCH FIRST 1 ROWS ONLY', $parametros)) {
-            throw new ErrorApi(409, 'CATALOG_ITEM_ALREADY_EXISTS');
+            throw ErrorDominio::conflicto('CATALOG_ITEM_ALREADY_EXISTS');
         }
     }
 
@@ -485,9 +485,9 @@ final class CatalogoGenerico
     {
         $limpios = [];
         foreach ($extras as $columna => $valor) {
-            $e = $d['extras'][$columna] ?? throw new ErrorApi(422, "CATALOG_FIELD_NOT_ALLOWED:{$columna}");
+            $e = $d['extras'][$columna] ?? throw ErrorDominio::noProcesable("CATALOG_FIELD_NOT_ALLOWED:{$columna}");
             [$tipo, $largo, $catalogo, $texto] = $e;
-            $invalido = new ErrorApi(422, "CATALOG_FIELD_INVALID:{$columna}");
+            $invalido = ErrorDominio::noProcesable("CATALOG_FIELD_INVALID:{$columna}");
             switch ($tipo) {
                 case 'bool':
                     \is_bool($valor) || throw $invalido;

@@ -7,7 +7,7 @@ namespace App\Inventario;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\ArrayParameterType;
@@ -89,7 +89,7 @@ final readonly class Faltantes
         $this->conexion->fetchOne('SELECT 1 FROM "INV_FALTANTE" WHERE "FAL_Faltante" = :id FOR UPDATE', ['id' => $id]);
         $f = $this->conexion->fetchAssociative('SELECT f.* FROM "INV_FALTANTE" f WHERE f."FAL_Faltante" = :id AND '.$alcance, [...$p, 'id' => $id]);
 
-        return false === $f ? throw new ErrorApi(404, 'MISSING_ITEM_NOT_FOUND') : $f;
+        return false === $f ? throw ErrorDominio::noEncontrado('MISSING_ITEM_NOT_FOUND') : $f;
     }
 
     /** @return list<array<string, mixed>> */
@@ -123,14 +123,14 @@ final readonly class Faltantes
     /** @return array<string, mixed> */
     public function uno(int $id): array
     {
-        return $this->listar(id: $id)[0] ?? throw new ErrorApi(404, 'MISSING_ITEM_NOT_FOUND');
+        return $this->listar(id: $id)[0] ?? throw ErrorDominio::noEncontrado('MISSING_ITEM_NOT_FOUND');
     }
 
     /** @param array<string, mixed> $f */
     private static function exigirAbierto(array $f): void
     {
         if (!\in_array($f['FAL_Estado'], ['PENDIENTE', 'EN_INVESTIGACION'], true)) {
-            throw new ErrorApi(409, 'MISSING_ITEM_ALREADY_RESOLVED');
+            throw ErrorDominio::conflicto('MISSING_ITEM_ALREADY_RESOLVED');
         }
     }
 
@@ -157,7 +157,7 @@ final readonly class Faltantes
             self::exigirAbierto($f);
             $activo = $this->conexion->fetchAssociative('SELECT '.Activos::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :a', ['a' => $f['ACT_Activo']]);
             if (null !== $area && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_AREA" WHERE "ARE_Area" = :a', ['a' => $area])) {
-                throw new ErrorApi(404, 'AREA_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
             }
             $origen = null === $activo['ARE_Area_Ubicacion'] ? null : (int) $activo['ARE_Area_Ubicacion'];
             if (null !== $area && $area !== $origen) {
@@ -190,7 +190,7 @@ final readonly class Faltantes
             $f = $this->fila($id);
             self::exigirAbierto($f);
             if (!\in_array($baja['motivo'], ['PERDIDA', 'ROBO'], true)) {
-                throw new ErrorApi(422, 'MISSING_ITEM_DECOMMISSION_REASON');
+                throw ErrorDominio::noProcesable('MISSING_ITEM_DECOMMISSION_REASON');
             }
             $solicitud = $this->solicitudes->solicitarBaja((string) $f['ACT_Activo'], $baja, $usuario, $ip);
             $this->conexion->executeStatement("UPDATE \"INV_FALTANTE\" SET \"FAL_Estado\" = 'BAJA_SOLICITADA', \"APR_Aprobacion\" = :a WHERE \"FAL_Faltante\" = :id",

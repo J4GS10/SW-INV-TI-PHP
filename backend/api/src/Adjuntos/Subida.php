@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Adjuntos;
 
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Http\ErrorValidacion;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
@@ -30,8 +30,8 @@ final readonly class Subida
         if (!$archivo->isValid()) {
             // Excede upload_max_filesize de PHP o llegó incompleto.
             throw \in_array($archivo->getError(), [\UPLOAD_ERR_INI_SIZE, \UPLOAD_ERR_FORM_SIZE], true)
-                ? new ErrorApi(413, 'FILE_TOO_LARGE')
-                : new ErrorApi(400, 'UPLOAD_FAILED');
+                ? ErrorDominio::demasiadoGrande('FILE_TOO_LARGE')
+                : ErrorDominio::invalido('UPLOAD_FAILED');
         }
         $contenido = file_get_contents($archivo->getPathname(), length: null === $maximo ? null : $maximo + 1);
 

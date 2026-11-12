@@ -8,7 +8,7 @@ use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use Doctrine\DBAL\Connection;
 
@@ -49,22 +49,22 @@ final readonly class OperacionesLote
             $codigos[(string) $f['ACT_Activo']] = (string) $f['ACT_Codigo_Interno'];
         }
         if (\count($codigos) !== \count($ids)) {
-            throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
         }
 
         return $codigos;
     }
 
-    private static function fallo(ErrorApi $e, string $codigo): ErrorApi
+    private static function fallo(ErrorDominio $e, string $codigo): ErrorDominio
     {
-        return new ErrorApi($e->estado, "BATCH_ITEM_FAILED:{$codigo}:".($e->cuerpo['error'] ?? $e->detalle));
+        return new ErrorDominio($e->motivo, "BATCH_ITEM_FAILED:{$codigo}:".($e->cuerpo['error'] ?? $e->detalle));
     }
 
     private function tipoAsignacion(): int
     {
         $t = $this->conexion->fetchOne('SELECT "TMO_Tipo_Movimiento" FROM "INV_TIPO_MOVIMIENTO" WHERE "TMO_Nombre" = :n FETCH FIRST 1 ROWS ONLY', ['n' => Movimientos::ASIGNACION]);
 
-        return false === $t ? throw new ErrorApi(500, 'SYSTEM_CONFIG_ERROR_MISSING_MOVEMENT_TYPE') : (int) $t;
+        return false === $t ? throw ErrorDominio::interno('SYSTEM_CONFIG_ERROR_MISSING_MOVEMENT_TYPE') : (int) $t;
     }
 
     /**
@@ -95,7 +95,7 @@ final readonly class OperacionesLote
                 $custodio = $custodios[$a];
                 try {
                     if ($custodio === $d['PER_Persona']) {
-                        throw new ErrorApi(400, 'ASSET_ALREADY_WITH_PERSON');
+                        throw ErrorDominio::invalido('ASSET_ALREADY_WITH_PERSON');
                     }
                     $mov = null !== $custodio
                         ? $this->movimientos->transferir(['ACT_Activo' => $a, 'PER_Persona_Destino' => $d['PER_Persona'], 'ARE_Area_Destino' => $d['ARE_Area'],
@@ -104,7 +104,7 @@ final readonly class OperacionesLote
                         : $this->movimientos->asignar(['ACT_Activo' => $a, 'PER_Persona' => $d['PER_Persona'], 'ARE_Area' => $d['ARE_Area'],
                             'TMO_Tipo_Movimiento' => $tipo, 'MOV_Observacion' => $observacion, 'MOV_Motivo' => $d['MOV_Motivo'], 'MMO_Motivo' => $d['MMO_Motivo'],
                             'MOV_Motivo_Detalle' => $d['MOV_Motivo_Detalle']], $usuario, $ip);
-                } catch (ErrorApi $e) {
+                } catch (ErrorDominio $e) {
                     // Toda la entrega se revierte: se informa qué equipo la detuvo.
                     throw self::fallo($e, $codigos[$a]);
                 }
@@ -115,7 +115,7 @@ final readonly class OperacionesLote
             foreach ($d['licencias'] as $lic) {
                 try {
                     $ins = $this->software->instalar($lic, null, $d['PER_Persona'], null, Reloj::ahora()->format('Y-m-d'), $usuario, $ip);
-                } catch (ErrorApi $e) {
+                } catch (ErrorDominio $e) {
                     throw self::fallo($e, "LIC-{$lic}");
                 }
                 $licencias[] = ['LIC_Licencia' => $lic, 'INS_Instalacion' => $ins['INS_Instalacion'], 'LCL_Licencia_Clave' => $ins['LCL_Licencia_Clave']];
@@ -145,7 +145,7 @@ final readonly class OperacionesLote
                 try {
                     $r = $this->movimientos->devolver(['ACT_Activo' => $a, 'MOV_Motivo' => $d['MOV_Motivo'], 'MMO_Motivo' => $d['MMO_Motivo'],
                         'MOV_Motivo_Detalle' => $d['MOV_Motivo_Detalle'], 'ARE_Area_Destino' => $d['ARE_Area_Destino'], 'condicion' => $d['condicion']], $usuario, $ip);
-                } catch (ErrorApi $e) {
+                } catch (ErrorDominio $e) {
                     throw self::fallo($e, $codigos[$a]);
                 }
                 $items[] = ['ACT_Activo' => Ident::aTexto($a), 'codigo' => $codigos[$a], 'MOV_Movimiento' => $r['MOV_Movimiento'], 'estado' => $r['estado']];
@@ -177,18 +177,18 @@ final readonly class OperacionesLote
             $resultado = [];
             foreach ($movimientos as $id) {
                 $mov = $this->conexion->fetchAssociative('SELECT "MOV_Movimiento", "ACT_Activo", "MOV_Fecha_Asignacion", "MOV_Fecha_Devolucion", "MOV_Usuario_Registra" '
-                    .'FROM "INV_MOVIMIENTO" WHERE "MOV_Movimiento" = :m', ['m' => $id]) ?: throw new ErrorApi(404, 'MOVEMENT_NOT_FOUND');
+                    .'FROM "INV_MOVIMIENTO" WHERE "MOV_Movimiento" = :m', ['m' => $id]) ?: throw ErrorDominio::noEncontrado('MOVEMENT_NOT_FOUND');
                 $codigo = (string) $this->conexion->fetchOne('SELECT "ACT_Codigo_Interno" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => $mov['ACT_Activo']]);
                 $asignado = Reloj::desdeBd((string) $mov['MOV_Fecha_Asignacion']);
                 try {
                     if (null !== $mov['MOV_Fecha_Devolucion']) {
-                        throw new ErrorApi(409, 'MOVEMENT_UNDO_NOT_CURRENT');
+                        throw ErrorDominio::conflicto('MOVEMENT_UNDO_NOT_CURRENT');
                     }
                     if ($ahora->getTimestamp() - $asignado->getTimestamp() > self::VENTANA_DESHACER_MIN * 60) {
-                        throw new ErrorApi(409, 'MOVEMENT_UNDO_WINDOW_EXPIRED');
+                        throw ErrorDominio::conflicto('MOVEMENT_UNDO_WINDOW_EXPIRED');
                     }
                     if (!$admin && (string) $mov['MOV_Usuario_Registra'] !== $usuario) {
-                        throw new ErrorApi(403, 'MOVEMENT_UNDO_NOT_OWNER');
+                        throw ErrorDominio::prohibido('MOVEMENT_UNDO_NOT_OWNER');
                     }
                     // ¿Venía de otra persona? La custodia anterior se cerró al crear esta.
                     $anterior = $this->conexion->fetchAssociative('SELECT "PER_Persona", "ARE_Area" FROM "INV_MOVIMIENTO" WHERE "ACT_Activo" = :a AND "MOV_Movimiento" <> :m '
@@ -203,7 +203,7 @@ final readonly class OperacionesLote
                             'MOV_Motivo' => null === $revertido ? 'Revertido' : null], $usuario, $ip);
                         $operacion = 'ASIGNACION_REVERTIDA';
                     }
-                } catch (ErrorApi $e) {
+                } catch (ErrorDominio $e) {
                     throw self::fallo($e, $codigo);
                 }
                 $resultado[] = ['codigo' => $codigo, 'operacion' => $operacion];

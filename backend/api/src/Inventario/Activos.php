@@ -10,7 +10,7 @@ use App\Crud\Esquema;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
@@ -100,7 +100,7 @@ final readonly class Activos
     /** @return array<string, mixed> */
     public function filaO404(string $hex, string $codigo = 'ASSET_NOT_FOUND'): array
     {
-        return $this->fila($hex) ?? throw new ErrorApi(404, $codigo);
+        return $this->fila($hex) ?? throw ErrorDominio::noEncontrado($codigo);
     }
 
     /**
@@ -232,7 +232,7 @@ final readonly class Activos
         $f = $this->conexion->fetchAssociative('SELECT '.self::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Codigo_Interno" = :c AND '.$alcance,
             [...$p, 'c' => trim($codigo)]);
 
-        return false === $f ? throw new ErrorApi(404, 'ASSET_NOT_FOUND') : $this->conRelaciones($f);
+        return false === $f ? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND') : $this->conRelaciones($f);
     }
 
     /**
@@ -334,28 +334,28 @@ final readonly class Activos
     {
         return $this->transaccion->ejecutar(function () use ($d, $especificaciones, $usuario): array {
             $tipo = $this->conexion->fetchAssociative('SELECT "TAC_Prefijo" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $d['TAC_Tipo_Activo']])
-                ?: throw new ErrorApi(404, 'ASSET_TYPE_NOT_FOUND');
+                ?: throw ErrorDominio::noEncontrado('ASSET_TYPE_NOT_FOUND');
             // Los insumos se registran como consumibles (por cantidad), no como activos.
             $this->reglas->exigirNoInsumo((int) $d['TAC_Tipo_Activo']);
             if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_MODELO" WHERE "MOD_Modelo" = :m', ['m' => $d['MOD_Modelo']])) {
-                throw new ErrorApi(404, 'MODEL_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('MODEL_NOT_FOUND');
             }
-            $estado = $this->estados->nombre((int) $d['EOP_Estado_Operativo']) ?? throw new ErrorApi(404, 'OPERATIONAL_STATUS_NOT_FOUND');
+            $estado = $this->estados->nombre((int) $d['EOP_Estado_Operativo']) ?? throw ErrorDominio::noEncontrado('OPERATIONAL_STATUS_NOT_FOUND');
             // Un activo nuevo entra al almacén: "Asignado", "En Reparación" o "Baja" solo se alcanzan con su operación.
             if (!\in_array(EstadosActivo::canonico($estado), EstadosActivo::DE_ALMACEN, true)) {
-                throw new ErrorApi(400, 'INITIAL_STATE_MUST_BE_AVAILABLE_OR_STORAGE');
+                throw ErrorDominio::invalido('INITIAL_STATE_MUST_BE_AVAILABLE_OR_STORAGE');
             }
             $d['SED_Sede'] = $this->alcance->exigirSede($d['SED_Sede'], requerida: false);
             if (null !== ($d['ACT_Hostname'] ?? null) && '' !== $d['ACT_Hostname']) {
                 $this->exigirHostnameLibre((string) $d['ACT_Hostname'], null);
             }
             if (null !== $d['ACT_Activo_Padre'] && null === $this->fila($d['ACT_Activo_Padre'])) {
-                throw new ErrorApi(404, 'PARENT_ASSET_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('PARENT_ASSET_NOT_FOUND');
             }
             if (null === $d['ACT_Codigo_Interno']) {
                 $prefijo = $tipo['TAC_Prefijo'];
                 if (null === $prefijo || '' === $prefijo) {
-                    throw new ErrorApi(400, 'ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION');
+                    throw ErrorDominio::invalido('ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION');
                 }
                 $d['ACT_Codigo_Interno'] = $this->secuencias->siguiente("ASSET_{$prefijo}", (string) $prefijo);
             }
@@ -365,13 +365,13 @@ final readonly class Activos
                 $this->existe('ACT_Serie_Fabricante', (string) $d['ACT_Serie_Fabricante']),
             ]);
             if ($codigo) {
-                throw new ErrorApi(400, 'ASSET_CODE_ALREADY_EXISTS');
+                throw ErrorDominio::invalido('ASSET_CODE_ALREADY_EXISTS');
             }
             if ($serie) {
-                throw new ErrorApi(400, 'SERIAL_NUMBER_ALREADY_EXISTS');
+                throw ErrorDominio::invalido('SERIAL_NUMBER_ALREADY_EXISTS');
             }
             if (null !== $d['ACT_Fin_Garantia'] && $d['ACT_Fin_Garantia'] < $d['ACT_Fecha_Compra']) {
-                throw new ErrorApi(400, 'WARRANTY_DATE_CANNOT_BE_BEFORE_PURCHASE_DATE');
+                throw ErrorDominio::invalido('WARRANTY_DATE_CANNOT_BE_BEFORE_PURCHASE_DATE');
             }
 
             $id = Ident::nuevo();
@@ -431,47 +431,47 @@ final readonly class Activos
             $hay = static fn (string $c): bool => \array_key_exists($c, $cambios);
             if (null !== ($cambios['MOD_Modelo'] ?? null)
                 && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_MODELO" WHERE "MOD_Modelo" = :m', ['m' => $cambios['MOD_Modelo']])) {
-                throw new ErrorApi(404, 'MODEL_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('MODEL_NOT_FOUND');
             }
             if (null !== ($cambios['TAC_Tipo_Activo'] ?? null)
                 && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $cambios['TAC_Tipo_Activo']])) {
-                throw new ErrorApi(404, 'ASSET_TYPE_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('ASSET_TYPE_NOT_FOUND');
             }
             // Un activo con otro estado solo cambia con su operación (asignar, reparar, dar de baja…).
             $estadoNuevo = $cambios['EOP_Estado_Operativo'] ?? null;
             if (null !== $estadoNuevo && (int) $estadoNuevo !== (int) $actual['EOP_Estado_Operativo']) {
-                $nombre = $this->estados->nombre((int) $estadoNuevo) ?? throw new ErrorApi(404, 'OPERATIONAL_STATUS_NOT_FOUND');
+                $nombre = $this->estados->nombre((int) $estadoNuevo) ?? throw ErrorDominio::noEncontrado('OPERATIONAL_STATUS_NOT_FOUND');
                 if (!\in_array(EstadosActivo::canonico($nombre), EstadosActivo::DE_ALMACEN, true)
                     || !\in_array($this->estados->canonicoDeId((int) $actual['EOP_Estado_Operativo']), EstadosActivo::DE_ALMACEN, true)
                     || null !== $this->movimientoVigente($id)) {
-                    throw new ErrorApi(400, 'STATE_CHANGE_REQUIRES_OPERATION');
+                    throw ErrorDominio::invalido('STATE_CHANGE_REQUIRES_OPERATION');
                 }
             }
             $compra = $cambios['ACT_Fecha_Compra'] ?? null ?: substr((string) $actual['ACT_Fecha_Compra'], 0, 10);
             $garantia = $hay('ACT_Fin_Garantia') ? $cambios['ACT_Fin_Garantia'] : (null === $actual['ACT_Fin_Garantia'] ? null : substr((string) $actual['ACT_Fin_Garantia'], 0, 10));
             if ($hay('ACT_Fecha_Compra') && null === $cambios['ACT_Fecha_Compra']) {
-                throw new ErrorApi(400, 'PURCHASE_DATE_REQUIRED');
+                throw ErrorDominio::invalido('PURCHASE_DATE_REQUIRED');
             }
             if (null !== $garantia && '' !== $compra && $garantia < $compra) {
-                throw new ErrorApi(400, 'WARRANTY_DATE_CANNOT_BE_BEFORE_PURCHASE_DATE');
+                throw ErrorDominio::invalido('WARRANTY_DATE_CANNOT_BE_BEFORE_PURCHASE_DATE');
             }
             // Cambio de sede: dentro del alcance y sin custodia vigente.
             $sedeAntes = null === $actual['SED_Sede'] ? null : (int) $actual['SED_Sede'];
             $sedeFinal = $sedeAntes;
             if ($hay('SED_Sede') && null === $cambios['SED_Sede'] && null !== $sedeAntes) {
-                throw new ErrorApi(400, 'SEDE_REQUIRED');
+                throw ErrorDominio::invalido('SEDE_REQUIRED');
             }
             if ($hay('SED_Sede') && $cambios['SED_Sede'] !== $sedeAntes) {
                 $cambios['SED_Sede'] = $this->alcance->exigirSede($cambios['SED_Sede'], requerida: false);
                 if (null !== $this->movimientoVigente($id)) {
-                    throw new ErrorApi(400, 'CANNOT_CHANGE_SEDE_OF_ASSIGNED_ASSET');
+                    throw ErrorDominio::invalido('CANNOT_CHANGE_SEDE_OF_ASSIGNED_ASSET');
                 }
                 $sedeFinal = $cambios['SED_Sede'];
             }
             foreach (['ACT_Codigo_Interno' => 'NEW_ASSET_CODE_ALREADY_EXISTS', 'ACT_Serie_Fabricante' => 'NEW_SERIAL_NUMBER_ALREADY_EXISTS'] as $c => $error) {
                 if (null !== ($cambios[$c] ?? null) && '' !== $cambios[$c] && $cambios[$c] !== $actual[$c]
                     && $this->alcance->elevado(fn (): bool => $this->existe($c, (string) $cambios[$c]))) {
-                    throw new ErrorApi(400, $error);
+                    throw ErrorDominio::invalido($error);
                 }
             }
 
@@ -527,7 +527,7 @@ final readonly class Activos
             'SELECT 1 FROM "INV_ACTIVO" WHERE LOWER(TRIM("ACT_Hostname")) = LOWER(TRIM(:h)) AND "ACT_Baja_Fecha" IS NULL'.(null === $excepto ? '' : ' AND "ACT_Activo" <> :a').' FETCH FIRST 1 ROWS ONLY',
             ['h' => $hostname, ...(null === $excepto ? [] : ['a' => $excepto])]));
         if ($existe) {
-            throw new ErrorApi(409, 'HOSTNAME_ALREADY_EXISTS');
+            throw ErrorDominio::conflicto('HOSTNAME_ALREADY_EXISTS');
         }
     }
 
@@ -565,35 +565,35 @@ final readonly class Activos
     public function validarBaja(string $id, array $baja, bool $alAprobar = false): array
     {
         // Al aprobar se acepta un motivo o destino desactivado después de la solicitud.
-        $motivo = $this->catalogos->porCodigo('motivos-baja', $baja['motivo'], !$alAprobar) ?? throw new ErrorApi(422, 'DECOMMISSION_REASON_NOT_FOUND');
-        $destino = $this->catalogos->porCodigo('destinos-baja', $baja['destino'], !$alAprobar) ?? throw new ErrorApi(422, 'DECOMMISSION_DESTINATION_NOT_FOUND');
+        $motivo = $this->catalogos->porCodigo('motivos-baja', $baja['motivo'], !$alAprobar) ?? throw ErrorDominio::noProcesable('DECOMMISSION_REASON_NOT_FOUND');
+        $destino = $this->catalogos->porCodigo('destinos-baja', $baja['destino'], !$alAprobar) ?? throw ErrorDominio::noProcesable('DECOMMISSION_DESTINATION_NOT_FOUND');
         if ((1 === (int) ($motivo['MBA_Pide_Detalle'] ?? 0) || 1 === (int) ($destino['DBA_Pide_Detalle'] ?? 0))
             && '' === trim((string) ($baja['observacion'] ?? ''))) {
-            throw new ErrorApi(422, 'OBSERVATION_REQUIRED_FOR_OTHER');
+            throw ErrorDominio::noProcesable('OBSERVATION_REQUIRED_FOR_OTHER');
         }
         $activo = $this->filaO404($id);
         // Lo perdido o robado no puede devolverse: su custodia se cierra al aprobar, sin una devolución falsa.
         $sinDevolucion = \in_array($baja['motivo'], self::MOTIVOS_SIN_DEVOLUCION, true);
         if (null !== $this->movimientoVigente($id) && !$sinDevolucion) {
-            throw new ErrorApi(400, 'CANNOT_DELETE_ASSIGNED_ASSET_RETURN_IT_FIRST');
+            throw ErrorDominio::invalido('CANNOT_DELETE_ASSIGNED_ASSET_RETURN_IT_FIRST');
         }
         if ($this->mantenimientoAbierto($id)) {
-            throw new ErrorApi(409, 'ASSET_HAS_OPEN_MAINTENANCE');
+            throw ErrorDominio::conflicto('ASSET_HAS_OPEN_MAINTENANCE');
         }
         if (null !== $activo['ACT_Activo_Padre']) {
-            throw new ErrorApi(409, 'ASSET_INSTALLED_AS_COMPONENT');
+            throw ErrorDominio::conflicto('ASSET_INSTALLED_AS_COMPONENT');
         }
         $estadoBaja = $this->estados->idObligatorio(EstadosActivo::BAJA);
         $actual = $this->estados->canonicoDeId((int) $activo['EOP_Estado_Operativo']);
         if (EstadosActivo::BAJA === $actual) {
-            throw new ErrorApi(409, 'ASSET_ALREADY_DECOMMISSIONED');
+            throw ErrorDominio::conflicto('ASSET_ALREADY_DECOMMISSIONED');
         }
         if (!$sinDevolucion || EstadosActivo::ASIGNADO !== $actual) {
             EstadosActivo::exigirTransicion($actual, EstadosActivo::BAJA);
         }
         $componentes = $this->componentesDe($id);
         if ([] !== $componentes && !($baja['retirar_componentes'] ?? false)) {
-            throw new ErrorApi(409, 'ASSET_HAS_COMPONENTS:'.\count($componentes));
+            throw ErrorDominio::conflicto('ASSET_HAS_COMPONENTS:'.\count($componentes));
         }
 
         return [$activo, $estadoBaja, $componentes];
@@ -681,37 +681,37 @@ final readonly class Activos
             $equipo = $this->fila($equipoId);
             $comp = $this->fila($componenteId);
             if (null === $equipo || null === $comp) {
-                throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
             }
             if ($componenteId === $equipoId) {
-                throw new ErrorApi(400, 'COMPONENT_CANNOT_BE_ITSELF');
+                throw ErrorDominio::invalido('COMPONENT_CANNOT_BE_ITSELF');
             }
             // Una impresora no lleva RAM: solo los componentes que admite el tipo de equipo.
             $this->reglas->exigirComponenteValido($equipo, $comp);
             if (null !== $comp['ACT_Activo_Padre']) {
-                throw new ErrorApi(409, 'COMPONENT_ALREADY_INSTALLED');
+                throw ErrorDominio::conflicto('COMPONENT_ALREADY_INSTALLED');
             }
             // Sin ciclos: el equipo no puede estar instalado (directa o indirectamente) en el componente.
             $padre = $equipo['ACT_Activo_Padre'];
             while (null !== $padre && false !== $padre) {
                 if ((string) $padre === $componenteId) {
-                    throw new ErrorApi(400, 'COMPONENT_CYCLE');
+                    throw ErrorDominio::invalido('COMPONENT_CYCLE');
                 }
                 $padre = $this->conexion->fetchOne('SELECT "ACT_Activo_Padre" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => $padre]);
             }
             foreach ([$comp, $equipo] as $a) {
                 if (EstadosActivo::BAJA === $this->estados->canonicoDeId((int) $a['EOP_Estado_Operativo'])) {
-                    throw new ErrorApi(400, 'ASSET_DECOMMISSIONED');
+                    throw ErrorDominio::invalido('ASSET_DECOMMISSIONED');
                 }
             }
             if (null !== $this->movimientoVigente($componenteId)) {
-                throw new ErrorApi(400, 'COMPONENT_IS_ASSIGNED_RETURN_IT_FIRST');
+                throw ErrorDominio::invalido('COMPONENT_IS_ASSIGNED_RETURN_IT_FIRST');
             }
             if ($this->mantenimientoAbierto($componenteId)) {
-                throw new ErrorApi(409, 'ASSET_IN_MAINTENANCE');
+                throw ErrorDominio::conflicto('ASSET_IN_MAINTENANCE');
             }
             if (null !== $comp['SED_Sede'] && null !== $equipo['SED_Sede'] && (int) $comp['SED_Sede'] !== (int) $equipo['SED_Sede']) {
-                throw new ErrorApi(400, 'COMPONENT_IN_OTHER_SEDE');
+                throw ErrorDominio::invalido('COMPONENT_IN_OTHER_SEDE');
             }
             $this->escribirCambios($componenteId, ['ACT_Activo_Padre' => $equipoId, 'SED_Sede' => $equipo['SED_Sede'],
                 'ARE_Area_Ubicacion' => $equipo['ARE_Area_Ubicacion']]);
@@ -734,10 +734,10 @@ final readonly class Activos
             $equipo = $this->fila($equipoId);
             $comp = $this->fila($componenteId);
             if (null === $equipo || null === $comp) {
-                throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
             }
             if ((string) $comp['ACT_Activo_Padre'] !== $equipoId) {
-                throw new ErrorApi(400, 'COMPONENT_NOT_INSTALLED_IN_ASSET');
+                throw ErrorDominio::invalido('COMPONENT_NOT_INSTALLED_IN_ASSET');
             }
             $this->retirar($equipo, $comp, $motivo, $estadoDestino, $usuario);
             $this->gobierno->registrarAuditoria('COMPONENT_REMOVE', 'INV_ACTIVO',
@@ -790,7 +790,7 @@ final readonly class Activos
             $this->bloquearEnOrden([$activoId]);
             $activo = $this->filaO404($activoId);
             if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ESPECIFICACION" WHERE "TES_Tipo_Especificacion" = :t', ['t' => $tipo])) {
-                throw new ErrorApi(404, 'SPECIFICATION_TYPE_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('SPECIFICATION_TYPE_NOT_FOUND');
             }
             $valor = $this->specificationRules->normalize((int) $activo['TAC_Tipo_Activo'], $tipo, $valor);
             $this->conexion->executeStatement('INSERT INTO "INV_ESPECIFICACION" ("ESP_Valor", "ACT_Activo", "TES_Tipo_Especificacion") VALUES (:v, :a, :t)',
@@ -856,9 +856,9 @@ final readonly class Activos
      */
     private function especificacionBloqueada(int $id): array
     {
-        $e = $this->especificacion($id) ?? throw new ErrorApi(404, 'SPECIFICATION_NOT_FOUND');
+        $e = $this->especificacion($id) ?? throw ErrorDominio::noEncontrado('SPECIFICATION_NOT_FOUND');
         $this->bloquearEnOrden([(string) $e['ACT_Activo']]);
 
-        return $this->especificacion($id) ?? throw new ErrorApi(404, 'SPECIFICATION_NOT_FOUND');
+        return $this->especificacion($id) ?? throw ErrorDominio::noEncontrado('SPECIFICATION_NOT_FOUND');
     }
 }

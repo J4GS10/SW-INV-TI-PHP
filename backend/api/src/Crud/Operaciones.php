@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Crud;
 
 use App\Http\ClienteHttp;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\UsuarioActual;
 use Doctrine\DBAL\Connection;
@@ -28,7 +28,7 @@ final readonly class Operaciones
     /** @return array<string, mixed> */
     public function obtenerO404(Entidad $e, int|string $id, string $codigo): array
     {
-        return $this->repositorio->obtener($e, $id) ?? throw new ErrorApi(404, $codigo);
+        return $this->repositorio->obtener($e, $id) ?? throw ErrorDominio::noEncontrado($codigo);
     }
 
     /** 409 si la tabla hija tiene filas que apuntan al registro. */
@@ -39,7 +39,7 @@ final readonly class Operaciones
             ['id' => $id],
         );
         if (false !== $hay) {
-            throw new ErrorApi(409, $codigo);
+            throw ErrorDominio::conflicto($codigo);
         }
     }
 

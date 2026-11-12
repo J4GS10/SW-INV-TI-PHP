@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Db;
 
 use App\Config\Ajustes;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use Doctrine\DBAL\Connection;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Service\ResetInterface;
@@ -45,7 +45,7 @@ final class ContextoRls implements ResetInterface
             return;
         }
         if (!$this->disponible()) {
-            throw new ErrorApi(503, 'DATABASE_ERROR');
+            throw ErrorDominio::noDisponible('DATABASE_ERROR');
         }
         $this->conexion->executeStatement('BEGIN INV_CTX.fijar_usuario(:usuario); END;', ['usuario' => $usuarioHex]);
         $this->fijado = true;

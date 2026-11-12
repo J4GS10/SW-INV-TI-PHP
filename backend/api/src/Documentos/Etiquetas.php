@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Documentos;
 
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Seguridad\Alcance;
 use chillerlan\QRCode\Common\EccLevel;
 use chillerlan\QRCode\Output\QRMarkupSVG;
@@ -122,16 +122,16 @@ final readonly class Etiquetas
             $condiciones[] = "a.\"{$columna}\" IN (".implode(', ', $nombres).')';
         }
         if ([] === $condiciones) {
-            throw new ErrorApi(400, 'LABEL_ASSETS_REQUIRED');
+            throw ErrorDominio::invalido('LABEL_ASSETS_REQUIRED');
         }
         [$alcance, $pa] = $this->alcance->lectura('INV_ACTIVO', 'a');
         $filas = $this->conexion->fetchAllAssociative('SELECT a."ACT_Codigo_Interno", a."ACT_Serie_Fabricante", a."ACT_Hostname" FROM "INV_ACTIVO" a '
             .'WHERE ('.implode(' OR ', $condiciones).') AND '.$alcance.' ORDER BY a."ACT_Codigo_Interno"', [...$p, ...$pa]);
         if ([] === $filas) {
-            throw new ErrorApi(404, 'ASSETS_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('ASSETS_NOT_FOUND');
         }
         if (\count($filas) > self::MAXIMO) {
-            throw new ErrorApi(400, 'TOO_MANY_LABELS_REQUESTED');
+            throw ErrorDominio::invalido('TOO_MANY_LABELS_REQUESTED');
         }
 
         return $filas;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
+use App\Dominio\ErrorDominio;
 use App\Adjuntos\TiposArchivo;
 use App\Config\Ajustes;
 use App\Documentos\Actas\TextosComunes;
@@ -193,8 +194,8 @@ final class DocumentosTest extends TestCase
         try {
             \App\Documentos\Exportaciones::exigirTamano(\App\Documentos\Exportaciones::MAX_ACTIVOS + 1);
             self::fail("Debía rechazarse.");
-        } catch (\App\Http\ErrorApi $e) {
-            self::assertSame(422, $e->estado);
+        } catch (ErrorDominio $e) {
+            self::assertSame(422, \App\EventListener\ErroresListener::estadoHttp($e->motivo));
             self::assertSame("EXPORT_TOO_LARGE_USE_FILTERS:10001", $e->detalle);
         }
     }

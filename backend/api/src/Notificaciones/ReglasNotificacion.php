@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Notificaciones;
 
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use Doctrine\DBAL\Connection;
 
@@ -22,7 +22,7 @@ final readonly class ReglasNotificacion
     /** Evento configurable o 404 NOTIFICATION_EVENT_NOT_FOUND. */
     public static function evento(string $nombre): EventoNotificacion
     {
-        return EventoNotificacion::tryFrom($nombre) ?? throw new ErrorApi(404, 'NOTIFICATION_EVENT_NOT_FOUND');
+        return EventoNotificacion::tryFrom($nombre) ?? throw ErrorDominio::noEncontrado('NOTIFICATION_EVENT_NOT_FOUND');
     }
 
     public function cargar(EventoNotificacion $evento): ReglaNotificacion

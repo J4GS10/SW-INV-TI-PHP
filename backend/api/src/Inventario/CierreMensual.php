@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
+use App\Dominio\ErrorDominio;
 use App\Crud\Esquema;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
@@ -64,7 +65,7 @@ final readonly class CierreMensual
         $sede = $this->alcance->exigirSede($sede, requerida: false);
         $fin = (new \DateTimeImmutable(\sprintf('%04d-%02d-01', $anio, $mes)))->modify('last day of this month')->format('Y-m-d');
         if ($fin >= \App\Dominio\Reloj::ahora()->format('Y-m-d')) {
-            throw new \App\Http\ErrorApi(409, 'MONTH_NOT_FINISHED');
+            throw ErrorDominio::conflicto('MONTH_NOT_FINISHED');
         }
         $foto = $this->fotoConsistente($anio, $mes, $sede);
 
@@ -75,7 +76,7 @@ final readonly class CierreMensual
                 $this->conexion->executeStatement('INSERT INTO TRC_MONTH_END_CLOSE (MEC_YEAR, MEC_MONTH, MEC_SED_SITE, MEC_SNAPSHOT, MEC_USU_CLOSED_BY) VALUES (:a, :m, :s, :f, :u)',
                     ['a' => $anio, 'm' => $mes, 's' => $sede, 'f' => json_encode($foto, \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR), 'u' => $usuario], ['f' => \Doctrine\DBAL\ParameterType::LARGE_OBJECT]);
             } catch (\Doctrine\DBAL\Exception\UniqueConstraintViolationException) {
-                throw new \App\Http\ErrorApi(409, 'MONTH_ALREADY_CLOSED');
+                throw ErrorDominio::conflicto('MONTH_ALREADY_CLOSED');
             }
             $this->gobierno->registrarAuditoria('MONTH_END_CLOSE', 'TRC_MONTH_END_CLOSE', ['anio' => $anio, 'mes' => $mes, 'sede' => $sede], $usuario, $ip, sedeId: $sede);
 
@@ -114,7 +115,7 @@ final readonly class CierreMensual
     private function exigirAbierto(int $anio, int $mes, ?int $sede): void
     {
         if (null !== $this->congelado($anio, $mes, $sede)) {
-            throw new \App\Http\ErrorApi(409, 'MONTH_ALREADY_CLOSED');
+            throw ErrorDominio::conflicto('MONTH_ALREADY_CLOSED');
         }
     }
 

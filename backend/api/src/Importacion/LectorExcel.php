@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Importacion;
 
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
@@ -57,7 +57,7 @@ final class LectorExcel
     public function leer(string $contenido): array
     {
         if (\strlen($contenido) > self::MAX_BYTES) {
-            throw new ErrorApi(413, 'FILE_TOO_LARGE');
+            throw ErrorDominio::demasiadoGrande('FILE_TOO_LARGE');
         }
         $hojas = $this->hojas($contenido);
         // La hoja «INVENTARIO» primero; las demás, en su orden.
@@ -84,16 +84,16 @@ final class LectorExcel
                     }
                 }
                 if (\count($resultado) > self::MAX_FILAS) {
-                    throw new ErrorApi(400, 'IMPORT_TOO_MANY_ROWS:'.self::MAX_FILAS);
+                    throw ErrorDominio::invalido('IMPORT_TOO_MANY_ROWS:'.self::MAX_FILAS);
                 }
                 if ([] === $resultado) {
-                    throw new ErrorApi(400, 'IMPORT_EMPTY');
+                    throw ErrorDominio::invalido('IMPORT_EMPTY');
                 }
 
                 return $resultado;
             }
         }
-        throw new ErrorApi(400, 'IMPORT_HEADERS_NOT_FOUND');
+        throw ErrorDominio::invalido('IMPORT_HEADERS_NOT_FOUND');
     }
 
     /** @return list<Worksheet> */
@@ -108,7 +108,7 @@ final class LectorExcel
             self::verificarZip($temporal);
             $lector = new Xlsx();
             if (!$lector->canRead($temporal)) {
-                throw new ErrorApi(400, 'IMPORT_INVALID_FILE');
+                throw ErrorDominio::invalido('IMPORT_INVALID_FILE');
             }
             // Sin celdas vacías; con formatos (para reconocer las fechas). Solo las filas y columnas
             // que se usan: lo demás no se guarda en memoria aunque venga en el archivo.
@@ -126,11 +126,11 @@ final class LectorExcel
             });
 
             return $lector->load($temporal)->getAllSheets();
-        } catch (ErrorApi $e) {
+        } catch (ErrorDominio $e) {
             throw $e;
         } catch (\Throwable) {
             // Archivo dañado o que no es un .xlsx.
-            throw new ErrorApi(400, 'IMPORT_INVALID_FILE');
+            throw ErrorDominio::invalido('IMPORT_INVALID_FILE');
         } finally {
             @unlink($temporal);
         }
@@ -145,22 +145,22 @@ final class LectorExcel
     {
         $zip = new \ZipArchive();
         if (true !== $zip->open($ruta, \ZipArchive::RDONLY)) {
-            throw new ErrorApi(400, 'IMPORT_INVALID_FILE');
+            throw ErrorDominio::invalido('IMPORT_INVALID_FILE');
         }
         try {
             if ($zip->numFiles > self::MAX_ENTRADAS) {
-                throw new ErrorApi(400, 'IMPORT_INVALID_FILE');
+                throw ErrorDominio::invalido('IMPORT_INVALID_FILE');
             }
             $total = 0;
             for ($i = 0; $i < $zip->numFiles; ++$i) {
                 $entrada = $zip->statIndex($i);
                 if (false === $entrada) {
-                    throw new ErrorApi(400, 'IMPORT_INVALID_FILE');
+                    throw ErrorDominio::invalido('IMPORT_INVALID_FILE');
                 }
                 $total += $entrada['size'];
                 if ($total > self::MAX_BYTES_DESCOMPRIMIDOS
                     || ($entrada['size'] > 1024 * 1024 && $entrada['size'] > self::MAX_PROPORCION * max(1, $entrada['comp_size']))) {
-                    throw new ErrorApi(400, 'IMPORT_INVALID_FILE');
+                    throw ErrorDominio::invalido('IMPORT_INVALID_FILE');
                 }
             }
         } finally {

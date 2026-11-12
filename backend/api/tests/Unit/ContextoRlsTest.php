@@ -6,7 +6,7 @@ namespace App\Tests\Unit;
 
 use App\Config\Ajustes;
 use App\Db\ContextoRls;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use Doctrine\DBAL\Connection;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -57,8 +57,8 @@ final class ContextoRlsTest extends TestCase
         try {
             $rls->fijarUsuario(str_repeat('a', 32));
             self::fail('Con la capa no verificable, fijar el usuario debe fallar cerrado.');
-        } catch (ErrorApi $e) {
-            self::assertSame(503, $e->estado);
+        } catch (ErrorDominio $e) {
+            self::assertSame(503, \App\EventListener\ErroresListener::estadoHttp($e->motivo));
         }
         // La base ya responde: la siguiente petición verifica de nuevo y fija el contexto.
         $rls->fijarUsuario(str_repeat('a', 32));
@@ -69,7 +69,7 @@ final class ContextoRlsTest extends TestCase
     public function testSinCapaVpdUnaPeticionAutenticadaNoSigueEnModoSistema(): void
     {
         $rls = new ContextoRls($this->conexion(PHP_INT_MAX, $fijados), $this->ajustes(), new NullLogger());
-        $this->expectException(ErrorApi::class);
+        $this->expectException(ErrorDominio::class);
         $rls->fijarUsuario(str_repeat('b', 32));
     }
 

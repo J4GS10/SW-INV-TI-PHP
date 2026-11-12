@@ -8,7 +8,7 @@ use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Http\Entrada;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
@@ -52,10 +52,10 @@ final readonly class Aprobaciones
     {
         $a = $this->solicitudes->fila($id, true);
         if (null === $a || !$this->visible($a)) {
-            throw new ErrorApi(404, 'APPROVAL_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('APPROVAL_NOT_FOUND');
         }
         if ('PENDIENTE' !== $a['APR_Estado']) {
-            throw new ErrorApi(409, "APPROVAL_ALREADY_RESOLVED:{$a['APR_Estado']}");
+            throw ErrorDominio::conflicto("APPROVAL_ALREADY_RESOLVED:{$a['APR_Estado']}");
         }
 
         return $a;
@@ -79,7 +79,7 @@ final readonly class Aprobaciones
     {
         $a = $this->pendiente($id);
         if ((string) $a['APR_Solicitante'] === $aprobador) {
-            throw new ErrorApi(403, 'CANNOT_APPROVE_OWN_REQUEST');
+            throw ErrorDominio::prohibido('CANNOT_APPROVE_OWN_REQUEST');
         }
         $this->alcance->exigirPropio(null === $a['SED_Sede'] ? null : (int) $a['SED_Sede']);
 
@@ -147,7 +147,7 @@ final readonly class Aprobaciones
         return $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): array {
             $a = $this->pendiente($id);
             if ((string) $a['APR_Solicitante'] !== $usuario) {
-                throw new ErrorApi(403, 'ONLY_REQUESTER_CAN_CANCEL');
+                throw ErrorDominio::prohibido('ONLY_REQUESTER_CAN_CANCEL');
             }
             $this->conexion->executeStatement("UPDATE \"INV_APROBACION\" SET \"APR_Estado\" = 'ANULADA', \"APR_Fecha_Resolucion\" = :f WHERE \"APR_Aprobacion\" = :id",
                 ['f' => Reloj::aBd(Reloj::ahora()), 'id' => $id]);

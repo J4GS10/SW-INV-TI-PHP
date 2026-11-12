@@ -5,27 +5,30 @@ declare(strict_types=1);
 namespace App\Inventario;
 
 use App\Correo\Notificador;
-use App\Db\InsercionOracle;
+use App\Db\RecordInUse;
 use App\Db\Transaccion;
+use App\Dominio\ErrorDominio;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Inventario\Puertos\GarantiasActivos;
+use App\Inventario\Puertos\Proveedores;
 use App\Repositorio\GobiernoRepositorio;
-use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
 
-/** Compras: proveedores y vista de garantías. Lo recibido entra por el ingreso a bodega (App\GoodsReceipt). */
+/**
+ * Compras: proveedores y vista de garantías. Lo recibido entra por el ingreso a bodega (App\GoodsReceipt).
+ * Solo reglas: los datos llegan por los puertos Proveedores y GarantiasActivos, que implementa la capa
+ * de datos (App\Repositorio\ProveedoresOracle).
+ */
 final readonly class Compras
 {
-    private const string PROVEEDOR = '"PRV_Proveedor", "PRV_Nombre", "PRV_Identificacion_Fiscal", "PRV_Contacto", "PRV_Email", "PRV_Telefono", "PRV_Direccion", "PRV_Activo"';
+    private const array PRIORIDAD_GARANTIA = ['vencida' => 0, 'por_vencer' => 1, 'vigente' => 2, 'sin_garantia' => 3];
 
     public function __construct(
-        private Connection $conexion,
-        private Alcance $alcance,
+        private Proveedores $proveedores,
+        private GarantiasActivos $activos,
         private GobiernoRepositorio $gobierno,
         private Transaccion $transaccion,
         private Notificador $notificador,
-        private \App\Db\LogicalDelete $borrado,
     ) {
     }
 
@@ -48,16 +51,15 @@ final readonly class Compras
     /** @return list<array<string, mixed>> */
     public function proveedores(bool $soloActivos): array
     {
-        return array_map(self::proveedorAApi(...), $this->conexion->fetchAllAssociative('SELECT '.self::PROVEEDOR.' FROM "INV_PROVEEDOR"'
-            .($soloActivos ? ' WHERE "PRV_Activo" = 1' : '').' ORDER BY "PRV_Nombre", "PRV_Proveedor"'));
+        return array_map(self::proveedorAApi(...), $this->proveedores->todos($soloActivos));
     }
 
     /** @return array<string, mixed> */
     public function proveedor(int $id): array
     {
-        $f = $this->conexion->fetchAssociative('SELECT '.self::PROVEEDOR.' FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :id', ['id' => $id]);
+        $f = $this->proveedores->porId($id);
 
-        return false === $f ? throw new ErrorApi(404, 'SUPPLIER_NOT_FOUND') : self::proveedorAApi($f);
+        return null === $f ? throw ErrorDominio::noEncontrado('SUPPLIER_NOT_FOUND') : self::proveedorAApi($f);
     }
 
     /**
@@ -68,10 +70,10 @@ final readonly class Compras
     public function crearProveedor(array $d, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
-            if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_PROVEEDOR" WHERE "PRV_Nombre" = :n FETCH FIRST 1 ROWS ONLY', ['n' => $d['PRV_Nombre']])) {
-                throw new ErrorApi(409, 'SUPPLIER_ALREADY_EXISTS');
+            if ($this->proveedores->existeNombre((string) $d['PRV_Nombre'])) {
+                throw ErrorDominio::conflicto('SUPPLIER_ALREADY_EXISTS');
             }
-            $id = (int) InsercionOracle::insertar($this->conexion, 'INV_PROVEEDOR', [...$d, 'PRV_Activo' => 1], 'PRV_Proveedor');
+            $id = $this->proveedores->crear($d);
             $this->gobierno->registrarAuditoria('CREATE', 'INV_PROVEEDOR', ['nombre' => $d['PRV_Nombre']], $usuario, $ip);
 
             return $this->proveedor($id);
@@ -87,14 +89,7 @@ final readonly class Compras
     {
         return $this->transaccion->ejecutar(function () use ($id, $cambios, $usuario, $ip): array {
             $this->proveedor($id);
-            if ([] !== $cambios) {
-                $sets = [];
-                foreach (array_keys($cambios) as $c) {
-                    $sets[] = "\"{$c}\" = :{$c}";
-                }
-                $this->conexion->executeStatement('UPDATE "INV_PROVEEDOR" SET '.implode(', ', $sets).', "UPDATED_AT" = :upd WHERE "PRV_Proveedor" = :id',
-                    [...array_map(static fn (mixed $v): mixed => \is_bool($v) ? (int) $v : $v, $cambios), 'upd' => Reloj::aBd(Reloj::ahora()), 'id' => $id]);
-            }
+            $this->proveedores->actualizar($id, $cambios);
             $this->gobierno->registrarAuditoria('UPDATE', 'INV_PROVEEDOR', ['id' => $id, 'cambios' => (object) $cambios], $usuario, $ip);
 
             return $this->proveedor($id);
@@ -105,13 +100,13 @@ final readonly class Compras
     {
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $p = $this->proveedor($id);
-            if (false !== $this->alcance->elevado(fn (): mixed => $this->conexion->fetchOne('SELECT 1 FROM PUR_GOODS_RECEIPT WHERE GRC_PRV_SUPPLIER = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id]))) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS');
+            if ($this->proveedores->tieneIngresos($id)) {
+                throw ErrorDominio::conflicto('CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS');
             }
             try {
-                $this->borrado->archive('INV_PROVEEDOR', 'PRV_Proveedor', $id);
-            } catch (\App\Db\RecordInUse) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS');
+                $this->proveedores->archivar($id);
+            } catch (RecordInUse) {
+                throw ErrorDominio::conflicto('CANNOT_DELETE_SUPPLIER_HAS_RECEIPTS');
             }
             $this->gobierno->registrarAuditoria('DELETE', 'INV_PROVEEDOR', ['id' => $id, 'nombre' => $p['PRV_Nombre']], $usuario, $ip);
         });
@@ -124,35 +119,34 @@ final readonly class Compras
     /** @return list<array<string, mixed>> GarantiaItem, alertas primero */
     public function garantias(int $dias, bool $soloAlertas): array
     {
-        [$alcance, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
-        $filas = $this->conexion->fetchAllAssociative('SELECT a."ACT_Activo", a."ACT_Codigo_Interno", a."ACT_Serie_Fabricante", a."ACT_Fecha_Compra", '
-            .'a."ACT_Fin_Garantia", pr."PRV_Nombre" FROM "INV_ACTIVO" a LEFT JOIN "INV_PROVEEDOR" pr ON pr."PRV_Proveedor" = a."PRV_Proveedor" '
-            .'WHERE '.$alcance.' ORDER BY a."ACT_Codigo_Interno"', $p);
         $hoy = new \DateTimeImmutable(Reloj::ahora()->format('Y-m-d'), new \DateTimeZone('UTC'));
         $umbral = $hoy->modify("+{$dias} days");
         $items = [];
-        foreach ($filas as $f) {
-            $id = (string) $f['ACT_Activo'];
-            $fin = null === $f['ACT_Fin_Garantia'] ? null : new \DateTimeImmutable(substr((string) $f['ACT_Fin_Garantia'], 0, 10), new \DateTimeZone('UTC'));
-            $restantes = null === $fin ? null : (int) $hoy->diff($fin)->format('%r%a');
-            $estado = match (true) {
-                null === $fin => 'sin_garantia',
-                $fin < $hoy => 'vencida',
-                $fin <= $umbral => 'por_vencer',
-                default => 'vigente',
-            };
+        foreach ($this->activos->visibles() as $f) {
+            $fin = null === $f['ACT_Fin_Garantia'] ? null : new \DateTimeImmutable(substr($f['ACT_Fin_Garantia'], 0, 10), new \DateTimeZone('UTC'));
+            $estado = self::estadoGarantia($fin, $hoy, $umbral);
             if ($soloAlertas && !\in_array($estado, ['por_vencer', 'vencida'], true)) {
                 continue;
             }
-            $items[] = ['ACT_Activo' => Ident::aTexto($id), 'ACT_Codigo_Interno' => $f['ACT_Codigo_Interno'], 'ACT_Serie_Fabricante' => $f['ACT_Serie_Fabricante'],
-                'ACT_Fecha_Compra' => substr((string) $f['ACT_Fecha_Compra'], 0, 10), 'ACT_Fin_Garantia' => $fin?->format('Y-m-d'),
-                'dias_restantes' => $restantes, 'estado_garantia' => $estado, 'proveedor' => $f['PRV_Nombre']];
+            $items[] = ['ACT_Activo' => Ident::aTexto($f['ACT_Activo']), 'ACT_Codigo_Interno' => $f['ACT_Codigo_Interno'], 'ACT_Serie_Fabricante' => $f['ACT_Serie_Fabricante'],
+                'ACT_Fecha_Compra' => substr($f['ACT_Fecha_Compra'], 0, 10), 'ACT_Fin_Garantia' => $fin?->format('Y-m-d'),
+                'dias_restantes' => null === $fin ? null : (int) $hoy->diff($fin)->format('%r%a'), 'estado_garantia' => $estado, 'proveedor' => $f['PRV_Nombre']];
         }
-        $prioridad = ['vencida' => 0, 'por_vencer' => 1, 'vigente' => 2, 'sin_garantia' => 3];
-        usort($items, static fn (array $a, array $b): int => [$prioridad[$a['estado_garantia']], $a['dias_restantes'] ?? 10 ** 9]
-            <=> [$prioridad[$b['estado_garantia']], $b['dias_restantes'] ?? 10 ** 9]);
+        usort($items, static fn (array $a, array $b): int => [self::PRIORIDAD_GARANTIA[$a['estado_garantia']], $a['dias_restantes'] ?? 10 ** 9]
+            <=> [self::PRIORIDAD_GARANTIA[$b['estado_garantia']], $b['dias_restantes'] ?? 10 ** 9]);
 
         return $items;
+    }
+
+    /** Regla pura: sin fecha no hay garantía; vencida si ya pasó; por vencer si cae dentro del umbral. */
+    public static function estadoGarantia(?\DateTimeImmutable $fin, \DateTimeImmutable $hoy, \DateTimeImmutable $umbral): string
+    {
+        return match (true) {
+            null === $fin => 'sin_garantia',
+            $fin < $hoy => 'vencida',
+            $fin <= $umbral => 'por_vencer',
+            default => 'vigente',
+        };
     }
 
     /**

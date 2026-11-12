@@ -6,7 +6,7 @@ namespace App\Autenticacion;
 
 use App\Config\Ajustes;
 use App\Dominio\Usuario;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\UsuarioRepositorio;
 use Doctrine\DBAL\Connection;
@@ -56,7 +56,7 @@ final readonly class Sso
             try {
                 $p = $this->proveedor($nombre);
                 $lista[] = ['provider' => $p['nombre'], 'label' => $p['etiqueta']];
-            } catch (ErrorApi) {
+            } catch (ErrorDominio) {
             }
         }
 
@@ -111,25 +111,25 @@ final readonly class Sso
         $usuario = $this->usuarios->porCorreoPersona($correo);
         if (null === $usuario) {
             $this->auditarRechazo($p['nombre'], $correo, 'user_not_found', $ip, $ua);
-            throw ErrorApi::prohibido('SSO_USER_NOT_AUTHORIZED');
+            throw ErrorDominio::prohibido('SSO_USER_NOT_AUTHORIZED');
         }
         $persona = $this->usuarios->persona($usuario);
         if (!$usuario->activo || null === $persona || !$persona->activa) {
             $this->auditarRechazo($p['nombre'], $correo, 'inactive_user', $ip, $ua, $usuario);
-            throw ErrorApi::prohibido('SSO_USER_NOT_AUTHORIZED');
+            throw ErrorDominio::prohibido('SSO_USER_NOT_AUTHORIZED');
         }
         // El bloqueo del administrador también vale para Microsoft o Google.
         if ($usuario->bloqueoAdministrativoVigente(\App\Dominio\Reloj::ahora())) {
             $this->auditarRechazo($p['nombre'], $correo, 'account_locked', $ip, $ua, $usuario);
-            throw ErrorApi::prohibido('SSO_USER_NOT_AUTHORIZED');
+            throw ErrorDominio::prohibido('SSO_USER_NOT_AUTHORIZED');
         }
         if (!$usuario->ssoHabilitado) {
             $this->auditarRechazo($p['nombre'], $correo, 'sso_disabled_for_user', $ip, $ua, $usuario);
-            throw ErrorApi::prohibido('SSO_NOT_ENABLED_FOR_USER');
+            throw ErrorDominio::prohibido('SSO_NOT_ENABLED_FOR_USER');
         }
         if (null !== $usuario->ssoProveedor && $usuario->ssoProveedor !== $p['nombre']) {
             $this->auditarRechazo($p['nombre'], $correo, 'provider_mismatch', $ip, $ua, $usuario);
-            throw ErrorApi::prohibido('SSO_PROVIDER_NOT_ALLOWED_FOR_USER');
+            throw ErrorDominio::prohibido('SSO_PROVIDER_NOT_ALLOWED_FOR_USER');
         }
 
         return [$usuario, (string) $estado['return_to']];
@@ -145,7 +145,7 @@ final readonly class Sso
     private function proveedor(string $nombre): array
     {
         if (!$this->ajustes->ssoHabilitado) {
-            throw new ErrorApi(400, 'SSO_DISABLED');
+            throw ErrorDominio::invalido('SSO_DISABLED');
         }
         $p = match ($nombre) {
             'microsoft' => [
@@ -158,10 +158,10 @@ final readonly class Sso
                 'descubrimiento' => 'https://accounts.google.com/.well-known/openid-configuration',
                 'autorizacion' => 'https://accounts.google.com/o/oauth2/v2/auth',
             ],
-            default => throw new ErrorApi(404, 'SSO_PROVIDER_NOT_SUPPORTED'),
+            default => throw ErrorDominio::noEncontrado('SSO_PROVIDER_NOT_SUPPORTED'),
         };
         if ('' === $p['client_id'] || '' === $p['client_secret'] || '' === $p['redirect_uri']) {
-            throw new ErrorApi(400, 'SSO_PROVIDER_NOT_CONFIGURED');
+            throw ErrorDominio::invalido('SSO_PROVIDER_NOT_CONFIGURED');
         }
         unset($p['tenant']);
 
@@ -174,14 +174,14 @@ final readonly class Sso
         try {
             $payload = (array) JWT::decode($state, new Key($this->ajustes->claveSecreta, $this->ajustes->algoritmo));
         } catch (\Throwable) {
-            throw new ErrorApi(401, 'SSO_STATE_INVALID');
+            throw ErrorDominio::noAutenticado('SSO_STATE_INVALID');
         }
         if (($payload['type'] ?? null) !== 'sso_state' || ($payload['provider'] ?? null) !== $proveedor
             || !\is_string($payload['nonce'] ?? null) || !\is_string($payload['return_to'] ?? null)) {
-            throw new ErrorApi(401, 'SSO_STATE_INVALID');
+            throw ErrorDominio::noAutenticado('SSO_STATE_INVALID');
         }
         if (null === $vinculo || '' === $vinculo || !hash_equals((string) ($payload['bnd'] ?? ''), hash('sha256', $vinculo))) {
-            throw new ErrorApi(401, 'SSO_STATE_INVALID');
+            throw ErrorDominio::noAutenticado('SSO_STATE_INVALID');
         }
 
         return $payload;
@@ -197,7 +197,7 @@ final readonly class Sso
     {
         $endpoint = $descubrimiento['token_endpoint'] ?? null;
         if (!\is_string($endpoint) || !str_starts_with($endpoint, 'https://')) {
-            throw new ErrorApi(502, 'SSO_DISCOVERY_INVALID');
+            throw ErrorDominio::servicioExterno('SSO_DISCOVERY_INVALID');
         }
         try {
             $respuesta = $this->http->request('POST', $endpoint, ['timeout' => 12, 'body' => [
@@ -208,12 +208,12 @@ final readonly class Sso
                 'client_secret' => $p['client_secret'],
             ]]);
             if ($respuesta->getStatusCode() >= 400) {
-                throw new ErrorApi(401, 'SSO_CODE_EXCHANGE_FAILED');
+                throw ErrorDominio::noAutenticado('SSO_CODE_EXCHANGE_FAILED');
             }
 
             return $respuesta->toArray(false);
         } catch (ExcepcionHttp) {
-            throw new ErrorApi(401, 'SSO_CODE_EXCHANGE_FAILED');
+            throw ErrorDominio::noAutenticado('SSO_CODE_EXCHANGE_FAILED');
         }
     }
 
@@ -226,13 +226,13 @@ final readonly class Sso
     private function verificarIdToken(array $p, array $descubrimiento, mixed $idToken, string $nonce): array
     {
         if (!\is_string($idToken) || '' === $idToken) {
-            throw new ErrorApi(401, 'SSO_ID_TOKEN_MISSING');
+            throw ErrorDominio::noAutenticado('SSO_ID_TOKEN_MISSING');
         }
         $jwksUri = $descubrimiento['jwks_uri'] ?? null;
         if (!\is_string($jwksUri) || !str_starts_with($jwksUri, 'https://')) {
-            throw new ErrorApi(502, 'SSO_DISCOVERY_INVALID');
+            throw ErrorDominio::servicioExterno('SSO_DISCOVERY_INVALID');
         }
-        $invalido = new ErrorApi(401, 'SSO_ID_TOKEN_INVALID');
+        $invalido = ErrorDominio::noAutenticado('SSO_ID_TOKEN_INVALID');
         try {
             $cabecera = json_decode(JWT::urlsafeB64Decode(explode('.', $idToken)[0]), true);
         } catch (\Throwable) {
@@ -255,7 +255,7 @@ final readonly class Sso
             }
         }
         if (null === $jwk) {
-            throw new ErrorApi(401, 'SSO_SIGNING_KEY_NOT_FOUND');
+            throw ErrorDominio::noAutenticado('SSO_SIGNING_KEY_NOT_FOUND');
         }
         if (!\in_array($jwk['kty'] ?? null, ['RSA', 'EC'], true) || ($jwk['alg'] ?? $alg) !== $alg) {
             throw $invalido;
@@ -263,7 +263,7 @@ final readonly class Sso
         try {
             $clave = JWK::parseKey([...$jwk, 'alg' => $alg], $alg) ?? throw $invalido;
             $claims = json_decode(json_encode(JWT::decode($idToken, $clave), \JSON_THROW_ON_ERROR), true, flags: \JSON_THROW_ON_ERROR);
-        } catch (ErrorApi $e) {
+        } catch (ErrorDominio $e) {
             throw $e;
         } catch (\Throwable) {
             throw $invalido;
@@ -283,7 +283,7 @@ final readonly class Sso
             throw $invalido;
         }
         if (!\is_string($claims['nonce'] ?? null) || !hash_equals($nonce, $claims['nonce'])) {
-            throw new ErrorApi(401, 'SSO_NONCE_INVALID');
+            throw ErrorDominio::noAutenticado('SSO_NONCE_INVALID');
         }
         if ($generico) {
             $this->validarTenantMicrosoft($claims);
@@ -292,7 +292,7 @@ final readonly class Sso
             throw $invalido;
         }
         if (false === ($claims['email_verified'] ?? null)) {
-            throw ErrorApi::prohibido('SSO_EMAIL_NOT_VERIFIED');
+            throw ErrorDominio::prohibido('SSO_EMAIL_NOT_VERIFIED');
         }
 
         return $claims;
@@ -303,10 +303,10 @@ final readonly class Sso
     {
         $tid = strtolower((string) ($claims['tid'] ?? ''));
         if ('' === $tid || !\in_array($tid, $this->ajustes->ssoMicrosoftTenants, true)) {
-            throw ErrorApi::prohibido('SSO_TENANT_NOT_ALLOWED');
+            throw ErrorDominio::prohibido('SSO_TENANT_NOT_ALLOWED');
         }
         if (($claims['iss'] ?? null) !== "https://login.microsoftonline.com/{$claims['tid']}/v2.0") {
-            throw new ErrorApi(401, 'SSO_ID_TOKEN_INVALID');
+            throw ErrorDominio::noAutenticado('SSO_ID_TOKEN_INVALID');
         }
     }
 
@@ -323,7 +323,7 @@ final readonly class Sso
             $correo = $correo ?: ($claims['preferred_username'] ?? null) ?: ($claims['upn'] ?? null);
         }
         if (!\is_string($correo) || !str_contains($correo, '@')) {
-            throw ErrorApi::prohibido('SSO_EMAIL_MISSING');
+            throw ErrorDominio::prohibido('SSO_EMAIL_MISSING');
         }
 
         return strtolower(trim($correo));
@@ -336,7 +336,7 @@ final readonly class Sso
         }
         $dominio = strtolower(substr((string) strrchr($correo, '@'), 1));
         if (!\in_array($dominio, $this->ajustes->ssoDominios, true)) {
-            throw ErrorApi::prohibido('SSO_EMAIL_DOMAIN_NOT_ALLOWED');
+            throw ErrorDominio::prohibido('SSO_EMAIL_DOMAIN_NOT_ALLOWED');
         }
     }
 
@@ -372,12 +372,12 @@ final readonly class Sso
         try {
             $respuesta = $this->http->request($metodo, $url, [...$opciones, 'timeout' => $timeout]);
             if ($respuesta->getStatusCode() >= 400) {
-                throw new ErrorApi(502, $error);
+                throw ErrorDominio::servicioExterno($error);
             }
 
             return $respuesta->toArray();
         } catch (ExcepcionHttp) {
-            throw new ErrorApi(502, $error);
+            throw ErrorDominio::servicioExterno($error);
         }
     }
 

@@ -10,7 +10,7 @@ use App\Db\InsercionOracle;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\CifradoCampos;
 use Doctrine\DBAL\Connection;
@@ -56,7 +56,7 @@ final readonly class Software
     {
         $f = $this->conexion->fetchAssociative('SELECT "TLI_Tipo_Licencia", "TLI_Nombre", "TLI_Descripcion" FROM "INV_TIPO_LICENCIA" WHERE "TLI_Tipo_Licencia" = :id', ['id' => $id]);
 
-        return false === $f ? throw new ErrorApi(404, 'LICENSE_TYPE_NOT_FOUND') : self::tipoAApi($f);
+        return false === $f ? throw ErrorDominio::noEncontrado('LICENSE_TYPE_NOT_FOUND') : self::tipoAApi($f);
     }
 
     /**
@@ -105,7 +105,7 @@ final readonly class Software
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $tipo = $this->tipo($id);
             if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA" WHERE "TLI_Tipo_Licencia" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_TYPE_HAS_LICENSES');
+                throw ErrorDominio::conflicto('CANNOT_DELETE_TYPE_HAS_LICENSES');
             }
             $this->borrado->archive('INV_TIPO_LICENCIA', 'TLI_Tipo_Licencia', $id);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_TIPO_LICENCIA', ['id' => $id, 'nombre' => $tipo['TLI_Nombre']], $usuario, $ip);
@@ -125,7 +125,7 @@ final readonly class Software
         $f = $this->conexion->fetchAssociative('SELECT "SOF_Software", "SOF_Nombre", "SOF_Version", "SOF_Fabricante", "MAR_Marca" FROM "INV_SOFTWARE" '
             .'WHERE "SOF_Software" = :id', ['id' => $id]);
 
-        return false === $f ? throw new ErrorApi(404, 'SOFTWARE_NOT_FOUND') : self::softwareAApi($f);
+        return false === $f ? throw ErrorDominio::noEncontrado('SOFTWARE_NOT_FOUND') : self::softwareAApi($f);
     }
 
     /**
@@ -157,7 +157,7 @@ final readonly class Software
             $d['MAR_Marca'] = false === $marca ? null : (int) $marca;
         }
         if (($creacion || \array_key_exists('SOF_Fabricante', $d)) && mb_strlen(trim((string) ($d['SOF_Fabricante'] ?? ''))) < 2) {
-            throw new ErrorApi(422, 'SOFTWARE_MANUFACTURER_REQUIRED');
+            throw ErrorDominio::noProcesable('SOFTWARE_MANUFACTURER_REQUIRED');
         }
 
         return $d;
@@ -202,12 +202,12 @@ final readonly class Software
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $sw = $this->software($id);
             if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA" WHERE "SOF_Software" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_SOFTWARE_HAS_LICENSES');
+                throw ErrorDominio::conflicto('CANNOT_DELETE_SOFTWARE_HAS_LICENSES');
             }
             try {
                 $this->borrado->archive('INV_SOFTWARE', 'SOF_Software', $id);
             } catch (\App\Db\RecordInUse) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_SOFTWARE_HAS_LICENSES');
+                throw ErrorDominio::conflicto('CANNOT_DELETE_SOFTWARE_HAS_LICENSES');
             }
             $this->gobierno->registrarAuditoria('DELETE', 'INV_SOFTWARE', ['id' => $id, 'nombre' => $sw['SOF_Nombre']], $usuario, $ip);
         });
@@ -230,7 +230,7 @@ final readonly class Software
     /** @return array<string, mixed> */
     private function licenciaO404(int $id, bool $bloquear = false): array
     {
-        return $this->filaLicencia($id, $bloquear) ?? throw new ErrorApi(404, 'LICENSE_NOT_FOUND');
+        return $this->filaLicencia($id, $bloquear) ?? throw ErrorDominio::noEncontrado('LICENSE_NOT_FOUND');
     }
 
     /**
@@ -294,7 +294,7 @@ final readonly class Software
         }
         if (null !== ($d['LIC_Proveedor'] ?? null)
             && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :p', ['p' => $d['LIC_Proveedor']])) {
-            throw new ErrorApi(404, 'SUPPLIER_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('SUPPLIER_NOT_FOUND');
         }
     }
 
@@ -312,24 +312,24 @@ final readonly class Software
         ?string $origen = null, ?array $documento = null, ?int $sede = null): int
     {
         $sw = $this->conexion->fetchAssociative('SELECT "SOF_Nombre", "SOF_Version" FROM "INV_SOFTWARE" WHERE "SOF_Software" = :s', ['s' => $d['SOF_Software']])
-            ?: throw new ErrorApi(404, 'SOFTWARE_NOT_FOUND');
+            ?: throw ErrorDominio::noEncontrado('SOFTWARE_NOT_FOUND');
         if (null !== ($d['TLI_Tipo_Licencia'] ?? null)
             && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_LICENCIA" WHERE "TLI_Tipo_Licencia" = :t', ['t' => $d['TLI_Tipo_Licencia']])) {
-            throw new ErrorApi(404, 'LICENSE_TYPE_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('LICENSE_TYPE_NOT_FOUND');
         }
         $this->validarCatalogos($d);
         if (null !== ($d['LIC_Fecha_Vencimiento'] ?? null) && $d['LIC_Fecha_Vencimiento'] < Reloj::ahora()->format('Y-m-d')) {
-            throw new ErrorApi(400, 'LICENSE_EXPIRATION_IN_THE_PAST');
+            throw ErrorDominio::invalido('LICENSE_EXPIRATION_IN_THE_PAST');
         }
         if ([] === $claves && null !== ($d['LIC_Clave_Activacion'] ?? null) && '' !== $d['LIC_Clave_Activacion'] && 1 === (int) $d['LIC_Cantidad_Total']) {
             $claves = [['LCL_Clave_Activacion' => (string) $d['LIC_Clave_Activacion'], 'LCL_Referencia' => null]];
         }
         $huellas = array_map(fn (array $k): string => $this->cifrado->huella($k['LCL_Clave_Activacion']), $claves);
         if (\count($huellas) !== \count(array_unique($huellas))) {
-            throw new ErrorApi(400, 'DUPLICATE_LICENSE_KEY_IN_REQUEST');
+            throw ErrorDominio::invalido('DUPLICATE_LICENSE_KEY_IN_REQUEST');
         }
         if ([] !== $huellas && $this->hayHuellas($huellas)) {
-            throw new ErrorApi(409, 'LICENSE_KEY_ALREADY_EXISTS');
+            throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
         }
         $id = (int) InsercionOracle::insertar($this->conexion, 'INV_LICENCIA', [
             'LIC_Clave_Activacion' => $this->cifrado->cifrar($d['LIC_Clave_Activacion'] ?? null), 'LIC_Cantidad_Total' => $d['LIC_Cantidad_Total'],
@@ -373,10 +373,10 @@ final readonly class Software
         }
         $hashes = array_map(fn (string $key): string => $this->cifrado->huella($key), $keys);
         if (\count($hashes) !== \count(array_unique($hashes))) {
-            throw new ErrorApi(400, 'DUPLICATE_LICENSE_KEY_IN_REQUEST');
+            throw ErrorDominio::invalido('DUPLICATE_LICENSE_KEY_IN_REQUEST');
         }
         if ($this->hayHuellas($hashes)) {
-            throw new ErrorApi(409, 'LICENSE_KEY_ALREADY_EXISTS');
+            throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
         }
         foreach ($keys as $i => $key) {
             $this->conexion->executeStatement("INSERT INTO \"INV_LICENCIA_CLAVE\" (\"LIC_Licencia\", \"LCL_Clave_Activacion\", \"LCL_Clave_Hash\", \"LCL_Estado\", \"LCL_Requiere_Cambio\") VALUES (:l, :c, :h, 'DISPONIBLE', 0)",
@@ -427,10 +427,10 @@ final readonly class Software
             // El método decide qué guarda cada credencial: no cambia si ya hay credenciales.
             if (null !== ($cambios['MAC_Metodo_Activacion'] ?? null) && (int) $cambios['MAC_Metodo_Activacion'] !== (int) $l['MAC_Metodo_Activacion']
                 && false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LIC_Licencia" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
-                throw new ErrorApi(409, 'LICENSE_METHOD_LOCKED');
+                throw ErrorDominio::conflicto('LICENSE_METHOD_LOCKED');
             }
             if (null !== ($cambios['LIC_Cantidad_Total'] ?? null) && $cambios['LIC_Cantidad_Total'] < (int) $l['LIC_Cantidad_Usada']) {
-                throw new ErrorApi(400, 'CANNOT_REDUCE_BELOW_USED:'.(int) $l['LIC_Cantidad_Usada']);
+                throw ErrorDominio::invalido('CANNOT_REDUCE_BELOW_USED:'.(int) $l['LIC_Cantidad_Usada']);
             }
             $snapshot = $cambios;
             unset($snapshot['LIC_Clave_Activacion']);
@@ -456,7 +456,7 @@ final readonly class Software
             $l = $this->licenciaO404($id, true);
             $activas = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_INSTALACION" WHERE "LIC_Licencia" = :id AND "INS_Estado" = 1', ['id' => $id]);
             if ($activas > 0) {
-                throw new ErrorApi(409, "CANNOT_DELETE_LICENSE_WITH_ACTIVE_INSTALLATIONS:{$activas}");
+                throw ErrorDominio::conflicto("CANNOT_DELETE_LICENSE_WITH_ACTIVE_INSTALLATIONS:{$activas}");
             }
             $sw = $this->conexion->fetchAssociative('SELECT "SOF_Nombre", "SOF_Version" FROM "INV_SOFTWARE" WHERE "SOF_Software" = :s', ['s' => $l['SOF_Software']]);
             // Salida de la licencia del inventario (el kardex conserva su historia).
@@ -466,7 +466,7 @@ final readonly class Software
                 // Se archiva con sus claves y adjuntos; el historial de instalaciones lo impide.
                 $this->borrado->archive('INV_LICENCIA', 'LIC_Licencia', $id);
             } catch (\App\Db\RecordInUse) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_LICENSE_IN_USE');
+                throw ErrorDominio::conflicto('CANNOT_DELETE_LICENSE_IN_USE');
             }
             $this->gobierno->registrarAuditoria('DELETE', 'INV_LICENCIA', ['id' => $id, 'software_id' => (int) $l['SOF_Software'],
                 'total' => (int) $l['LIC_Cantidad_Total']], $usuario, $ip);
@@ -614,7 +614,7 @@ final readonly class Software
         return $this->transaccion->ejecutar(function () use ($licencia, $activo, $persona, $clave, $fecha, $usuario, $ip): array {
             if (null !== $activo) {
                 if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => $activo])) {
-                    throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
                 }
                 // Software y licencias por equipo: solo en equipos que lo llevan (no en un monitor).
                 $this->reglas->exigirSoftware($activo);
@@ -622,22 +622,22 @@ final readonly class Software
             if (null !== $persona) {
                 $estado = $this->conexion->fetchOne('SELECT "PER_Estado" FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $persona]);
                 if (false === $estado) {
-                    throw new ErrorApi(404, 'PERSON_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
                 }
                 if (1 !== (int) $estado) {
-                    throw new ErrorApi(400, 'PERSON_INACTIVE');
+                    throw ErrorDominio::invalido('PERSON_INACTIVE');
                 }
             }
             if (null !== $this->instalacionActiva($licencia, $activo, $persona)) {
-                throw new ErrorApi(400, 'LICENSE_ALREADY_ASSIGNED_TO_TARGET');
+                throw ErrorDominio::invalido('LICENSE_ALREADY_ASSIGNED_TO_TARGET');
             }
             $l = $this->licenciaO404($licencia);
             $forma = $l['FCO_Codigo'];
             if ('EQUIPO' === $forma && null === $activo) {
-                throw new ErrorApi(400, 'LICENSE_COUNTS_BY_DEVICE');
+                throw ErrorDominio::invalido('LICENSE_COUNTS_BY_DEVICE');
             }
             if ('PERSONA' === $forma && null === $persona) {
-                throw new ErrorApi(400, 'LICENSE_COUNTS_BY_PERSON');
+                throw ErrorDominio::invalido('LICENSE_COUNTS_BY_PERSON');
             }
             // Concurrente comparte la credencial; por sitio registra el uso sin descontar cupos.
             $reservaCredencial = !\in_array($forma, ['CONCURRENTE', 'SITIO'], true);
@@ -646,10 +646,10 @@ final readonly class Software
             if (null !== $reservada) {
                 $propia = $this->conexion->fetchOne('SELECT "LIC_Licencia" FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Licencia_Clave" = :c', ['c' => $reservada]);
                 if (false === $propia || (int) $propia !== $licencia) {
-                    throw new ErrorApi(404, 'LICENSE_KEY_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('LICENSE_KEY_NOT_FOUND');
                 }
                 if (!$this->reservarClave($licencia, $reservada)) {
-                    throw new ErrorApi(409, 'LICENSE_KEY_NOT_AVAILABLE');
+                    throw ErrorDominio::conflicto('LICENSE_KEY_NOT_AVAILABLE');
                 }
             } elseif ($reservaCredencial && false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LIC_Licencia" = :l FETCH FIRST 1 ROWS ONLY', ['l' => $licencia])) {
                 foreach ($this->conexion->fetchFirstColumn("SELECT \"LCL_Licencia_Clave\" FROM \"INV_LICENCIA_CLAVE\" WHERE \"LIC_Licencia\" = :l "
@@ -660,12 +660,12 @@ final readonly class Software
                     }
                 }
                 if (null === $reservada) {
-                    throw new ErrorApi(409, 'NO_LICENSE_KEYS_AVAILABLE');
+                    throw ErrorDominio::conflicto('NO_LICENSE_KEYS_AVAILABLE');
                 }
             }
             if ($consumeCupo && 1 !== $this->conexion->executeStatement('UPDATE "INV_LICENCIA" SET "LIC_Cantidad_Usada" = "LIC_Cantidad_Usada" + 1 '
                 .'WHERE "LIC_Licencia" = :l AND "LIC_Cantidad_Usada" < "LIC_Cantidad_Total"', ['l' => $licencia])) {
-                throw new ErrorApi(409, 'NO_LICENSE_SEATS_AVAILABLE');
+                throw ErrorDominio::conflicto('NO_LICENSE_SEATS_AVAILABLE');
             }
             $id = (int) InsercionOracle::insertar($this->conexion, 'INV_INSTALACION', ['INS_Fecha_Instalacion' => $fecha, 'INS_Estado' => 1, 'INS_Consume_Cupo' => $consumeCupo ? 1 : 0,
                 'ACT_Activo' => $activo, 'PER_Persona' => $persona, 'LIC_Licencia' => $licencia, 'LCL_Licencia_Clave' => $reservada], 'INS_Instalacion');
@@ -698,11 +698,11 @@ final readonly class Software
     public function desinstalar(int $licencia, ?string $activo, ?string $persona, ?string $motivo, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($licencia, $activo, $persona, $motivo, $usuario, $ip): array {
-            $actual = $this->instalacionActiva($licencia, $activo, $persona) ?? throw new ErrorApi(404, 'INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED');
+            $actual = $this->instalacionActiva($licencia, $activo, $persona) ?? throw ErrorDominio::noEncontrado('INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED');
             if (1 !== $this->conexion->executeStatement('UPDATE "INV_INSTALACION" SET "INS_Estado" = 0, "INS_Fecha_Retiro" = :ahora, "INS_Motivo_Retiro" = :m '
                 .'WHERE "INS_Instalacion" = :id AND "INS_Estado" = 1', ['ahora' => Reloj::aBd(Reloj::ahora()),
                     'm' => null === $motivo || '' === $motivo ? null : mb_substr($motivo, 0, 255), 'id' => (int) $actual['INS_Instalacion']])) {
-                throw new ErrorApi(404, 'INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED');
+                throw ErrorDominio::noEncontrado('INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED');
             }
             if (1 === (int) $actual['INS_Consume_Cupo']) {
                 $this->conexion->executeStatement('UPDATE "INV_LICENCIA" SET "LIC_Cantidad_Usada" = "LIC_Cantidad_Usada" - 1 WHERE "LIC_Licencia" = :l '

@@ -11,7 +11,7 @@ use App\Db\InsercionOracle;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
@@ -83,7 +83,7 @@ final readonly class Consumibles
     /** @return array<string, mixed> */
     public function filaO404(int $id, bool $bloquear = false): array
     {
-        return $this->fila($id, $bloquear) ?? throw new ErrorApi(404, 'CONSUMABLE_NOT_FOUND');
+        return $this->fila($id, $bloquear) ?? throw ErrorDominio::noEncontrado('CONSUMABLE_NOT_FOUND');
     }
 
     /** @return list<array<string, mixed>> */
@@ -127,7 +127,7 @@ final readonly class Consumibles
             // El nombre es único en toda la empresa, no solo en el alcance.
             if ($this->alcance->elevado(fn (): bool => false !== $this->conexion->fetchOne(
                 'SELECT 1 FROM "INV_CONSUMIBLE" WHERE "CON_Nombre" = :n FETCH FIRST 1 ROWS ONLY', ['n' => $d['CON_Nombre']]))) {
-                throw new ErrorApi(409, 'CONSUMABLE_ALREADY_EXISTS');
+                throw ErrorDominio::conflicto('CONSUMABLE_ALREADY_EXISTS');
             }
             if (null !== $d['CON_Costo_Unitario'] && null === $d['CON_Moneda']) {
                 $d['CON_Moneda'] = 'GTQ';
@@ -198,13 +198,13 @@ final readonly class Consumibles
             $c = $this->filaO404($id);
             // Con historial de movimientos no se borra (preserva la trazabilidad).
             if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_MOVIMIENTO_CONSUMIBLE" WHERE "CON_Consumible" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_CONSUMABLE_HAS_MOVEMENTS');
+                throw ErrorDominio::conflicto('CANNOT_DELETE_CONSUMABLE_HAS_MOVEMENTS');
             }
             // Se archiva; sus compatibilidades (vínculos con modelos) se quitan con él.
             try {
                 $this->borrado->archive('INV_CONSUMIBLE', 'CON_Consumible', $id);
             } catch (\App\Db\RecordInUse) {
-                throw new ErrorApi(409, 'CANNOT_DELETE_CONSUMABLE_HAS_MOVEMENTS');
+                throw ErrorDominio::conflicto('CANNOT_DELETE_CONSUMABLE_HAS_MOVEMENTS');
             }
             $this->gobierno->registrarAuditoria('DELETE', 'INV_CONSUMIBLE', ['id' => $id, 'nombre' => $c['CON_Nombre']], $usuario, $ip,
                 sedeId: null === $c['SED_Sede'] ? null : (int) $c['SED_Sede']);
@@ -228,15 +228,15 @@ final readonly class Consumibles
             $c = $this->filaO404($id, true);
             $sede = null === $c['SED_Sede'] ? null : (int) $c['SED_Sede'];
             if (1 !== (int) $c['CON_Activo']) {
-                throw new ErrorApi(400, 'CONSUMABLE_INACTIVE');
+                throw ErrorDominio::invalido('CONSUMABLE_INACTIVE');
             }
             if (null !== $m['PER_Persona'] && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $m['PER_Persona']])) {
-                throw new ErrorApi(404, 'PERSON_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
             }
             $equipo = null;
             if (null !== $m['ACT_Activo']) {
                 if ('SALIDA' !== $tipo) {
-                    throw new ErrorApi(422, 'ASSET_ONLY_ON_STOCK_OUT');
+                    throw ErrorDominio::noProcesable('ASSET_ONLY_ON_STOCK_OUT');
                 }
                 $equipo = $this->equipoParaConsumo($m['ACT_Activo']);
             }
@@ -252,7 +252,7 @@ final readonly class Consumibles
                     ['n' => $m['MOC_Cantidad'], 'id' => $id]);
             } elseif (1 !== $this->conexion->executeStatement('UPDATE "INV_CONSUMIBLE" SET "CON_Stock_Actual" = "CON_Stock_Actual" - :n '
                 .'WHERE "CON_Consumible" = :id AND "CON_Stock_Actual" >= :n', ['n' => $m['MOC_Cantidad'], 'id' => $id])) {
-                throw new ErrorApi(409, 'INSUFFICIENT_STOCK');
+                throw ErrorDominio::conflicto('INSUFFICIENT_STOCK');
             }
             $despues = (int) $this->conexion->fetchOne('SELECT "CON_Stock_Actual" FROM "INV_CONSUMIBLE" WHERE "CON_Consumible" = :id', ['id' => $id]);
             $this->conexion->executeStatement('UPDATE "INV_CONSUMIBLE" SET "CON_Costo_Unitario" = :p, "CON_Moneda" = :m WHERE "CON_Consumible" = :id',
@@ -296,13 +296,13 @@ final readonly class Consumibles
             $c = $this->filaO404($id, true);
             $antes = (int) $c['CON_Stock_Actual'];
             if (null !== $stockEsperado && $antes !== $stockEsperado) {
-                throw new ErrorApi(409, 'STOCK_CHANGED_SINCE_REQUEST');
+                throw ErrorDominio::conflicto('STOCK_CHANGED_SINCE_REQUEST');
             }
             if ($real === $antes) {
-                throw new ErrorApi(400, 'STOCK_ALREADY_MATCHES');
+                throw ErrorDominio::invalido('STOCK_ALREADY_MATCHES');
             }
             if (null === $aprobacion) {
-                throw new ErrorApi(409, 'STOCK_ADJUST_REQUIRES_APPROVAL');
+                throw ErrorDominio::conflicto('STOCK_ADJUST_REQUIRES_APPROVAL');
             }
             $this->conexion->executeStatement('UPDATE "INV_CONSUMIBLE" SET "CON_Stock_Actual" = :r WHERE "CON_Consumible" = :id', ['r' => $real, 'id' => $id]);
             $mov = $this->insertarMovimiento($id, 'AJUSTE', abs($real - $antes), $real, $motivo, null, null, $usuario);
@@ -356,9 +356,9 @@ final readonly class Consumibles
     {
         [$alcance, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
         $e = $this->conexion->fetchAssociative('SELECT a."ACT_Activo", a."ACT_Codigo_Interno", a."ARE_Area_Ubicacion", a."EOP_Estado_Operativo" '
-            .'FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :a AND '.$alcance, [...$p, 'a' => $activo]) ?: throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+            .'FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :a AND '.$alcance, [...$p, 'a' => $activo]) ?: throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
         if ('baja' === mb_strtolower((string) $this->estados->nombre((int) $e['EOP_Estado_Operativo']))) {
-            throw new ErrorApi(400, 'ASSET_DECOMMISSIONED');
+            throw ErrorDominio::invalido('ASSET_DECOMMISSIONED');
         }
 
         return $e;
@@ -408,7 +408,7 @@ final readonly class Consumibles
                     $p["m{$i}"] = $m;
                 }
                 if ((int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_MODELO" WHERE "MOD_Modelo" IN (:'.implode(', :', array_keys($p)).')', $p) !== \count($modelos)) {
-                    throw new ErrorApi(404, 'MODEL_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('MODEL_NOT_FOUND');
                 }
             }
             $antes = array_map('intval', $this->conexion->fetchFirstColumn('SELECT "MOD_Modelo" FROM "INV_CONSUMIBLE_COMPATIBLE" WHERE "CON_Consumible" = :id '
@@ -434,7 +434,7 @@ final readonly class Consumibles
         [$alcance, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
         $modelo = $this->conexion->fetchOne('SELECT a."MOD_Modelo" FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :a AND '.$alcance, [...$p, 'a' => $activo]);
         if (false === $modelo) {
-            throw new ErrorApi(404, 'ASSET_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
         }
         $historial = $this->conexion->fetchAllAssociative('SELECT m."MOC_Movimiento", m."MOC_Fecha", m."CON_Consumible", c."CON_Nombre", c."CON_Unidad", '
             .'m."MOC_Cantidad", m."MOC_Motivo", u."USU_Username" FROM "INV_MOVIMIENTO_CONSUMIBLE" m JOIN "INV_CONSUMIBLE" c ON c."CON_Consumible" = m."CON_Consumible" '

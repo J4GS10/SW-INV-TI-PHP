@@ -7,7 +7,7 @@ namespace App\Inventario;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\CifradoCampos;
 use Doctrine\DBAL\Connection;
@@ -52,7 +52,7 @@ final readonly class Credenciales
             .'l."MAC_Metodo_Activacion", fc."FCO_Codigo", m.* FROM "INV_LICENCIA" l LEFT JOIN "INV_FORMA_CONTEO" fc ON fc."FCO_Forma" = l."FCO_Forma_Conteo" '
             .'LEFT JOIN "INV_METODO_ACTIVACION" m ON m."MAC_Metodo" = l."MAC_Metodo_Activacion" WHERE l."LIC_Licencia" = :id', ['id' => $id]);
 
-        return false === $f ? throw new ErrorApi(404, 'LICENSE_NOT_FOUND') : $f;
+        return false === $f ? throw ErrorDominio::noEncontrado('LICENSE_NOT_FOUND') : $f;
     }
 
     /** @return array<string, mixed> */
@@ -60,7 +60,7 @@ final readonly class Credenciales
     {
         $f = $this->conexion->fetchAssociative('SELECT * FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Licencia_Clave" = :id'.($bloquear ? ' FOR UPDATE' : ''), ['id' => $id]);
 
-        return false === $f ? throw new ErrorApi(404, 'LICENSE_KEY_NOT_FOUND') : $f;
+        return false === $f ? throw ErrorDominio::noEncontrado('LICENSE_KEY_NOT_FOUND') : $f;
     }
 
     /**
@@ -107,11 +107,11 @@ final readonly class Credenciales
             }
         }
         if ([] === $pedidos && !$parcial) {
-            throw new ErrorApi(422, 'LICENSE_METHOD_HAS_NO_CREDENTIALS');
+            throw ErrorDominio::noProcesable('LICENSE_METHOD_HAS_NO_CREDENTIALS');
         }
         foreach ($limpios as $c => $v) {
             if (null !== $v && !\in_array($c, $pedidos, true)) {
-                throw new ErrorApi(422, "LICENSE_FIELD_NOT_ALLOWED:{$c}");
+                throw ErrorDominio::noProcesable("LICENSE_FIELD_NOT_ALLOWED:{$c}");
             }
         }
         foreach ($pedidos as $c) {
@@ -119,7 +119,7 @@ final readonly class Credenciales
                 continue;
             }
             if (null === ($limpios[$c] ?? null)) {
-                throw new ErrorApi(422, "LICENSE_FIELD_REQUIRED:{$c}");
+                throw ErrorDominio::noProcesable("LICENSE_FIELD_REQUIRED:{$c}");
             }
         }
         if (null !== ($limpios['archivo'] ?? null)) {
@@ -188,7 +188,7 @@ final readonly class Credenciales
             $huellas = array_map(fn (array $c): ?string => $this->huella($licencia, $c), $limpios);
             $reales = array_values(array_filter($huellas));
             if (\count($reales) !== \count(array_unique($reales))) {
-                throw new ErrorApi(400, 'DUPLICATE_LICENSE_KEY_IN_REQUEST');
+                throw ErrorDominio::invalido('DUPLICATE_LICENSE_KEY_IN_REQUEST');
             }
             if ([] !== $reales) {
                 $p = [];
@@ -196,13 +196,13 @@ final readonly class Credenciales
                     $p["h{$i}"] = $h;
                 }
                 if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Clave_Hash" IN (:'.implode(', :', array_keys($p)).') FETCH FIRST 1 ROWS ONLY', $p)) {
-                    throw new ErrorApi(409, 'LICENSE_KEY_ALREADY_EXISTS');
+                    throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
                 }
             }
             // Las credenciales son cupos: no más que los comprados (salvo por sitio).
             $existentes = (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"INV_LICENCIA_CLAVE\" WHERE \"LIC_Licencia\" = :l AND \"LCL_Estado\" <> 'BAJA'", ['l' => $licencia]);
             if ('SITIO' !== $lic['FCO_Codigo'] && $existentes + \count($lote) > (int) $lic['LIC_Cantidad_Total']) {
-                throw new ErrorApi(409, 'LICENSE_CREDENTIALS_EXCEED_SEATS:'.(int) $lic['LIC_Cantidad_Total']);
+                throw ErrorDominio::conflicto('LICENSE_CREDENTIALS_EXCEED_SEATS:'.(int) $lic['LIC_Cantidad_Total']);
             }
             $ahora = Reloj::aBd(Reloj::ahora());
             $ids = [];
@@ -211,7 +211,7 @@ final readonly class Credenciales
                 if (null !== ($d['archivo'] ?? null)) {
                     $adj = $this->conexion->fetchOne('SELECT "LIC_Licencia" FROM "INV_ADJUNTO" WHERE "ADJ_Adjunto" = :a', ['a' => $d['archivo']]);
                     if (false === $adj || (int) $adj !== $licencia) {
-                        throw new ErrorApi(422, 'LICENSE_FILE_NOT_FOUND');
+                        throw ErrorDominio::noProcesable('LICENSE_FILE_NOT_FOUND');
                     }
                 }
                 $cols = ['LIC_Licencia' => $licencia, 'LCL_Clave_Hash' => $huellas[$i], 'LCL_Estado' => 'DISPONIBLE', 'LCL_Requiere_Cambio' => 0,
@@ -308,7 +308,7 @@ final readonly class Credenciales
             $vence = \array_key_exists('vence', $datos);
             if (null !== ($datos['estado'] ?? null) && $datos['estado'] !== $c['LCL_Estado']) {
                 if ('ASIGNADA' === $c['LCL_Estado']) {
-                    throw new ErrorApi(409, 'LICENSE_CREDENTIAL_IN_USE');
+                    throw ErrorDominio::conflicto('LICENSE_CREDENTIAL_IN_USE');
                 }
                 $cambios['LCL_Estado'] = $datos['estado'];
             }
@@ -318,7 +318,7 @@ final readonly class Credenciales
                 $nueva = $this->huella((int) $c['LIC_Licencia'], $actual);
                 if ($nueva !== $c['LCL_Clave_Hash'] && null !== $nueva && false !== $this->conexion->fetchOne(
                     'SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Clave_Hash" = :h FETCH FIRST 1 ROWS ONLY', ['h' => $nueva])) {
-                    throw new ErrorApi(409, 'LICENSE_KEY_ALREADY_EXISTS');
+                    throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
                 }
                 $cambios['LCL_Clave_Hash'] = $nueva;
             }
@@ -352,7 +352,7 @@ final readonly class Credenciales
             $secreto = $c['LCL_Secreto_Enc'];
             $clave = $c['LCL_Clave_Activacion'];
             if ((null === $secreto || '' === $secreto) && (null === $clave || '' === $clave)) {
-                throw new ErrorApi(404, 'LICENSE_CREDENTIAL_HAS_NO_SECRET');
+                throw ErrorDominio::noEncontrado('LICENSE_CREDENTIAL_HAS_NO_SECRET');
             }
             $this->gobierno->registrarAuditoria('LICENSE_SECRET_VIEWED', 'INV_LICENCIA_CLAVE', ['credencial' => $id, 'licencia' => (int) $c['LIC_Licencia'],
                 'usuario_cuenta' => $c['LCL_Usuario']], $usuario, $ip);
@@ -378,11 +378,11 @@ final readonly class Credenciales
                 }
             }
             if ([] === $nuevos) {
-                throw new ErrorApi(422, 'LICENSE_ROTATION_EMPTY');
+                throw ErrorDominio::noProcesable('LICENSE_ROTATION_EMPTY');
             }
             foreach (array_keys($nuevos) as $campo) {
                 if (!\in_array($campo, $pedidos, true)) {
-                    throw new ErrorApi(422, "LICENSE_FIELD_NOT_ALLOWED:{$campo}");
+                    throw ErrorDominio::noProcesable("LICENSE_FIELD_NOT_ALLOWED:{$campo}");
                 }
             }
             $cambios = $this->columnas($nuevos);
@@ -390,7 +390,7 @@ final readonly class Credenciales
                 $h = $this->cifrado->huella($nuevos['clave']);
                 if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Clave_Hash" = :h AND "LCL_Licencia_Clave" <> :id '
                     .'FETCH FIRST 1 ROWS ONLY', ['h' => $h, 'id' => $id])) {
-                    throw new ErrorApi(409, 'LICENSE_KEY_ALREADY_EXISTS');
+                    throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
                 }
                 $cambios['LCL_Clave_Hash'] = $h;
             }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Catalogo;
 
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 
 /**
  * Catálogos estándar administrables desde el centro de catálogos. Cada uno se
@@ -29,7 +29,7 @@ final class RegistroCatalogos
     /** @return array<string, mixed> */
     public static function definicion(string $clave): array
     {
-        return self::todos()[$clave] ?? throw new ErrorApi(404, 'CATALOG_NOT_FOUND');
+        return self::todos()[$clave] ?? throw ErrorDominio::noEncontrado('CATALOG_NOT_FOUND');
     }
 
     /** @return array<string, array<string, mixed>> */

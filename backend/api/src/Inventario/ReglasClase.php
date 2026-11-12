@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Inventario;
 
 use App\Catalogo\ClasesActivo;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use Doctrine\DBAL\Connection;
 
 /**
@@ -40,7 +40,7 @@ final readonly class ReglasClase
     public function exigirNoInsumo(int $tipo): void
     {
         if (ClasesActivo::INSUMO === $this->deTipo($tipo)['uso']) {
-            throw new ErrorApi(422, 'ASSET_TYPE_IS_SUPPLY');
+            throw ErrorDominio::noProcesable('ASSET_TYPE_IS_SUPPLY');
         }
     }
 
@@ -49,10 +49,10 @@ final readonly class ReglasClase
     {
         $uso = $this->deActivo($activo)['uso'];
         if (ClasesActivo::COMPARTIDO === $uso) {
-            throw new ErrorApi(422, 'ASSET_IS_SHARED_INSTALL_IN_AREA');
+            throw ErrorDominio::noProcesable('ASSET_IS_SHARED_INSTALL_IN_AREA');
         }
         if (ClasesActivo::INSUMO === $uso) {
-            throw new ErrorApi(422, 'ASSET_TYPE_IS_SUPPLY');
+            throw ErrorDominio::noProcesable('ASSET_TYPE_IS_SUPPLY');
         }
     }
 
@@ -61,10 +61,10 @@ final readonly class ReglasClase
     {
         $uso = $this->deActivo($activo)['uso'];
         if (ClasesActivo::INSUMO === $uso) {
-            throw new ErrorApi(422, 'ASSET_TYPE_IS_SUPPLY');
+            throw ErrorDominio::noProcesable('ASSET_TYPE_IS_SUPPLY');
         }
         if (ClasesActivo::COMPONENTE === $uso) {
-            throw new ErrorApi(422, 'COMPONENT_INSTALLS_IN_EQUIPMENT');
+            throw ErrorDominio::noProcesable('COMPONENT_INSTALLS_IN_EQUIPMENT');
         }
     }
 
@@ -73,7 +73,7 @@ final readonly class ReglasClase
     {
         $tipo = $this->conexion->fetchOne('SELECT "TAC_Tipo_Activo" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => $activoHex]);
         if (!$this->deTipo(false === $tipo ? null : (int) $tipo)['software']) {
-            throw new ErrorApi(422, 'ASSET_CLASS_NO_SOFTWARE');
+            throw ErrorDominio::noProcesable('ASSET_CLASS_NO_SOFTWARE');
         }
     }
 
@@ -86,7 +86,7 @@ final readonly class ReglasClase
     public function exigirComponenteValido(array $equipo, array $componente): void
     {
         if (!$this->deActivo($equipo)['componentes']) {
-            throw new ErrorApi(422, 'ASSET_CLASS_NO_COMPONENTS');
+            throw ErrorDominio::noProcesable('ASSET_CLASS_NO_COMPONENTS');
         }
         $permitidos = array_map('intval', $this->conexion->fetchFirstColumn(
             'SELECT "TAC_Componente" FROM "INV_TIPO_COMPONENTE" WHERE "TAC_Padre" = :t', ['t' => (int) $equipo['TAC_Tipo_Activo']]));
@@ -94,7 +94,7 @@ final readonly class ReglasClase
             ? \in_array((int) $componente['TAC_Tipo_Activo'], $permitidos, true)
             : ClasesActivo::COMPONENTE === $this->deActivo($componente)['uso'];
         if (!$valido) {
-            throw new ErrorApi(422, 'COMPONENT_TYPE_NOT_ALLOWED');
+            throw ErrorDominio::noProcesable('COMPONENT_TYPE_NOT_ALLOWED');
         }
     }
 }

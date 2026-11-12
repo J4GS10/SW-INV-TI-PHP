@@ -8,7 +8,7 @@ use App\Db\InsercionOracle;
 use App\Db\Transaccion;
 use App\Documentos\FormatoLocal;
 use App\Documentos\LibroExcel;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Inventario\Activos;
 use App\Inventario\Secuencias;
 use App\Repositorio\GobiernoRepositorio;
@@ -55,7 +55,7 @@ final readonly class ImportacionActivos
     private function exigirDisponible(): void
     {
         if (!$this->disponible()) {
-            throw new ErrorApi(409, 'IMPORT_ONLY_BEFORE_FIRST_CLOSE');
+            throw ErrorDominio::conflicto('IMPORT_ONLY_BEFORE_FIRST_CLOSE');
         }
     }
 
@@ -76,11 +76,11 @@ final readonly class ImportacionActivos
         return $this->transaccion->ejecutar(function () use ($contenido, $omitirErrores, $usuario, $ip): array {
             [$filas, $resumen] = $this->analizar($contenido);
             if ($resumen['con_error'] > 0 && !$omitirErrores) {
-                throw new ErrorApi(400, 'IMPORT_HAS_ERRORS');
+                throw ErrorDominio::invalido('IMPORT_HAS_ERRORS');
             }
             $validas = array_values(array_filter($filas, static fn (FilaImportacion $f): bool => $f->valida()));
             if ([] === $validas) {
-                throw new ErrorApi(400, 'IMPORT_NOTHING_TO_IMPORT');
+                throw ErrorDominio::invalido('IMPORT_NOTHING_TO_IMPORT');
             }
             $disponible = (int) ($this->conexion->fetchOne('SELECT "EOP_Estado_Operativo" FROM "INV_ESTADO_OPERATIVO" WHERE "EOP_Nombre" = :n', ['n' => 'En Bodega'])
                 ?: throw new \LogicException('Falta el estado operativo «En Bodega».'));
@@ -114,8 +114,8 @@ final readonly class ImportacionActivos
                         'MOD_Modelo' => $modelo, 'TAC_Tipo_Activo' => $f->tipo['TAC_Tipo_Activo'], 'EOP_Estado_Operativo' => $disponible,
                         'ACT_Activo_Padre' => null, 'SED_Sede' => $this->sedeDeArea($f->area['ARE_Area']),
                     ], $specs, $usuario);
-                } catch (ErrorApi $e) {
-                    throw new ErrorApi($e->estado, "IMPORT_ROW_FAILED:{$f->numero}:{$e->detalle}");
+                } catch (ErrorDominio $e) {
+                    throw new ErrorDominio($e->motivo, "IMPORT_ROW_FAILED:{$f->numero}:{$e->detalle}");
                 }
                 $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "ARE_Area_Ubicacion" = :a WHERE "ACT_Activo" = :id',
                     ['a' => $f->area['ARE_Area'], 'id' => \App\Dominio\Ident::aHex((string) $activo['ACT_Activo'])]);

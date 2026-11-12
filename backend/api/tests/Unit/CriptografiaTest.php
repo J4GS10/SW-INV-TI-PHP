@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Config\Ajustes;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Seguridad\CifradoCampos;
 use App\Seguridad\CodigosSeguridad;
 use App\Seguridad\Fernet;
@@ -147,8 +147,8 @@ final class CriptografiaTest extends TestCase
         try {
             $p->validar('corta1A');
             self::fail('Se esperaba 400');
-        } catch (ErrorApi $e) {
-            self::assertSame([400, 'PASSWORD_POLICY_VIOLATION:min_length:10'], [$e->estado, $e->detalle]);
+        } catch (ErrorDominio $e) {
+            self::assertSame([400, 'PASSWORD_POLICY_VIOLATION:min_length:10'], [\App\EventListener\ErroresListener::estadoHttp($e->motivo), $e->detalle]);
         }
     }
 

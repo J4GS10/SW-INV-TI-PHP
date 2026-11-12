@@ -14,7 +14,7 @@ use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Dominio\Usuario;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\ProfilePhoto\Domain\ProfilePhoto;
 use App\Repositorio\CredencialesRepositorio;
 use App\Repositorio\GobiernoRepositorio;
@@ -163,27 +163,27 @@ final readonly class Identidades
     public function crear(array $d, Usuario $solicitante, callable $auditar): array
     {
         if (!Roles::puedeAdministrar($solicitante->rol, $d['USU_Rol'])) {
-            throw ErrorApi::prohibido('ONLY_SUPER_ADMIN_CAN_CREATE_ADMINS');
+            throw ErrorDominio::prohibido('ONLY_SUPER_ADMIN_CAN_CREATE_ADMINS');
         }
         if (null === $d['USU_Password'] && !$d['USU_SSO_Habilitado']) {
-            throw new ErrorApi(400, 'AUTH_METHOD_REQUIRED');
+            throw ErrorDominio::invalido('AUTH_METHOD_REQUIRED');
         }
         if (null !== $d['USU_SSO_Provider'] && !$d['USU_SSO_Habilitado']) {
-            throw new ErrorApi(400, 'SSO_PROVIDER_REQUIRES_SSO_ENABLED');
+            throw ErrorDominio::invalido('SSO_PROVIDER_REQUIRES_SSO_ENABLED');
         }
         $personaHex = Ident::aHex($d['PER_Persona']);
         $persona = $this->conexion->fetchAssociative('SELECT * FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $personaHex]);
         if (false === $persona) {
-            throw new ErrorApi(404, 'PERSONA_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('PERSONA_NOT_FOUND');
         }
         if (null !== $d['USU_Password']) {
             $this->politica->validar($d['USU_Password'], $d['USU_Username'], \App\Dominio\Persona::desdeFila($persona)->datosPersonales());
         }
         if (null !== $this->usuarios->porUsername($d['USU_Username'])) {
-            throw new ErrorApi(400, 'USERNAME_ALREADY_EXISTS');
+            throw ErrorDominio::invalido('USERNAME_ALREADY_EXISTS');
         }
         if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_USUARIO" WHERE "PER_Persona" = :p', ['p' => $personaHex])) {
-            throw new ErrorApi(400, 'PERSON_ALREADY_HAS_USER');
+            throw ErrorDominio::invalido('PERSON_ALREADY_HAS_USER');
         }
         $alcance = $this->alcanceNuevo(['global' => false, 'sedes' => []], $d['USU_Rol'], $d['USU_Alcance_Global'], $d['sedes'], $solicitante->rol);
         $id = Ident::nuevo();
@@ -221,9 +221,9 @@ final readonly class Identidades
      */
     public function actualizar(string $objetivoHex, array $c, Usuario $solicitante, callable $auditar, ?string $ip): array
     {
-        $objetivo = $this->usuarios->porId($objetivoHex) ?? throw new ErrorApi(404, 'USER_NOT_FOUND');
+        $objetivo = $this->usuarios->porId($objetivoHex) ?? throw ErrorDominio::noEncontrado('USER_NOT_FOUND');
         if ($objetivo->id === $solicitante->id) {
-            throw ErrorApi::prohibido('CANNOT_MODIFY_OWN_ACCOUNT');
+            throw ErrorDominio::prohibido('CANNOT_MODIFY_OWN_ACCOUNT');
         }
         $fila = (array) $this->conexion->fetchAssociative('SELECT * FROM "INV_USUARIO" WHERE "USU_Usuario" = :id', ['id' => $objetivoHex]);
         $rolAntes = $objetivo->rol;
@@ -232,26 +232,26 @@ final readonly class Identidades
         $proveedorAntes = $fila['USU_SSO_Provider'];
 
         if (Roles::SUPER_ADMIN === $objetivo->rol && Roles::SUPER_ADMIN !== $solicitante->rol) {
-            throw ErrorApi::prohibido('CANNOT_MODIFY_SUPER_ADMIN');
+            throw ErrorDominio::prohibido('CANNOT_MODIFY_SUPER_ADMIN');
         }
         if (!Roles::puedeAdministrar($solicitante->rol, $objetivo->rol)) {
-            throw ErrorApi::prohibido('INSUFFICIENT_PERMISSIONS');
+            throw ErrorDominio::prohibido('INSUFFICIENT_PERMISSIONS');
         }
         $rolNuevo = $c['USU_Rol'] ?? null;
         // Anti-escalada: los roles protegidos solo los otorga un SUPER_ADMIN.
         if (null !== $rolNuevo && !Roles::puedeAdministrar($solicitante->rol, $rolNuevo)) {
-            throw ErrorApi::prohibido('ONLY_SUPER_ADMIN_CAN_GRANT_ADMIN_ROLES');
+            throw ErrorDominio::prohibido('ONLY_SUPER_ADMIN_CAN_GRANT_ADMIN_ROLES');
         }
         // Una cuenta global solo cambia de rol por un SUPER_ADMIN (salvo que se le quite el global).
         if (null !== $rolNuevo && $rolNuevo !== $objetivo->rol && $objetivo->alcanceGlobal
             && false !== ($c['USU_Alcance_Global'] ?? null) && !Roles::puedeOtorgarAlcanceGlobal($solicitante->rol)) {
-            throw ErrorApi::prohibido('ONLY_SUPER_ADMIN_CAN_CHANGE_ROLE_OF_GLOBAL_ACCOUNT');
+            throw ErrorDominio::prohibido('ONLY_SUPER_ADMIN_CAN_CHANGE_ROLE_OF_GLOBAL_ACCOUNT');
         }
         $desactiva = false === ($c['USU_Estado'] ?? null);
         $degrada = null !== $rolNuevo && Roles::SUPER_ADMIN !== $rolNuevo;
         if (Roles::SUPER_ADMIN === $objetivo->rol && ($desactiva || $degrada)
             && (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"INV_USUARIO\" WHERE \"USU_Rol\" = 'SUPER_ADMIN' AND \"USU_Estado\" = 1") <= 1) {
-            throw new ErrorApi(400, 'CANNOT_DISABLE_LAST_SUPER_ADMIN');
+            throw ErrorDominio::invalido('CANNOT_DISABLE_LAST_SUPER_ADMIN');
         }
         $password = $c['USU_Password'] ?? null;
         if (null !== $password) {
@@ -259,10 +259,10 @@ final readonly class Identidades
         }
         $ssoDespues = $c['USU_SSO_Habilitado'] ?? $ssoAntes;
         if (null !== ($c['USU_SSO_Provider'] ?? null) && !$ssoDespues) {
-            throw new ErrorApi(400, 'SSO_PROVIDER_REQUIRES_SSO_ENABLED');
+            throw ErrorDominio::invalido('SSO_PROVIDER_REQUIRES_SSO_ENABLED');
         }
         if (!$ssoDespues && null === $objetivo->passwordHash && null === $password) {
-            throw new ErrorApi(400, 'PASSWORD_REQUIRED_WHEN_SSO_DISABLED');
+            throw ErrorDominio::invalido('PASSWORD_REQUIRED_WHEN_SSO_DISABLED');
         }
         $rolFinal = $rolNuevo ?? $objetivo->rol;
         $alcanceAntes = ['global' => $objetivo->alcanceGlobal, 'sedes' => $objetivo->idsSedes()];
@@ -327,12 +327,12 @@ final readonly class Identidades
     /** Cuenta objetivo de una acción administrativa, validando la jerarquía. */
     private function conSesionesGestionables(string $objetivoHex, Usuario $solicitante): Usuario
     {
-        $objetivo = $this->usuarios->porId($objetivoHex) ?? throw new ErrorApi(404, 'USER_NOT_FOUND');
+        $objetivo = $this->usuarios->porId($objetivoHex) ?? throw ErrorDominio::noEncontrado('USER_NOT_FOUND');
         if ($objetivo->id === $solicitante->id) {
-            throw ErrorApi::prohibido('CANNOT_MODIFY_OWN_ACCOUNT');
+            throw ErrorDominio::prohibido('CANNOT_MODIFY_OWN_ACCOUNT');
         }
         if (!Roles::puedeCerrarSesiones($solicitante->rol, $objetivo->rol)) {
-            throw ErrorApi::prohibido('INSUFFICIENT_PERMISSIONS');
+            throw ErrorDominio::prohibido('INSUFFICIENT_PERMISSIONS');
         }
 
         return $objetivo;
@@ -340,12 +340,12 @@ final readonly class Identidades
 
     public function gestionable(string $objetivoHex, Usuario $solicitante): Usuario
     {
-        $objetivo = $this->usuarios->porId($objetivoHex) ?? throw new ErrorApi(404, 'USER_NOT_FOUND');
+        $objetivo = $this->usuarios->porId($objetivoHex) ?? throw ErrorDominio::noEncontrado('USER_NOT_FOUND');
         if ($objetivo->id === $solicitante->id) {
-            throw ErrorApi::prohibido('CANNOT_MODIFY_OWN_ACCOUNT');
+            throw ErrorDominio::prohibido('CANNOT_MODIFY_OWN_ACCOUNT');
         }
         if (!Roles::puedeAdministrar($solicitante->rol, $objetivo->rol)) {
-            throw ErrorApi::prohibido('INSUFFICIENT_PERMISSIONS');
+            throw ErrorDominio::prohibido('INSUFFICIENT_PERMISSIONS');
         }
 
         return $objetivo;
@@ -360,7 +360,7 @@ final readonly class Identidades
         $objetivo = $this->gestionable($objetivoHex, $solicitante);
         $fila = (array) $this->conexion->fetchAssociative('SELECT "USU_SSO_Habilitado" FROM "INV_USUARIO" WHERE "USU_Usuario" = :id', ['id' => $objetivoHex]);
         if (1 === (int) $fila['USU_SSO_Habilitado'] && null === $objetivo->passwordHash) {
-            throw new ErrorApi(400, 'SSO_ONLY_ACCOUNT');
+            throw ErrorDominio::invalido('SSO_ONLY_ACCOUNT');
         }
         $temporal = $this->politica->generarTemporal($objetivo->username);
         $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $temporal, $auditar): void {
@@ -420,12 +420,12 @@ final readonly class Identidades
             // Hasta el final de ese día en la zona de la empresa; una fecha imposible (31 de febrero) no se corre al mes siguiente.
             [$a, $m, $d] = array_map('intval', explode('-', $hastaDia));
             if (!checkdate($m, $d, $a)) {
-                throw new ErrorApi(422, 'INVALID_PARAMETER_VALUE');
+                throw ErrorDominio::noProcesable('INVALID_PARAMETER_VALUE');
             }
             $hasta = (new \DateTimeImmutable(\sprintf('%04d-%02d-%02d 23:59:59', $a, $m, $d), new \DateTimeZone($this->ajustes->zonaHoraria)))
                 ->setTimezone(new \DateTimeZone('UTC'));
             if ($hasta <= Reloj::ahora()) {
-                throw new ErrorApi(422, 'LOCK_UNTIL_MUST_BE_FUTURE');
+                throw ErrorDominio::noProcesable('LOCK_UNTIL_MUST_BE_FUTURE');
             }
         }
         $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $auditar, $motivo, $hasta): void {
@@ -449,9 +449,9 @@ final readonly class Identidades
     /** @return list<array<string, mixed>> */
     public function sesionesDe(string $objetivoHex, Usuario $solicitante): array
     {
-        $objetivo = $this->usuarios->porId($objetivoHex) ?? throw new ErrorApi(404, 'USER_NOT_FOUND');
+        $objetivo = $this->usuarios->porId($objetivoHex) ?? throw ErrorDominio::noEncontrado('USER_NOT_FOUND');
         if ($objetivo->id !== $solicitante->id && !Roles::puedeCerrarSesiones($solicitante->rol, $objetivo->rol)) {
-            throw ErrorApi::prohibido('INSUFFICIENT_PERMISSIONS');
+            throw ErrorDominio::prohibido('INSUFFICIENT_PERMISSIONS');
         }
 
         return array_map(static fn (array $s): array => SesionRepositorio::serializar($s), $this->sesiones->activas($objetivoHex));
@@ -462,7 +462,7 @@ final readonly class Identidades
         $objetivo = $this->conSesionesGestionables($objetivoHex, $solicitante);
         $sesion = $this->sesiones->obtener($sesionId);
         if (null === $sesion || $sesion['usuario'] !== $objetivoHex) {
-            throw new ErrorApi(404, 'SESSION_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('SESSION_NOT_FOUND');
         }
         $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $sesion, $sesionId, $auditar): void {
             if ($this->cierre->cerrar($sesion['id'], $objetivoHex, 'cerrada_por_administrador')) {
@@ -584,14 +584,14 @@ final readonly class Identidades
         }
         $nuevoGlobal = $global ?? $antes['global'];
         if ($nuevoGlobal && !$antes['global'] && !Roles::puedeOtorgarAlcanceGlobal($rolSolicitante)) {
-            throw ErrorApi::prohibido('ONLY_SUPER_ADMIN_CAN_GRANT_GLOBAL_SCOPE');
+            throw ErrorDominio::prohibido('ONLY_SUPER_ADMIN_CAN_GRANT_GLOBAL_SCOPE');
         }
         $nuevasSedes = null === $sedes ? $antes['sedes'] : $this->sedesValidas($sedes);
         if ($nuevoGlobal) {
             $nuevasSedes = [];
         }
         if (\in_array($rol, Roles::CON_ALCANCE, true) && !$nuevoGlobal && [] === $nuevasSedes) {
-            throw new ErrorApi(400, 'SCOPE_REQUIRED');
+            throw ErrorDominio::invalido('SCOPE_REQUIRED');
         }
 
         return ['global' => $nuevoGlobal, 'sedes' => $nuevasSedes];
@@ -612,7 +612,7 @@ final readonly class Identidades
         sort($ids);
         foreach ($ids as $id) {
             if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_SEDE" WHERE "SED_Sede" = :s', ['s' => $id])) {
-                throw new ErrorApi(400, 'SEDE_NOT_FOUND');
+                throw ErrorDominio::invalido('SEDE_NOT_FOUND');
             }
         }
 

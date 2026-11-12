@@ -8,7 +8,7 @@ use App\Config\Ajustes;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Dominio\Usuario;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\UsuarioRepositorio;
 use App\Seguridad\PoliticaSesion;
@@ -36,20 +36,20 @@ final readonly class MfaExemption
     {
         $target = $this->target($targetHex, $requester);
         if ($target->dosFactoresHabilitado) {
-            throw new ErrorApi(409, 'MFA_ALREADY_ENABLED');
+            throw ErrorDominio::conflicto('MFA_ALREADY_ENABLED');
         }
         if (!$this->policy->rolExigeMfa($target->rol)) {
-            throw new ErrorApi(409, 'MFA_NOT_REQUIRED_FOR_ROLE');
+            throw ErrorDominio::conflicto('MFA_NOT_REQUIRED_FOR_ROLE');
         }
         $end = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $until.' 23:59:59', new \DateTimeZone($this->settings->zonaHoraria))
-            ?: throw new ErrorApi(422, 'INVALID_PARAMETER_VALUE');
+            ?: throw ErrorDominio::noProcesable('INVALID_PARAMETER_VALUE');
         $end = $end->setTimezone(new \DateTimeZone('UTC'));
         $now = Reloj::ahora();
         if ($end <= $now) {
-            throw new ErrorApi(422, 'MFA_EXEMPTION_IN_PAST');
+            throw ErrorDominio::noProcesable('MFA_EXEMPTION_IN_PAST');
         }
         if ($end > $now->modify('+'.($this->settings->mfaExencionMaxDias + 1).' days')) {
-            throw new ErrorApi(422, 'MFA_EXEMPTION_TOO_LONG');
+            throw ErrorDominio::noProcesable('MFA_EXEMPTION_TOO_LONG');
         }
 
         $this->connection->transactional(function () use ($target, $end, $reason, $requester, $ip): void {
@@ -79,9 +79,9 @@ final readonly class MfaExemption
     private function target(string $targetHex, Usuario $requester): Usuario
     {
         if (Roles::SUPER_ADMIN !== $requester->rol) {
-            throw ErrorApi::prohibido('NOT_ENOUGH_PERMISSIONS');
+            throw ErrorDominio::prohibido('NOT_ENOUGH_PERMISSIONS');
         }
 
-        return $this->users->porId($targetHex) ?? throw new ErrorApi(404, 'USER_NOT_FOUND');
+        return $this->users->porId($targetHex) ?? throw ErrorDominio::noEncontrado('USER_NOT_FOUND');
     }
 }

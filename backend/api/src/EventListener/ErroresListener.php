@@ -6,6 +6,8 @@ namespace App\EventListener;
 
 use App\Db\ErroresOracle;
 use App\Db\Unicidad;
+use App\Dominio\ErrorDominio;
+use App\Dominio\MotivoError;
 use App\Http\ErrorApi;
 use App\Http\ErrorValidacion;
 use Doctrine\DBAL\Connection;
@@ -36,6 +38,27 @@ final readonly class ErroresListener
     {
     }
 
+    /**
+     * The only place where a business refusal becomes an HTTP status: the rules say why
+     * (App\Dominio\MotivoError) and this layer decides how the API tells the client.
+     */
+    public static function estadoHttp(MotivoError $motivo): int
+    {
+        return match ($motivo) {
+            MotivoError::Invalido => 400,
+            MotivoError::NoAutenticado => 401,
+            MotivoError::Prohibido => 403,
+            MotivoError::NoEncontrado => 404,
+            MotivoError::Conflicto => 409,
+            MotivoError::YaNoExiste => 410,
+            MotivoError::DemasiadoGrande => 413,
+            MotivoError::NoProcesable => 422,
+            MotivoError::Interno => 500,
+            MotivoError::ServicioExterno => 502,
+            MotivoError::NoDisponible => 503,
+        };
+    }
+
     public function __invoke(ExceptionEvent $event): void
     {
         $e = $event->getThrowable();
@@ -43,6 +66,8 @@ final readonly class ErroresListener
 
         $respuesta = match (true) {
             $e instanceof ErrorApi => new JsonResponse(['detail' => $e->cuerpo ?? $e->detalle], $e->estado, $e->cabeceras),
+            $e instanceof ErrorDominio => new JsonResponse(['detail' => $e->cuerpo ?? $e->detalle], self::estadoHttp($e->motivo),
+                MotivoError::NoAutenticado === $e->motivo ? ['WWW-Authenticate' => 'Bearer'] : []),
             $e instanceof ErrorValidacion => new JsonResponse(['detail' => 'VALIDATION_ERROR', 'errors' => $e->errores], 422),
             $e instanceof \App\Db\RecordInUse => new JsonResponse(['detail' => 'RECORD_IN_USE'], 409),
             $e instanceof ExcepcionDbal => $this->deBaseDeDatos($e, $ruta),

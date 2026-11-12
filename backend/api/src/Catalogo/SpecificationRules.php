@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Catalogo;
 
 use App\GoodsReceipt\Domain\SpecificationValue;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use Doctrine\DBAL\Connection;
 
 /** Allowed values per asset type and specification, and the single place where a value is validated. */
@@ -57,19 +57,19 @@ final readonly class SpecificationRules
     /**
      * @return string the value as it must be stored
      *
-     * @throws ErrorApi 422 with the reason, the same codes the screens show while typing
+     * @throws ErrorDominio 422 with the reason, the same codes the screens show while typing
      */
     public function normalize(int $assetType, int $specification, string $value): string
     {
         $type = $this->connection->fetchAssociative('SELECT "TES_Data_Type", "TES_Min_Value", "TES_Max_Value" FROM "INV_TIPO_ESPECIFICACION" WHERE "TES_Tipo_Especificacion" = :t', ['t' => $specification]);
         if (false === $type) {
-            throw new ErrorApi(404, 'SPECIFICATION_TYPE_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('SPECIFICATION_TYPE_NOT_FOUND');
         }
         try {
             return SpecificationValue::normalize((string) $type['TES_Data_Type'], null === $type['TES_Min_Value'] ? null : (float) $type['TES_Min_Value'],
                 null === $type['TES_Max_Value'] ? null : (float) $type['TES_Max_Value'], $this->options($assetType, $specification), $value);
         } catch (\InvalidArgumentException $e) {
-            throw new ErrorApi(422, $e->getMessage());
+            throw ErrorDominio::noProcesable($e->getMessage());
         }
     }
 }

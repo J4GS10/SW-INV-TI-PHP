@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Seguridad;
 
 use App\Config\Ajustes;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -87,17 +87,17 @@ final readonly class Tokens
         try {
             $objeto = JWT::decode($token, new Key($this->ajustes->claveSecreta, $this->ajustes->algoritmo));
         } catch (ExpiredException) {
-            throw ErrorApi::noAutenticado('TOKEN_EXPIRED');
+            throw ErrorDominio::noAutenticado('TOKEN_EXPIRED');
         } catch (\Throwable) {
-            throw ErrorApi::noAutenticado();
+            throw ErrorDominio::noAutenticado();
         }
         /** @var array<string, mixed> $payload */
         $payload = json_decode(json_encode($objeto, \JSON_THROW_ON_ERROR), true, flags: \JSON_THROW_ON_ERROR);
         if (($payload['type'] ?? null) !== $tipoEsperado) {
-            throw new ErrorApi(401, 'INVALID_TOKEN_TYPE');
+            throw ErrorDominio::noAutenticado('INVALID_TOKEN_TYPE');
         }
         if (empty($payload['sub'])) {
-            throw new ErrorApi(401, 'COULD_NOT_VALIDATE_CREDENTIALS');
+            throw ErrorDominio::noAutenticado('COULD_NOT_VALIDATE_CREDENTIALS');
         }
 
         return $payload;
@@ -114,7 +114,7 @@ final readonly class Tokens
     {
         try {
             return $this->decodificar($token, $tipo);
-        } catch (ErrorApi) {
+        } catch (ErrorDominio) {
             return null;
         }
     }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Inventario;
 
 use App\Catalogo\ClasesActivo;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use Doctrine\DBAL\Connection;
 
 /**
@@ -92,7 +92,7 @@ final readonly class EstadosActivo
     public static function exigirTransicion(?string $actual, string $destino): void
     {
         if (null !== $actual && !self::permitida($actual, $destino)) {
-            throw new ErrorApi(400, 'INVALID_STATE_TRANSITION');
+            throw ErrorDominio::invalido('INVALID_STATE_TRANSITION');
         }
     }
 
@@ -103,7 +103,7 @@ final readonly class EstadosActivo
     public static function validarTransicion(string $actual, string $destino): void
     {
         if (!self::permitida($actual, $destino)) {
-            throw new ErrorApi(400, 'INVALID_STATE_TRANSITION', cuerpo: ['error' => 'INVALID_STATE_TRANSITION', 'current_state' => $actual,
+            throw ErrorDominio::invalido('INVALID_STATE_TRANSITION', cuerpo: ['error' => 'INVALID_STATE_TRANSITION', 'current_state' => $actual,
                 'target_state' => $destino, 'message' => "No se puede pasar de '{$actual}' a '{$destino}' directamente."]);
         }
     }
@@ -138,6 +138,6 @@ final readonly class EstadosActivo
     /** Id obligatorio (500 si el catálogo no tiene el estado del sistema). */
     public function idObligatorio(string $estado): int
     {
-        return $this->idDe($estado) ?? throw new ErrorApi(500, 'SYSTEM_CONFIGURATION_ERROR_MISSING_STATUS_'.strtoupper(ClasesActivo::normalizar($estado)));
+        return $this->idDe($estado) ?? throw ErrorDominio::interno('SYSTEM_CONFIGURATION_ERROR_MISSING_STATUS_'.strtoupper(ClasesActivo::normalizar($estado)));
     }
 }

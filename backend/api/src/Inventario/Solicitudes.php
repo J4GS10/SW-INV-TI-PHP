@@ -8,7 +8,7 @@ use App\Db\InsercionOracle;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
@@ -44,7 +44,7 @@ final readonly class Solicitudes
         ?int $consumible = null, ?int $sede = null, ?string $ip = null): int
     {
         if (null === $solicitante) {
-            throw new ErrorApi(400, 'APPROVAL_REQUIRES_REQUESTER');
+            throw ErrorDominio::invalido('APPROVAL_REQUIRES_REQUESTER');
         }
         $resumen = mb_substr($resumen, 0, 500);
         // RETURNING no admite el CLOB: se inserta con un payload vacío y se escribe después.
@@ -76,7 +76,7 @@ final readonly class Solicitudes
         }
         $pendiente = $this->conexion->fetchOne($sql.' FETCH FIRST 1 ROWS ONLY', $p);
         if (false !== $pendiente) {
-            throw new ErrorApi(409, "APPROVAL_ALREADY_PENDING:{$pendiente}");
+            throw ErrorDominio::conflicto("APPROVAL_ALREADY_PENDING:{$pendiente}");
         }
     }
 
@@ -96,7 +96,7 @@ final readonly class Solicitudes
             $pendiente = $this->conexion->fetchOne("SELECT \"APR_Aprobacion\" FROM \"INV_APROBACION\" WHERE \"ACT_Activo\" = :a AND \"APR_Tipo\" = 'BAJA' "
                 ."AND \"APR_Estado\" = 'PENDIENTE' FETCH FIRST 1 ROWS ONLY", ['a' => $activo]);
             if (false !== $pendiente) {
-                throw new ErrorApi(409, "DECOMMISSION_ALREADY_REQUESTED:{$pendiente}");
+                throw ErrorDominio::conflicto("DECOMMISSION_ALREADY_REQUESTED:{$pendiente}");
             }
             $id = $this->crear('BAJA', Esquemas::bajaJson($baja), $usuario,
                 "Baja de {$a['ACT_Codigo_Interno']} ({$a['ACT_Serie_Fabricante']}): {$baja['motivo']} → {$baja['destino']}",
@@ -116,10 +116,10 @@ final readonly class Solicitudes
         return $this->transaccion->ejecutar(function () use ($consumible, $real, $motivo, $usuario, $ip): array {
             [$alcance, $p] = $this->alcance->lectura('INV_CONSUMIBLE', 'c');
             $c = $this->conexion->fetchAssociative('SELECT c."CON_Nombre", c."CON_Stock_Actual", c."CON_Unidad", c."SED_Sede" FROM "INV_CONSUMIBLE" c '
-                .'WHERE c."CON_Consumible" = :id AND '.$alcance.' FOR UPDATE', [...$p, 'id' => $consumible]) ?: throw new ErrorApi(404, 'CONSUMABLE_NOT_FOUND');
+                .'WHERE c."CON_Consumible" = :id AND '.$alcance.' FOR UPDATE', [...$p, 'id' => $consumible]) ?: throw ErrorDominio::noEncontrado('CONSUMABLE_NOT_FOUND');
             $actual = (int) $c['CON_Stock_Actual'];
             if ($real === $actual) {
-                throw new ErrorApi(400, 'STOCK_ALREADY_MATCHES');
+                throw ErrorDominio::invalido('STOCK_ALREADY_MATCHES');
             }
             $this->sinPendiente('AJUSTE_CONSUMIBLE', consumible: $consumible);
             $diferencia = ($real > $actual ? '+' : '−').abs($real - $actual);
@@ -145,10 +145,10 @@ final readonly class Solicitudes
             $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t FOR UPDATE', ['t' => $tipo]);
             $vista = $this->reclasificacion->vistaPrevia($tipo, $d['SED_Sede']);
             if ([] !== $vista['bloqueados']) {
-                throw new ErrorApi(409, 'RECLASSIFY_ASSETS_IN_USE');
+                throw ErrorDominio::conflicto('RECLASSIFY_ASSETS_IN_USE');
             }
             if (0 === $vista['activos']) {
-                throw new ErrorApi(409, 'RECLASSIFY_NOTHING_TO_CONVERT');
+                throw ErrorDominio::conflicto('RECLASSIFY_NOTHING_TO_CONVERT');
             }
             $this->sinPendiente('RECLASIFICACION');
             $id = $this->crear('RECLASIFICACION', ['tipo_id' => $tipo, ...$d], $usuario,
@@ -214,7 +214,7 @@ final readonly class Solicitudes
      */
     private function unaSinAlcance(int $id): array
     {
-        return $this->aApi($this->fila($id) ?? throw new ErrorApi(404, 'APPROVAL_NOT_FOUND'));
+        return $this->aApi($this->fila($id) ?? throw ErrorDominio::noEncontrado('APPROVAL_NOT_FOUND'));
     }
 
     /** @return list<array<string, mixed>> */

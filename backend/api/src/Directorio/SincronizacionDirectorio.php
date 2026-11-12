@@ -9,7 +9,7 @@ use App\Correo\Notificador;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Integracion\ConfigAd;
 use App\Integracion\FuenteIntegracion;
 use App\Organizacion\Identidades;
@@ -55,15 +55,15 @@ final readonly class SincronizacionDirectorio
     public function sincronizar(bool $simulacion = false, ?string $usuarioHex = null, ?string $ip = null, bool $forzarBajas = false): array
     {
         $config = $this->fuente->obtener()->ad;
-        $directorio = $this->directorios->activo() ?? throw new ErrorApi(400, 'AD_DISABLED');
+        $directorio = $this->directorios->activo() ?? throw ErrorDominio::invalido('AD_DISABLED');
         try {
             $usuarios = $directorio->usuarios();
         } catch (ErrorAutenticacionDirectorio $e) {
             $this->logger->warning('ad_sync.auth_error', ['error' => $e->getMessage()]);
-            throw new ErrorApi(502, 'AD_AUTH_FAILED');
+            throw ErrorDominio::servicioExterno('AD_AUTH_FAILED');
         } catch (ErrorDirectorio $e) {
             $this->logger->warning('ad_sync.directory_error', ['error' => $e->getMessage()]);
-            throw new ErrorApi(502, 'AD_UNAVAILABLE');
+            throw ErrorDominio::servicioExterno('AD_UNAVAILABLE');
         }
 
         $r = new ResultadoSincronizacion($simulacion, \count($usuarios));

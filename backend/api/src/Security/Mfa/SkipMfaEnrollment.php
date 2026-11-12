@@ -7,7 +7,7 @@ namespace App\Security\Mfa;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Usuario;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\SesionRepositorio;
 use App\Repositorio\UsuarioRepositorio;
@@ -38,15 +38,15 @@ final readonly class SkipMfaEnrollment
     public function execute(Usuario $user, array $payload, ?string $ip, ?string $ua): array
     {
         if (!$this->policy->rolExigeMfa($user->rol) || $user->dosFactoresHabilitado || $this->policy->exento($user)) {
-            throw new ErrorApi(409, 'MFA_SKIP_NOT_AVAILABLE');
+            throw ErrorDominio::conflicto('MFA_SKIP_NOT_AVAILABLE');
         }
         if (null !== $user->mfaOmitidoEn) {
-            throw new ErrorApi(409, 'MFA_SKIP_ALREADY_USED');
+            throw ErrorDominio::conflicto('MFA_SKIP_ALREADY_USED');
         }
         $sid = isset($payload['sid']) ? (string) $payload['sid'] : null;
         $session = null === $sid ? null : $this->sessions->obtener($sid);
         if (null === $session || !SesionRepositorio::activa($session) || $session['usuario'] !== $user->id) {
-            throw new ErrorApi(401, 'TOKEN_REVOKED');
+            throw ErrorDominio::noAutenticado('TOKEN_REVOKED');
         }
 
         $this->connection->transactional(function () use ($user, $ip, $ua): void {
@@ -56,12 +56,12 @@ final readonly class SkipMfaEnrollment
                 ['now' => Reloj::aBd(Reloj::ahora()), 'id' => $user->id],
             );
             if (1 !== $updated) {
-                throw new ErrorApi(409, 'MFA_SKIP_ALREADY_USED');
+                throw ErrorDominio::conflicto('MFA_SKIP_ALREADY_USED');
             }
             $this->audit->registrarAuditoria('MFA_ENROLLMENT_SKIPPED', 'INV_USUARIO', ['username' => $user->username], $user->id, $ip, $ua);
         });
 
-        $fresh = $this->users->porId($user->id) ?? throw new ErrorApi(401, 'COULD_NOT_VALIDATE_CREDENTIALS');
+        $fresh = $this->users->porId($user->id) ?? throw ErrorDominio::noAutenticado('COULD_NOT_VALIDATE_CREDENTIALS');
         $claims = [...$this->policy->claims($fresh, 'sso' === ($payload['amr'] ?? null), $session['creada']), 'sid' => Ident::aTexto($session['id'])];
 
         return ['user' => $fresh, 'claims' => $claims];

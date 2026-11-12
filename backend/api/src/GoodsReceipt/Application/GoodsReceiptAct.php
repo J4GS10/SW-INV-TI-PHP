@@ -8,7 +8,7 @@ use App\Documentos\Idioma;
 use App\Documentos\Pdf;
 use App\GoodsReceipt\Domain\GoodsReceiptStatus;
 use App\GoodsReceipt\Infrastructure\GoodsReceiptRepository;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use Doctrine\DBAL\Connection;
 
 /** The receipt act handed to purchasing once IT has confirmed what truly arrived. */
@@ -29,9 +29,9 @@ final readonly class GoodsReceiptAct
 
     public function generate(int $id, Idioma $language): string
     {
-        $receipt = $this->receipts->find($id) ?? throw new ErrorApi(404, 'GOODS_RECEIPT_NOT_FOUND');
+        $receipt = $this->receipts->find($id) ?? throw ErrorDominio::noEncontrado('GOODS_RECEIPT_NOT_FOUND');
         if (!GoodsReceiptStatus::from((string) $receipt['GRC_STATUS'])->hasEnteredInventory()) {
-            throw new ErrorApi(409, 'GOODS_RECEIPT_NOT_CONFIRMED');
+            throw ErrorDominio::conflicto('GOODS_RECEIPT_NOT_CONFIRMED');
         }
         $t = self::TEXTS[$language->value];
         $e = static fn (mixed $v): string => htmlspecialchars((string) $v, \ENT_QUOTES | \ENT_SUBSTITUTE, 'UTF-8');

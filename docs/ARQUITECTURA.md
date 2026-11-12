@@ -601,3 +601,17 @@ Todo corre en Docker: en el equipo solo hace falta Docker y Git Bash.
 | Una persona no ve un activo | Sedes de su usuario (VPD) antes que el rol |
 | Alerta de respaldo | `docker logs inventario-backup_db-1`, `BACKUP_DIR/oracle/*.log` |
 | Tras cambiar de red | La dirección nueva debe estar en `DOMAIN` y `BACKEND_CORS_ORIGINS` |
+
+## Capas y sus dependencias
+
+| Capa | Carpetas | Puede depender de |
+|---|---|---|
+| Entrega | `Controller`, `Http`, `EventListener` | Negocio y dominio. Nunca consulta la base |
+| Negocio | El resto de `src/` (casos de uso) | Dominio y los puertos (interfaces) que ella misma define. No conoce HTTP ni SQL |
+| Datos | `Repositorio`, `<módulo>/Infrastructure`, `Db`, `Esquema` | Implementa los puertos del negocio. Aquí vive todo el SQL de Oracle |
+| Dominio | `Dominio`, `<módulo>/Domain` | Nada externo: valores y reglas sin framework |
+
+- **Errores:** el negocio lanza `ErrorDominio` con un motivo (`MotivoError`: no encontrado, conflicto, inválido…) y el código estable que traduce el frontend. Solo `ErroresListener::estadoHttp` convierte el motivo en estado HTTP.
+- **Datos:** cada módulo define su puerto en `<Módulo>/Puertos` (por ejemplo `Inventario/Puertos/Proveedores`) y la capa de datos lo implementa (`Repositorio/ProveedoresOracle`). Symfony enlaza la interfaz con su única implementación.
+- **Vigilancia:** `tests/Unit/ArchitectureTest.php` lee las importaciones de todo `src/` y falla si un archivo nuevo mezcla capas. Los archivos que aún las mezclan están en `tests/Unit/architecture-baseline.php`; esa lista solo puede reducirse. Tras migrar un módulo: `php tests/Unit/architecture-baseline.php --write`.
+- **Estado al 2026-11-12:** errores HTTP fuera del negocio en todo el sistema. Con SQL propio quedan 61 archivos de negocio y 15 de entrega; migrado como modelo: proveedores y garantías (`Inventario/Compras`).

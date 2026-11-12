@@ -8,7 +8,7 @@ use App\Config\Ajustes;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Inventario\Activos;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
@@ -61,18 +61,18 @@ final readonly class Adjuntos
         $original = TiposArchivo::sanearNombre($subida->nombre);
         $extension = TiposArchivo::extension($original);
         if (!\in_array($extension, $this->ajustes->extensionesPermitidas, true)) {
-            throw new ErrorApi(400, 'FILE_TYPE_NOT_ALLOWED');
+            throw ErrorDominio::invalido('FILE_TYPE_NOT_ALLOWED');
         }
         $contenido = $subida->contenido;
         if (\strlen($contenido) > $this->ajustes->adjuntoMaxMb * 1024 * 1024) {
-            throw new ErrorApi(413, 'FILE_TOO_LARGE_MAX_MB:'.$this->ajustes->adjuntoMaxMb);
+            throw ErrorDominio::demasiadoGrande('FILE_TOO_LARGE_MAX_MB:'.$this->ajustes->adjuntoMaxMb);
         }
         if ('' === $contenido) {
-            throw new ErrorApi(400, 'EMPTY_FILE');
+            throw ErrorDominio::invalido('EMPTY_FILE');
         }
         // Un .exe renombrado a .pdf o un HTML guardado como .jpg se rechazan; el MIME lo decide el servidor.
         if (!TiposArchivo::contenidoCoincide($extension, $contenido)) {
-            throw new ErrorApi(400, 'FILE_CONTENT_MISMATCH');
+            throw ErrorDominio::invalido('FILE_CONTENT_MISMATCH');
         }
         $mime = TiposArchivo::mime($extension);
         $almacenado = bin2hex(random_bytes(16)).$extension;
@@ -80,7 +80,7 @@ final readonly class Adjuntos
         try {
             $objeto = $almacen->guardar("{$dueno->tipo->value}/{$dueno->idEnRuta()}/{$almacenado}", $contenido, $mime);
         } catch (AlmacenNoDisponible $e) {
-            throw new ErrorApi(503, $e->getMessage());
+            throw ErrorDominio::noDisponible($e->getMessage());
         }
 
         try {
@@ -117,15 +117,15 @@ final readonly class Adjuntos
     {
         $fila = $this->filaO404($id);
         if (!\in_array($rol, TipoDueno::deFila($fila)->lectores(), true)) {
-            throw new ErrorApi(404, 'ATTACHMENT_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('ATTACHMENT_NOT_FOUND');
         }
         $backend = $fila['ADJ_Storage_Backend'] ?? AlmacenLocal::NOMBRE;
         try {
             $contenido = $this->almacenes->de($backend)->leer(self::clave($fila), $fila['ADJ_Bucket']);
         } catch (AlmacenNoDisponible $e) {
             throw AlmacenNoDisponible::ARCHIVO_FALTANTE === $e->getMessage() && AlmacenLocal::NOMBRE === $backend
-                ? new ErrorApi(410, $e->getMessage())
-                : new ErrorApi(503, $e->getMessage());
+                ? ErrorDominio::yaNoExiste($e->getMessage())
+                : ErrorDominio::noDisponible($e->getMessage());
         }
 
         return [$fila, $contenido];
@@ -147,16 +147,16 @@ final readonly class Adjuntos
         [$alcance, $p] = $this->alcance->lectura('INV_ADJUNTO', 'j');
         $fila = $this->conexion->fetchAssociative('SELECT '.self::COLUMNAS.' FROM "INV_ADJUNTO" j WHERE j."ADJ_Adjunto" = :id AND '.$alcance, [...$p, 'id' => $id]);
 
-        return false === $fila ? throw new ErrorApi(404, 'ATTACHMENT_NOT_FOUND') : $fila;
+        return false === $fila ? throw ErrorDominio::noEncontrado('ATTACHMENT_NOT_FOUND') : $fila;
     }
 
     private function exigirDueno(Dueno $dueno): void
     {
         match ($dueno->tipo) {
             TipoDueno::Activo => $this->activos->filaO404((string) $dueno->id),
-            TipoDueno::Ingreso => null !== $this->goodsReceipts->find((int) $dueno->id) || throw new ErrorApi(404, 'GOODS_RECEIPT_NOT_FOUND'),
+            TipoDueno::Ingreso => null !== $this->goodsReceipts->find((int) $dueno->id) || throw ErrorDominio::noEncontrado('GOODS_RECEIPT_NOT_FOUND'),
             TipoDueno::Licencia => false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA" WHERE "LIC_Licencia" = :id', ['id' => $dueno->id])
-                || throw new ErrorApi(404, 'LICENSE_NOT_FOUND'),
+                || throw ErrorDominio::noEncontrado('LICENSE_NOT_FOUND'),
         };
     }
 
@@ -169,7 +169,7 @@ final readonly class Adjuntos
             $categoria = strtolower($categoria);
         }
 
-        return \in_array($categoria, $validos, true) ? $categoria : throw new ErrorApi(400, 'INVALID_ATTACHMENT_CATEGORY');
+        return \in_array($categoria, $validos, true) ? $categoria : throw ErrorDominio::invalido('INVALID_ATTACHMENT_CATEGORY');
     }
 
     private function borrarBinario(Almacen $almacen, string $clave, ?string $bucket, string $evento): void

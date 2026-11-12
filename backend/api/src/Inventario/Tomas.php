@@ -8,7 +8,7 @@ use App\Db\InsercionOracle;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
@@ -60,7 +60,7 @@ final readonly class Tomas
         $t = $this->conexion->fetchAssociative('SELECT '.self::COLUMNAS.' FROM "INV_TOMA_INVENTARIO" t WHERE t."TOM_Toma" = :id AND '.$alcance.($bloquear ? ' FOR UPDATE' : ''),
             [...$p, 'id' => $id]);
 
-        return false === $t ? throw new ErrorApi(404, 'INVENTORY_COUNT_NOT_FOUND') : $t;
+        return false === $t ? throw ErrorDominio::noEncontrado('INVENTORY_COUNT_NOT_FOUND') : $t;
     }
 
     /** @return list<array<string, mixed>> */
@@ -81,16 +81,16 @@ final readonly class Tomas
                 $sedeArea = $this->conexion->fetchOne('SELECT e."SED_Sede" FROM "INV_AREA" a JOIN "INV_NIVEL" n ON n."NIV_Nivel" = a."NIV_Nivel" '
                     .'JOIN "INV_EDIFICIO" e ON e."EDI_Edificio" = n."EDI_Edificio" WHERE a."ARE_Area" = :a', ['a' => $area]);
                 if (false === $sedeArea && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_AREA" WHERE "ARE_Area" = :a', ['a' => $area])) {
-                    throw new ErrorApi(404, 'AREA_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
                 }
                 if ((int) $sedeArea !== $sede) {
-                    throw new ErrorApi(400, 'AREA_NOT_IN_SEDE');
+                    throw ErrorDominio::invalido('AREA_NOT_IN_SEDE');
                 }
             }
             $abierta = $this->conexion->fetchOne("SELECT \"TOM_Toma\" FROM \"INV_TOMA_INVENTARIO\" WHERE \"SED_Sede\" = :s AND \"TOM_Estado\" = 'ABIERTA' AND "
                 .(null === $area ? '"ARE_Area" IS NULL' : '"ARE_Area" = :a').' FETCH FIRST 1 ROWS ONLY', null === $area ? ['s' => $sede] : ['s' => $sede, 'a' => $area]);
             if (false !== $abierta) {
-                throw new ErrorApi(409, "INVENTORY_COUNT_ALREADY_OPEN:{$abierta}");
+                throw ErrorDominio::conflicto("INVENTORY_COUNT_ALREADY_OPEN:{$abierta}");
             }
             $id = (int) InsercionOracle::insertar($this->conexion, 'INV_TOMA_INVENTARIO', ['SED_Sede' => $sede, 'ARE_Area' => $area, 'TOM_Estado' => 'ABIERTA',
                 'TOM_Fecha_Inicio' => Reloj::aBd(Reloj::ahora()), 'TOM_Observacion' => $observacion, 'USU_Usuario' => $usuario], 'TOM_Toma');
@@ -155,7 +155,7 @@ final readonly class Tomas
         return $this->transaccion->ejecutar(function () use ($tomaId, $codigo, $area, $observacion, $usuario): array {
             $t = $this->fila($tomaId, true);
             if ('ABIERTA' !== $t['TOM_Estado']) {
-                throw new ErrorApi(409, 'INVENTORY_COUNT_NOT_OPEN');
+                throw ErrorDominio::conflicto('INVENTORY_COUNT_NOT_OPEN');
             }
             $codigo = trim($codigo);
             // Se busca en toda la empresa: un equipo de otra sede también es un hallazgo.
@@ -243,7 +243,7 @@ final readonly class Tomas
         $this->transaccion->ejecutar(function () use ($id, $actualizarUbicacion, $usuario, $ip): void {
             $t = $this->fila($id, true);
             if ('ABIERTA' !== $t['TOM_Estado']) {
-                throw new ErrorApi(409, 'INVENTORY_COUNT_NOT_OPEN');
+                throw ErrorDominio::conflicto('INVENTORY_COUNT_NOT_OPEN');
             }
             // Una toma grande no retiene la petición: el worker la cierra y la pantalla muestra el avance.
             if (\count($this->esperados($t)) > self::UMBRAL_SEGUNDO_PLANO) {
@@ -324,7 +324,7 @@ final readonly class Tomas
         return $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): array {
             $t = $this->fila($id, true);
             if ('ABIERTA' !== $t['TOM_Estado']) {
-                throw new ErrorApi(409, 'INVENTORY_COUNT_NOT_OPEN');
+                throw ErrorDominio::conflicto('INVENTORY_COUNT_NOT_OPEN');
             }
             $this->conexion->executeStatement("UPDATE \"INV_TOMA_INVENTARIO\" SET \"TOM_Estado\" = 'ANULADA', \"TOM_Fecha_Cierre\" = :f WHERE \"TOM_Toma\" = :id",
                 ['f' => Reloj::aBd(Reloj::ahora()), 'id' => $id]);

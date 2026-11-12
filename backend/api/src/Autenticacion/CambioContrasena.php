@@ -7,7 +7,7 @@ namespace App\Autenticacion;
 use App\Config\Ajustes;
 use App\Dominio\Reloj;
 use App\Dominio\Usuario;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\CredencialesRepositorio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\UsuarioRepositorio;
@@ -36,12 +36,12 @@ final readonly class CambioContrasena
     {
         $this->politica->validar($nueva, $u->username, $this->usuarios->persona($u)?->datosPersonales() ?? []);
         if (Contrasenas::verificar($nueva, $u->passwordHash)) {
-            throw new ErrorApi(400, 'PASSWORD_SAME_AS_OLD');
+            throw ErrorDominio::invalido('PASSWORD_SAME_AS_OLD');
         }
         $n = $this->ajustes->passwordHistorial;
         foreach ($this->credenciales->historial($u->id, $n) as $hash) {
             if (Contrasenas::verificar($nueva, $hash)) {
-                throw new ErrorApi(400, "PASSWORD_REUSED:{$n}");
+                throw ErrorDominio::invalido("PASSWORD_REUSED:{$n}");
             }
         }
     }

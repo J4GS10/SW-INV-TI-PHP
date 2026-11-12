@@ -8,7 +8,7 @@ use App\Catalogo\ClasesActivo;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
 
@@ -120,7 +120,7 @@ final readonly class Productividad
         [$aPer, $pPer] = $this->alcance->lectura('INV_PERSONA', 'p');
         $per = $this->conexion->fetchAssociative('SELECT p."CAR_Cargo", p."DEP_Departamento", d."DEP_Nombre" FROM "INV_PERSONA" p '
             .'JOIN "INV_DEPARTAMENTO" d ON d."DEP_Departamento" = p."DEP_Departamento" WHERE p."PER_Persona" = :p AND '.$aPer, [...$pPer, 'p' => $persona])
-            ?: throw new ErrorApi(404, 'PERSON_NOT_FOUND');
+            ?: throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
         [$aAct, $pAct] = $this->alcance->lectura('INV_ACTIVO', 'a');
         $disponibles = array_map('intval', $this->conexion->fetchAllKeyValue('SELECT a."TAC_Tipo_Activo", COUNT(*) FROM "INV_ACTIVO" a '
             .'JOIN "INV_ESTADO_OPERATIVO" e ON e."EOP_Estado_Operativo" = a."EOP_Estado_Operativo" WHERE e."EOP_Nombre" = :libre AND a."ACT_Activo_Padre" IS NULL AND '
@@ -193,7 +193,7 @@ final readonly class Productividad
         $p = $this->conexion->fetchAssociative('SELECT p.*, d."DEP_Nombre", c."CAR_Nombre", s."SED_Nombre", j."PER_Primer_Nombre" AS "J1", j."PER_Segundo_Nombre" AS "J2", '
             .'j."PER_Primer_Apellido" AS "J3", j."PER_Segundo_Apellido" AS "J4" FROM "INV_PERSONA" p LEFT JOIN "INV_DEPARTAMENTO" d ON d."DEP_Departamento" = p."DEP_Departamento" '
             .'LEFT JOIN "INV_CARGO" c ON c."CAR_Cargo" = p."CAR_Cargo" LEFT JOIN "INV_SEDE" s ON s."SED_Sede" = p."SED_Sede" LEFT JOIN "INV_PERSONA" j ON j."PER_Persona" = p."PER_Jefe" '
-            .'WHERE p."PER_Persona" = :id AND '.$alcance, [...$pa, 'id' => $id]) ?: throw new ErrorApi(404, 'PERSON_NOT_FOUND');
+            .'WHERE p."PER_Persona" = :id AND '.$alcance, [...$pa, 'id' => $id]) ?: throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
         $jefe = null === $p['J1'] ? null : self::nombre(['PER_Primer_Nombre' => $p['J1'], 'PER_Segundo_Nombre' => $p['J2'], 'PER_Primer_Apellido' => $p['J3'],
             'PER_Segundo_Apellido' => $p['J4']]);
         $equipos = array_map(static fn (array $f): array => ['MOV_Movimiento' => Ident::aTexto((string) $f['MOV_Movimiento']), 'ACT_Activo' => Ident::aTexto((string) $f['ACT_Activo']),

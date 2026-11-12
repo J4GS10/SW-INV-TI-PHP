@@ -7,7 +7,7 @@ namespace App\Inventario;
 use App\Crud\Esquema;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use Doctrine\DBAL\Connection;
 
@@ -44,7 +44,7 @@ final readonly class EdicionLote
             $codigos = [];
             $todos = [];
             foreach ($items as [$id, $cambios]) {
-                $activo = $this->activos->fila($id) ?? throw new ErrorApi(404, 'BATCH_ITEM_FAILED:'.Ident::aTexto($id).':ASSET_NOT_FOUND');
+                $activo = $this->activos->fila($id) ?? throw ErrorDominio::noEncontrado('BATCH_ITEM_FAILED:'.Ident::aTexto($id).':ASSET_NOT_FOUND');
                 $campos = array_intersect_key($cambios, array_flip(self::CAMPOS));
                 $todos = [...$todos, ...array_keys($cambios)];
                 try {
@@ -64,8 +64,8 @@ final readonly class EdicionLote
                         $this->kardex->registrar('CAMBIO_ESTADO', activo: $activo, usuario: $usuario, motivo: 'Edición en lote', detalle: ['campos' => $diferencias]);
                     }
                     $specs = $this->especificaciones($activo, $cambios['especificaciones'] ?? [], $usuario);
-                } catch (ErrorApi $e) {
-                    throw new ErrorApi($e->estado, "BATCH_ITEM_FAILED:{$activo['ACT_Codigo_Interno']}:".explode(':', $e->detalle)[0]);
+                } catch (ErrorDominio $e) {
+                    throw new ErrorDominio($e->motivo, "BATCH_ITEM_FAILED:{$activo['ACT_Codigo_Interno']}:".explode(':', $e->detalle)[0]);
                 }
                 $codigos[] = $activo['ACT_Codigo_Interno'];
                 $previo = array_intersect_key($previos, $diferencias);
@@ -106,25 +106,25 @@ final readonly class EdicionLote
                 .'JOIN "INV_EDIFICIO" e ON e."EDI_Edificio" = n."EDI_Edificio" WHERE a."ARE_Area" = :a', ['a' => $area]);
             if (false === $sede) {
                 if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_AREA" WHERE "ARE_Area" = :a', ['a' => $area])) {
-                    throw new ErrorApi(404, 'AREA_NOT_FOUND');
+                    throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
                 }
                 $sede = null;
             }
             if (null !== $activo['SED_Sede'] && (null === $sede ? null : (int) $sede) !== (int) $activo['SED_Sede']) {
-                throw new ErrorApi(400, 'ASSET_AREA_OTHER_SITE');
+                throw ErrorDominio::invalido('ASSET_AREA_OTHER_SITE');
             }
             // Asignado: su ubicación la da la custodia (se cambia transfiriéndolo).
             if (null !== $this->activos->movimientoVigente((string) $activo['ACT_Activo'])) {
-                throw new ErrorApi(400, 'ASSET_LOCATION_FOLLOWS_CUSTODY');
+                throw ErrorDominio::invalido('ASSET_LOCATION_FOLLOWS_CUSTODY');
             }
         }
         if (null !== ($campos['ACT_Fin_Garantia'] ?? null) && null !== $activo['ACT_Fecha_Compra']
             && $campos['ACT_Fin_Garantia'] < substr((string) $activo['ACT_Fecha_Compra'], 0, 10)) {
-            throw new ErrorApi(400, 'WARRANTY_DATE_CANNOT_BE_BEFORE_PURCHASE_DATE');
+            throw ErrorDominio::invalido('WARRANTY_DATE_CANNOT_BE_BEFORE_PURCHASE_DATE');
         }
         if (null !== ($campos['PRV_Proveedor'] ?? null)
             && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :p', ['p' => $campos['PRV_Proveedor']])) {
-            throw new ErrorApi(404, 'SUPPLIER_NOT_FOUND');
+            throw ErrorDominio::noEncontrado('SUPPLIER_NOT_FOUND');
         }
     }
 
@@ -146,7 +146,7 @@ final readonly class EdicionLote
         foreach ($specs as $s) {
             $tipo = $s['TES_Tipo_Especificacion'];
             if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ESPECIFICACION" WHERE "TES_Tipo_Especificacion" = :t', ['t' => $tipo])) {
-                throw new ErrorApi(404, 'SPECIFICATION_TYPE_NOT_FOUND');
+                throw ErrorDominio::noEncontrado('SPECIFICATION_TYPE_NOT_FOUND');
             }
             $valor = trim((string) ($s['valor'] ?? ''));
             $valor = '' === $valor ? null : $this->specificationRules->normalize((int) $activo['TAC_Tipo_Activo'], (int) $tipo, $valor);

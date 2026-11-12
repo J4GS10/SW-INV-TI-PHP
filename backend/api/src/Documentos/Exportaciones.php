@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Documentos;
 
+use App\Dominio\ErrorDominio;
 use App\Dominio\Ident;
 use App\Repositorio\BitacoraRepositorio;
 use App\Seguridad\Alcance;
@@ -82,7 +83,7 @@ final readonly class Exportaciones
     public static function exigirTamano(int $total): void
     {
         if ($total > self::MAX_ACTIVOS) {
-            throw new \App\Http\ErrorApi(422, 'EXPORT_TOO_LARGE_USE_FILTERS:'.$total);
+            throw ErrorDominio::noProcesable('EXPORT_TOO_LARGE_USE_FILTERS:'.$total);
         }
     }
 

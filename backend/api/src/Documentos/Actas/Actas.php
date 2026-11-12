@@ -10,7 +10,7 @@ use App\Documentos\Idioma;
 use App\Documentos\Traducciones;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
 
@@ -63,15 +63,15 @@ final readonly class Actas
         // Un mismo movimiento repetido en el lote no duplica la fila del equipo.
         $movimientos = array_map($this->movimiento(...), array_values(array_unique($ids)));
         if ([] === $movimientos) {
-            throw new ErrorApi(400, 'NO_MOVEMENTS_PROVIDED');
+            throw ErrorDominio::invalido('NO_MOVEMENTS_PROVIDED');
         }
         if ($tipo->exigeDevolucion() && array_filter($movimientos, static fn (array $m): bool => null === $m['MOV_Fecha_Devolucion']) !== []) {
-            throw new ErrorApi(409, 'MOVEMENT_NOT_RETURNED');
+            throw ErrorDominio::conflicto('MOVEMENT_NOT_RETURNED');
         }
         $primero = $movimientos[0];
         foreach ($movimientos as $m) {
             if ($m['PER_Persona'] !== $primero['PER_Persona']) {
-                throw new ErrorApi(400, 'CANNOT_MIX_DIFFERENT_PEOPLE_IN_SAME_DOCUMENT');
+                throw ErrorDominio::invalido('CANNOT_MIX_DIFFERENT_PEOPLE_IN_SAME_DOCUMENT');
             }
         }
 
@@ -107,7 +107,7 @@ final readonly class Actas
             .'LEFT JOIN "INV_MODELO" mo ON mo."MOD_Modelo" = a."MOD_Modelo" LEFT JOIN "INV_MARCA" ma ON ma."MAR_Marca" = mo."MAR_Marca" '
             .'WHERE m."MOV_Movimiento" = :id AND '.$alcance, [...$p, 'id' => $id]);
 
-        return $fila ?: throw new ErrorApi(404, 'MOVEMENT_NOT_FOUND: '.Ident::aTexto($id));
+        return $fila ?: throw ErrorDominio::noEncontrado('MOVEMENT_NOT_FOUND: '.Ident::aTexto($id));
     }
 
     /**

@@ -7,7 +7,7 @@ namespace App\Seguridad;
 use App\Config\Ajustes;
 use App\Db\ContextoRls;
 use App\Dominio\AlcanceDatos;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use Doctrine\DBAL\Connection;
 
 /**
@@ -58,7 +58,7 @@ final class Alcance
     public function exigirGlobal(): void
     {
         if ($this->actual()?->restringido()) {
-            throw ErrorApi::prohibido('GLOBAL_SCOPE_REQUIRED');
+            throw ErrorDominio::prohibido('GLOBAL_SCOPE_REQUIRED');
         }
     }
 
@@ -66,7 +66,7 @@ final class Alcance
     public function exigirPropio(?int $sede): void
     {
         if (!$this->permite($sede)) {
-            throw ErrorApi::prohibido('SEDE_OUT_OF_SCOPE');
+            throw ErrorDominio::prohibido('SEDE_OUT_OF_SCOPE');
         }
     }
 
@@ -92,7 +92,7 @@ final class Alcance
         $sede ??= $this->sedePorDefecto();
         if (null === $sede) {
             if ($a->restringido() || $requerida) {
-                throw new ErrorApi(400, 'SEDE_REQUIRED');
+                throw ErrorDominio::invalido('SEDE_REQUIRED');
             }
 
             return null;

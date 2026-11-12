@@ -7,7 +7,7 @@ namespace App\Seguridad;
 use App\Config\Ajustes;
 use App\Db\ContextoRls;
 use App\Dominio\Usuario;
-use App\Http\ErrorApi;
+use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\SesionRepositorio;
 use App\Repositorio\UsuarioRepositorio;
@@ -42,30 +42,30 @@ final readonly class Autenticador
         $payload = $this->tokens->decodificar($token, 'access');
         $pendiente = PoliticaSesion::restriccion($payload);
         if (null !== $pendiente && !$permitirRestringida) {
-            throw ErrorApi::prohibido($pendiente);
+            throw ErrorDominio::prohibido($pendiente);
         }
         $jti = isset($payload['jti']) ? (string) $payload['jti'] : null;
         $claveCache = null !== $jti ? "auth:jti:{$jti}" : null;
         $cacheado = null !== $claveCache ? $this->cache->obtener($claveCache) : null;
 
         if (!empty($cacheado['revoked'])) {
-            throw new ErrorApi(401, 'TOKEN_REVOKED');
+            throw ErrorDominio::noAutenticado('TOKEN_REVOKED');
         }
         if (null === $cacheado && null !== $jti && $this->gobierno->jtiRevocado($jti)) {
             $this->cache->guardar($claveCache, ['revoked' => true], $this->ajustes->cacheAuthSegundos);
-            throw new ErrorApi(401, 'TOKEN_REVOKED');
+            throw ErrorDominio::noAutenticado('TOKEN_REVOKED');
         }
 
         $usuario = $this->usuarios->porUsername((string) ($cacheado['username'] ?? $payload['sub']));
         if (null === $usuario) {
-            throw new ErrorApi(401, 'COULD_NOT_VALIDATE_CREDENTIALS');
+            throw ErrorDominio::noAutenticado('COULD_NOT_VALIDATE_CREDENTIALS');
         }
         if (!$usuario->activo) {
-            throw ErrorApi::prohibido('INACTIVE_USER');
+            throw ErrorDominio::prohibido('INACTIVE_USER');
         }
         // Bloqueada por el administrador: sale en la siguiente petición, aunque su token siga vigente.
         if ($usuario->bloqueoAdministrativoVigente(\App\Dominio\Reloj::ahora())) {
-            throw new ErrorApi(401, 'ACCOUNT_LOCKED');
+            throw ErrorDominio::noAutenticado('ACCOUNT_LOCKED');
         }
 
         $emitido = Tokens::emitidoEn($payload);
@@ -73,12 +73,12 @@ final readonly class Autenticador
             if (null !== $claveCache) {
                 $this->cache->guardar($claveCache, ['revoked' => true], $this->ajustes->cacheAuthSegundos);
             }
-            throw new ErrorApi(401, 'TOKEN_REVOKED');
+            throw ErrorDominio::noAutenticado('TOKEN_REVOKED');
         }
 
         $sid = isset($payload['sid']) ? (string) $payload['sid'] : null;
         if (null !== $sid && $this->sesionCerrada($sid)) {
-            throw new ErrorApi(401, 'TOKEN_REVOKED');
+            throw ErrorDominio::noAutenticado('TOKEN_REVOKED');
         }
 
         if (null !== $claveCache && null === $cacheado) {
