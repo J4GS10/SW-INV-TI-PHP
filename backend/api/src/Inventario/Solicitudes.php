@@ -4,29 +4,26 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
-use App\Db\InsercionOracle;
 use App\Db\Transaccion;
+use App\Dominio\ErrorDominio;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Dominio\ErrorDominio;
+use App\Inventario\Puertos\SolicitudesDatos;
 use App\Repositorio\GobiernoRepositorio;
-use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\ParameterType;
 
 /**
  * Solicitudes que esperan la aprobación del Jefe de TI (separación de
  * funciones): toda salida o pérdida de inventario se valida al pedirla y se
  * ejecuta solo cuando otra persona la aprueba (App\Inventario\Aprobaciones).
+ *
+ * Solo reglas: las solicitudes se guardan y se leen por el puerto SolicitudesDatos.
  */
 final readonly class Solicitudes
 {
-    private const string COLUMNAS = 'a."APR_Aprobacion", a."APR_Tipo", a."APR_Estado", a."APR_Payload", a."APR_Resumen", a."APR_Motivo", a."ACT_Activo", '
-        .'a."CON_Consumible", a."SED_Sede", a."APR_Solicitante", a."APR_Fecha_Solicitud", a."APR_Aprobador", a."APR_Fecha_Resolucion", a."APR_Comentario"';
+    private const int LARGO_TEXTO = 500;
 
     public function __construct(
-        private Connection $conexion,
-        private Alcance $alcance,
+        private SolicitudesDatos $datos,
         private GobiernoRepositorio $gobierno,
         private Activos $activos,
         private Reclasificacion $reclasificacion,
@@ -46,36 +43,21 @@ final readonly class Solicitudes
         if (null === $solicitante) {
             throw ErrorDominio::invalido('APPROVAL_REQUIRES_REQUESTER');
         }
-        $resumen = mb_substr($resumen, 0, 500);
-        // RETURNING no admite el CLOB: se inserta con un payload vacío y se escribe después.
-        // (La solicitud siempre es visible para quien la crea: el VPD incluye las propias.)
-        $id = (int) InsercionOracle::insertar($this->conexion, 'INV_APROBACION', ['APR_Tipo' => $tipo, 'APR_Estado' => 'PENDIENTE', 'APR_Payload' => '{}',
-            'APR_Resumen' => $resumen, 'APR_Motivo' => null === $motivo || '' === $motivo ? null : mb_substr($motivo, 0, 500), 'ACT_Activo' => $activo,
+        $resumen = mb_substr($resumen, 0, self::LARGO_TEXTO);
+        $id = $this->datos->crear(['APR_Tipo' => $tipo, 'APR_Estado' => 'PENDIENTE',
+            'APR_Resumen' => $resumen, 'APR_Motivo' => null === $motivo || '' === $motivo ? null : mb_substr($motivo, 0, self::LARGO_TEXTO), 'ACT_Activo' => $activo,
             'CON_Consumible' => $consumible, 'SED_Sede' => $sede, 'APR_Solicitante' => $solicitante,
-            'APR_Fecha_Solicitud' => Reloj::aBd(Reloj::ahora())], 'APR_Aprobacion');
-        $this->conexion->executeStatement('UPDATE "INV_APROBACION" SET "APR_Payload" = :p WHERE "APR_Aprobacion" = :id',
-            ['p' => json_encode($payload, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR), 'id' => $id], ['p' => ParameterType::LARGE_OBJECT]);
+            'APR_Fecha_Solicitud' => Reloj::aBd(Reloj::ahora())], $payload);
         $this->gobierno->registrarAuditoria('APPROVAL_REQUEST', 'INV_APROBACION', ['id' => $id, 'tipo' => $tipo, 'resumen' => $resumen], $solicitante, $ip, sedeId: $sede);
 
         return $id;
     }
 
-    /** 409 APPROVAL_ALREADY_PENDING si ya hay una solicitud pendiente del mismo tipo y sujeto. */
+    /** APPROVAL_ALREADY_PENDING si ya hay una solicitud pendiente del mismo tipo y sujeto. */
     public function exigirSinPendiente(string $tipo, ?int $consumible = null): void
     {
-        $this->sinPendiente($tipo, $consumible);
-    }
-
-    private function sinPendiente(string $tipo, ?int $consumible = null): void
-    {
-        $sql = "SELECT \"APR_Aprobacion\" FROM \"INV_APROBACION\" WHERE \"APR_Tipo\" = :t AND \"APR_Estado\" = 'PENDIENTE'";
-        $p = ['t' => $tipo];
-        if (null !== $consumible) {
-            $sql .= ' AND "CON_Consumible" = :c';
-            $p['c'] = $consumible;
-        }
-        $pendiente = $this->conexion->fetchOne($sql.' FETCH FIRST 1 ROWS ONLY', $p);
-        if (false !== $pendiente) {
+        $pendiente = $this->datos->pendienteDe($tipo, $consumible);
+        if (null !== $pendiente) {
             throw ErrorDominio::conflicto("APPROVAL_ALREADY_PENDING:{$pendiente}");
         }
     }
@@ -93,16 +75,15 @@ final readonly class Solicitudes
             // El activo bloqueado: dos solicitudes de baja simultáneas no pasan las dos la revisión de «ya pedida».
             $this->activos->bloquearEnOrden([$activo]);
             [$a] = $this->activos->validarBaja($activo, $baja);
-            $pendiente = $this->conexion->fetchOne("SELECT \"APR_Aprobacion\" FROM \"INV_APROBACION\" WHERE \"ACT_Activo\" = :a AND \"APR_Tipo\" = 'BAJA' "
-                ."AND \"APR_Estado\" = 'PENDIENTE' FETCH FIRST 1 ROWS ONLY", ['a' => $activo]);
-            if (false !== $pendiente) {
+            $pendiente = $this->datos->bajaPendienteDe($activo);
+            if (null !== $pendiente) {
                 throw ErrorDominio::conflicto("DECOMMISSION_ALREADY_REQUESTED:{$pendiente}");
             }
             $id = $this->crear('BAJA', Esquemas::bajaJson($baja), $usuario,
                 "Baja de {$a['ACT_Codigo_Interno']} ({$a['ACT_Serie_Fabricante']}): {$baja['motivo']} → {$baja['destino']}",
                 $baja['observacion'], activo: $activo, sede: null === $a['SED_Sede'] ? null : (int) $a['SED_Sede'], ip: $ip);
 
-            return $this->unaSinAlcance($id);
+            return $this->recienCreada($id);
         });
     }
 
@@ -114,21 +95,26 @@ final readonly class Solicitudes
     public function solicitarAjuste(int $consumible, int $real, string $motivo, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($consumible, $real, $motivo, $usuario, $ip): array {
-            [$alcance, $p] = $this->alcance->lectura('INV_CONSUMIBLE', 'c');
-            $c = $this->conexion->fetchAssociative('SELECT c."CON_Nombre", c."CON_Stock_Actual", c."CON_Unidad", c."SED_Sede" FROM "INV_CONSUMIBLE" c '
-                .'WHERE c."CON_Consumible" = :id AND '.$alcance.' FOR UPDATE', [...$p, 'id' => $consumible]) ?: throw ErrorDominio::noEncontrado('CONSUMABLE_NOT_FOUND');
-            $actual = (int) $c['CON_Stock_Actual'];
+            $c = $this->datos->consumibleParaAjustar($consumible) ?? throw ErrorDominio::noEncontrado('CONSUMABLE_NOT_FOUND');
+            $actual = $c['CON_Stock_Actual'];
             if ($real === $actual) {
                 throw ErrorDominio::invalido('STOCK_ALREADY_MATCHES');
             }
-            $this->sinPendiente('AJUSTE_CONSUMIBLE', consumible: $consumible);
-            $diferencia = ($real > $actual ? '+' : '−').abs($real - $actual);
+            $this->exigirSinPendiente('AJUSTE_CONSUMIBLE', $consumible);
             $id = $this->crear('AJUSTE_CONSUMIBLE', ['CON_Stock_Real' => $real, 'MOC_Motivo' => $motivo, 'stock_antes' => $actual], $usuario,
-                trim("Ajuste de {$c['CON_Nombre']}: {$actual} → {$real} ({$diferencia} ".($c['CON_Unidad'] ?? '').')'), $motivo,
-                consumible: $consumible, sede: null === $c['SED_Sede'] ? null : (int) $c['SED_Sede'], ip: $ip);
+                self::resumenDeAjuste($c['CON_Nombre'], $actual, $real, $c['CON_Unidad']), $motivo,
+                consumible: $consumible, sede: $c['SED_Sede'], ip: $ip);
 
-            return $this->unaSinAlcance($id);
+            return $this->recienCreada($id);
         });
+    }
+
+    /** Regla pura: «Ajuste de Tóner: 10 → 7 (−3 unidad)». */
+    public static function resumenDeAjuste(string $nombre, int $actual, int $real, ?string $unidad): string
+    {
+        $diferencia = ($real > $actual ? '+' : '−').abs($real - $actual);
+
+        return trim("Ajuste de {$nombre}: {$actual} → {$real} ({$diferencia} ".($unidad ?? '').')');
     }
 
     /**
@@ -142,7 +128,7 @@ final readonly class Solicitudes
     {
         return $this->transaccion->ejecutar(function () use ($tipo, $d, $usuario, $ip): array {
             // El tipo bloqueado: dos reclasificaciones simultáneas del mismo tipo no quedan pendientes a la vez.
-            $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t FOR UPDATE', ['t' => $tipo]);
+            $this->datos->bloquearTipo($tipo);
             $vista = $this->reclasificacion->vistaPrevia($tipo, $d['SED_Sede']);
             if ([] !== $vista['bloqueados']) {
                 throw ErrorDominio::conflicto('RECLASSIFY_ASSETS_IN_USE');
@@ -150,33 +136,17 @@ final readonly class Solicitudes
             if (0 === $vista['activos']) {
                 throw ErrorDominio::conflicto('RECLASSIFY_NOTHING_TO_CONVERT');
             }
-            $this->sinPendiente('RECLASIFICACION');
+            $this->exigirSinPendiente('RECLASIFICACION');
             $id = $this->crear('RECLASIFICACION', ['tipo_id' => $tipo, ...$d], $usuario,
                 "Reclasificar {$vista['activos']} activos «{$vista['tipo']}» como el consumible «{$d['nombre']}»", $d['motivo'], sede: $d['SED_Sede'], ip: $ip);
 
-            return $this->unaSinAlcance($id);
+            return $this->recienCreada($id);
         });
     }
 
     // ------------------------------------------------------------------
     // Consulta
     // ------------------------------------------------------------------
-
-    /**
-     * Las de las sedes del alcance y las propias (igual que el VPD de INV_APROBACION).
-     *
-     * @return array{0: string, 1: array<string, mixed>}
-     */
-    public function alcance(): array
-    {
-        $sedes = $this->alcance->sedesVisibles();
-        if (null === $sedes) {
-            return ['1 = 1', []];
-        }
-        [$filtro, $p] = $this->alcance->filtroSede('a."SED_Sede"', 'asede');
-
-        return ["({$filtro} OR a.\"APR_Solicitante\" = :propio)", [...$p, 'propio' => $this->alcance->actual()?->usuarioId]];
-    }
 
     /**
      * @param array<string, mixed> $a
@@ -202,9 +172,7 @@ final readonly class Solicitudes
     /** @return array<string, mixed>|null */
     public function fila(int $id, bool $bloquear = false): ?array
     {
-        $f = $this->conexion->fetchAssociative('SELECT '.self::COLUMNAS.' FROM "INV_APROBACION" a WHERE a."APR_Aprobacion" = :id'.($bloquear ? ' FOR UPDATE' : ''), ['id' => $id]);
-
-        return false === $f ? null : $f;
+        return $this->datos->porId($id, $bloquear);
     }
 
     /**
@@ -212,25 +180,15 @@ final readonly class Solicitudes
      *
      * @return array<string, mixed>
      */
-    private function unaSinAlcance(int $id): array
+    private function recienCreada(int $id): array
     {
         return $this->aApi($this->fila($id) ?? throw ErrorDominio::noEncontrado('APPROVAL_NOT_FOUND'));
     }
 
-    /** @return list<array<string, mixed>> */
+    /** @return list<array<string, mixed>> las de las sedes del alcance y las propias */
     public function listar(?string $estado, ?string $activo, int $limite = 200): array
     {
-        [$sql, $p] = $this->alcance();
-        if (null !== $estado && '' !== $estado) {
-            $sql .= ' AND a."APR_Estado" = :estado';
-            $p['estado'] = $estado;
-        }
-        if (null !== $activo) {
-            $sql .= ' AND a."ACT_Activo" = :activo';
-            $p['activo'] = $activo;
-        }
-        $filas = $this->conexion->fetchAllAssociative('SELECT '.self::COLUMNAS.' FROM "INV_APROBACION" a WHERE '.$sql
-            .' ORDER BY a."APR_Fecha_Solicitud" DESC, a."APR_Aprobacion" DESC FETCH FIRST '.$limite.' ROWS ONLY', $p);
+        $filas = $this->datos->visibles($estado, $activo, $limite);
         $nombres = $this->operador->nombres([...array_map(static fn (array $f): string => (string) $f['APR_Solicitante'], $filas),
             ...array_map(static fn (array $f): ?string => null === $f['APR_Aprobador'] ? null : (string) $f['APR_Aprobador'], $filas)]);
 
@@ -239,8 +197,12 @@ final readonly class Solicitudes
 
     public function pendientes(): int
     {
-        [$sql, $p] = $this->alcance();
+        return $this->datos->pendientesVisibles();
+    }
 
-        return (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"INV_APROBACION\" a WHERE \"APR_Estado\" = 'PENDIENTE' AND ".$sql, $p);
+    /** Deja la solicitud resuelta: APROBADA, RECHAZADA o ANULADA. */
+    public function resolver(int $id, string $estado, ?string $aprobador, ?string $comentario): void
+    {
+        $this->datos->resolver($id, $estado, $aprobador, Reloj::ahora(), null === $comentario || '' === $comentario ? null : $comentario);
     }
 }

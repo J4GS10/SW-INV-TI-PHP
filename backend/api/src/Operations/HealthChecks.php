@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 namespace App\Operations;
 
-use App\Correo\CorreoEnCola;
 use App\Dominio\Reloj;
-use App\Dominio\Roles;
-use Doctrine\DBAL\Connection;
+use App\Operations\Ports\SystemState;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
-/** Looks at the system's own state and says what is wrong, with no side effects. */
+/**
+ * Looks at the system's own state and says what is wrong, with no side effects. The thresholds are here;
+ * the facts about the data come through SystemState.
+ */
 final readonly class HealthChecks
 {
     private const float MIN_FREE_DISK_RATIO = 0.10;
     private const int BACKUP_MAX_AGE_HOURS = 3;
+    private const string EMAIL_MAX_WAIT = '-30 minutes';
+    /** Nobody approves their own request: fewer than this and requests wait for ever. */
+    private const int MIN_IT_ADMINISTRATORS = 2;
 
     public function __construct(
-        private Connection $connection,
+        private SystemState $state,
         #[Autowire('%env(default::BACKUP_ALERT_DIR)%')] private ?string $backupDir = null,
         #[Autowire('%env(default::BACKUP_REPLICA_CONFIGURED)%')] private ?string $replicaConfigured = null,
     ) {
@@ -80,8 +84,7 @@ final readonly class HealthChecks
     /** @return array<string, int|string>|null */
     private function stuckEmail(): ?array
     {
-        $count = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM "SYS_EMAIL_OUTBOX" WHERE ("EOB_Estado" = :pending AND "EOB_Proximo_Intento" < :limit) OR "EOB_Estado" = :failed',
-            ['pending' => CorreoEnCola::PENDIENTE, 'failed' => CorreoEnCola::FALLIDO, 'limit' => Reloj::aBd(Reloj::ahora()->modify('-30 minutes'))]);
+        $count = $this->state->stuckEmails(Reloj::ahora()->modify(self::EMAIL_MAX_WAIT));
 
         return $count > 0 ? ['emails' => $count] : null;
     }
@@ -94,18 +97,15 @@ final readonly class HealthChecks
      */
     private function tooFewItAdministrators(): ?array
     {
-        $count = (int) $this->connection->fetchOne(
-            'SELECT COUNT(*) FROM "INV_USUARIO" WHERE "USU_Rol" = :role AND "USU_Estado" = 1 '
-            .'AND ("USU_Bloqueo_Admin_Motivo" IS NULL OR "USU_Bloqueo_Admin_Hasta" < :now)',
-            ['role' => Roles::ADMIN_TI, 'now' => Reloj::aBd(Reloj::ahora())]);
+        $count = $this->state->itAdministratorsAbleToSignIn(Reloj::ahora());
 
-        return $count < 2 ? ['administrators' => $count] : null;
+        return $count < self::MIN_IT_ADMINISTRATORS ? ['administrators' => $count] : null;
     }
 
     /** @return array<string, int|string>|null */
     private function stuckCount(): ?array
     {
-        $count = (int) $this->connection->fetchOne("SELECT COUNT(*) FROM \"INV_TOMA_INVENTARIO\" WHERE \"TOM_Estado\" = 'CERRANDO'");
+        $count = $this->state->countsBeingClosed();
 
         return $count > 0 ? ['counts' => $count] : null;
     }

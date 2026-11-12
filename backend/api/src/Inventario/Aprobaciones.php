@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace App\Inventario;
 
 use App\Db\Transaccion;
-use App\Dominio\Ident;
-use App\Dominio\Reloj;
-use App\Http\Entrada;
 use App\Dominio\ErrorDominio;
+use App\Dominio\Ident;
+use App\Http\Entrada;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
 
 /**
  * Resolución de las solicitudes (App\Inventario\Solicitudes):
@@ -24,7 +22,6 @@ use Doctrine\DBAL\Connection;
 final readonly class Aprobaciones
 {
     public function __construct(
-        private Connection $conexion,
         private Alcance $alcance,
         private GobiernoRepositorio $gobierno,
         private Solicitudes $solicitudes,
@@ -110,9 +107,7 @@ final readonly class Aprobaciones
                     $traza['resultado'] = $this->reclasificacion->ejecutar($payload, $solicitante, $ip, $traza);
                     break;
             }
-            $this->conexion->executeStatement("UPDATE \"INV_APROBACION\" SET \"APR_Estado\" = 'APROBADA', \"APR_Aprobador\" = :ap, \"APR_Fecha_Resolucion\" = :f, "
-                .'"APR_Comentario" = :c WHERE "APR_Aprobacion" = :id', ['ap' => $aprobador, 'f' => Reloj::aBd(Reloj::ahora()),
-                    'c' => null === $comentario || '' === $comentario ? null : $comentario, 'id' => $id]);
+            $this->solicitudes->resolver($id, 'APROBADA', $aprobador, $comentario);
             $this->gobierno->registrarAuditoria('APPROVAL_APPROVE', 'INV_APROBACION', ['id' => $id, 'tipo' => $a['APR_Tipo'], 'resumen' => $a['APR_Resumen'],
                 'solicitante' => Ident::aTexto($solicitante), 'comentario' => $comentario], $aprobador, $ip,
                 sedeId: null === $a['SED_Sede'] ? null : (int) $a['SED_Sede']);
@@ -126,8 +121,7 @@ final readonly class Aprobaciones
     {
         return $this->transaccion->ejecutar(function () use ($id, $aprobador, $comentario, $ip): array {
             $a = $this->resoluble($id, $aprobador);
-            $this->conexion->executeStatement("UPDATE \"INV_APROBACION\" SET \"APR_Estado\" = 'RECHAZADA', \"APR_Aprobador\" = :ap, \"APR_Fecha_Resolucion\" = :f, "
-                .'"APR_Comentario" = :c WHERE "APR_Aprobacion" = :id', ['ap' => $aprobador, 'f' => Reloj::aBd(Reloj::ahora()), 'c' => $comentario, 'id' => $id]);
+            $this->solicitudes->resolver($id, 'RECHAZADA', $aprobador, $comentario);
             if ('BAJA' === $a['APR_Tipo']) {
                 $this->faltantes->alResolverBaja($id, false);
             }
@@ -149,8 +143,7 @@ final readonly class Aprobaciones
             if ((string) $a['APR_Solicitante'] !== $usuario) {
                 throw ErrorDominio::prohibido('ONLY_REQUESTER_CAN_CANCEL');
             }
-            $this->conexion->executeStatement("UPDATE \"INV_APROBACION\" SET \"APR_Estado\" = 'ANULADA', \"APR_Fecha_Resolucion\" = :f WHERE \"APR_Aprobacion\" = :id",
-                ['f' => Reloj::aBd(Reloj::ahora()), 'id' => $id]);
+            $this->solicitudes->resolver($id, 'ANULADA', null, null);
             if ('BAJA' === $a['APR_Tipo']) {
                 $this->faltantes->alResolverBaja($id, false);
             }

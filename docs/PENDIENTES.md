@@ -41,7 +41,7 @@ Hecho el 2026-11-11: Docker limpiado por completo (contenedores, imágenes, vol�
 
 ### Media: primeros meses
 
-- Capas: quedan 61 archivos de negocio y 15 de la capa de entrega con SQL propio, y 12 de negocio que dependen de HTTP (lista exacta en `backend/api/tests/Unit/architecture-baseline.php`). Migrar módulo por módulo a puertos y repositorios como `Inventario/Compras`, con la suite completa en verde en cada paso; siguen `Movimientos` y `Activos`, y sacar las transacciones de `LoginController` a casos de uso.
+- Capas: quedan 56 archivos de negocio y 15 de la capa de entrega con SQL propio, y 12 de negocio que dependen de HTTP (lista exacta en `backend/api/tests/Unit/architecture-baseline.php`). Migrar módulo por módulo a puertos y repositorios, con la suite completa en verde en cada paso. Orden: `Movimientos` y `Activos` (los más grandes; partirlos por caso de uso en el mismo paso), `Consumibles`, `Mantenimientos`, `Software`, `Identidades`; después sacar las transacciones de `LoginController` a casos de uso y el resto de controladores. `Aprobaciones` aún valida con `Http/Entrada`, y `Repositorio/ReclasificacionOracle` toma las columnas de `Inventario/Activos::select()` hasta que Activos tenga su repositorio.
 - Suite de navegador por rol: `herramientas/qa/e2e` (Playwright) sigue atada al entorno QA retirado. El 2026-11-11 se validó a mano desde el navegador (custodia, componentes, bajas con aprobación, alcance por sede y matriz de permisos de los 7 roles); falta adaptarla al ciclo de `pruebas_produccion.sh` para repetirlo sin intervención.
 - Dos campos de formulario sin etiqueta asociada en la pantalla de Activos (aviso de accesibilidad del navegador).
 
