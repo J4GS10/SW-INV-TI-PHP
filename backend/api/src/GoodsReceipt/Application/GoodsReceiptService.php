@@ -35,6 +35,8 @@ final readonly class GoodsReceiptService
 
     public function __construct(
         private ReceivedInventoryStore $inventory,
+        private \App\Inventario\Infrastructure\ActivosStore $assetStore,
+        private \App\Inventario\Infrastructure\DatosActivos $assetData,
         private GoodsReceiptRepository $receipts,
         private Alcance $scope,
         private Transaccion $transaction,
@@ -367,7 +369,7 @@ final readonly class GoodsReceiptService
 
     public function hostnameExists(string $hostname, ?string $except = null): bool
     {
-        return $this->scope->elevado(fn (): bool => $this->inventory->hostnameTaken($hostname, $except));
+        return $this->scope->elevado(fn (): bool => $this->assetStore->hostnameEnUso($hostname, $except));
     }
 
     /** @return array<string, mixed>|null */
@@ -617,7 +619,7 @@ final readonly class GoodsReceiptService
                 'type' => $line['GRL_TAC_ASSET_TYPE'], 'state' => $storage, 'site' => $site], $months);
             $this->receipts->linkUnit((int) $line['GRL_GOODS_RECEIPT_LINE'], $id);
             foreach ($defaults as $default) {
-                $this->inventory->addSpecification($id, $default['TES_Tipo_Especificacion'], $default['DEFAULT_VALUE']);
+                $this->assetData->agregarEspecificacion($id, $default['TES_Tipo_Especificacion'], $default['DEFAULT_VALUE']);
             }
             $this->kardex->registrar('RECEPCION', activo: ['ACT_Activo' => $id, 'ACT_Codigo_Interno' => $code, 'ACT_Serie_Fabricante' => null, 'SED_Sede' => $site], destino: ['sede' => $site],
                 costo: (string) $line['GRL_UNIT_COST'], moneda: (string) $receipt['GRC_CURRENCY'], documento: $document, usuario: $user, motivo: $origin, detalle: $detail);

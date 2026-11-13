@@ -8,7 +8,6 @@ use App\Http\ClienteHttp;
 use App\Http\Peticion;
 use App\Catalogo\ClasesActivo;
 use App\Catalogo\EntidadesTecnicas as T;
-use App\Catalogo\PlantillaEspecificaciones;
 use App\Crud\Campo;
 use App\Crud\Entidad;
 use App\Crud\Esquema;
@@ -16,7 +15,6 @@ use App\Crud\Operaciones;
 use App\Dominio\Roles;
 use App\Http\ErrorApi;
 use App\Seguridad\Autenticado;
-use App\Catalogo\Infrastructure\CatalogoTecnicoStore;
 use App\Db\RecordInUse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -36,9 +34,7 @@ final readonly class CatalogoTecnicoController
 
     public function __construct(
         private Operaciones $crud,
-        private PlantillaEspecificaciones $plantilla,
-        private CatalogoTecnicoStore $datos,
-        private \App\Db\Transaccion $transaccion,
+        private \App\Catalogo\CatalogoTecnico $catalogo,
     ) {
     }
 
@@ -48,27 +44,13 @@ final readonly class CatalogoTecnicoController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crearTipo(Request $r): JsonResponse
     {
-        $d = $this->creacion(T::tipoActivo(), $r);
-        if ($this->datos->existeTipoDeActivoLlamado($d['TAC_Nombre'])) {
-            throw new ErrorApi(400, 'ASSET_TYPE_ALREADY_EXISTS');
-        }
-        // Sin clase indicada se deduce del nombre.
-        $d['TAC_Clase'] ??= ClasesActivo::porNombre($d['TAC_Nombre']);
-        $tipo = $this->transaccion->ejecutar(function () use ($d, $r): array {
-            $id = $this->crud->repositorio->insertar(T::tipoActivo(), $d);
-            $this->plantilla->aplicar((int) $id);
-            $this->crud->auditar('CREATE', 'INV_TIPO_ACTIVO', ['nombre' => $d['TAC_Nombre']], ClienteHttp::origen($r));
-
-            return (array) $this->crud->repositorio->obtener(T::tipoActivo(), $id);
-        });
-
-        return new JsonResponse(self::conReglas($tipo), 201);
+        return new JsonResponse($this->catalogo->crearTipo($this->creacion(T::tipoActivo(), $r), ClienteHttp::origen($r)), 201);
     }
 
     #[Route('/tipos-activo', methods: ['GET'])]
     public function listarTipos(): JsonResponse
     {
-        return new JsonResponse(array_map(self::conReglas(...), $this->crud->repositorio->listar(T::tipoActivo())));
+        return new JsonResponse($this->catalogo->tiposConReglas());
     }
 
     /** Clases de activo y sus reglas (cómo se opera cada una). */
@@ -81,10 +63,7 @@ final readonly class CatalogoTecnicoController
     #[Route('/tipos-activo/{id}/componentes', methods: ['GET'])]
     public function componentes(Request $r): JsonResponse
     {
-        $id = Peticion::enteroDeRuta($r);
-        $this->crud->obtenerO404(T::tipoActivo(), $id, 'ASSET_TYPE_NOT_FOUND');
-
-        return new JsonResponse($this->componentesDe($id));
+        return new JsonResponse($this->catalogo->componentesDeTipo(Peticion::enteroDeRuta($r)));
     }
 
     /** Componentes internos que admite el tipo (vacío = cualquier tipo de clase Componente). */
@@ -101,30 +80,14 @@ final readonly class CatalogoTecnicoController
             }
         }
         $entrada->validar();
-        $tipo = $this->crud->obtenerO404(T::tipoActivo(), $id, 'ASSET_TYPE_NOT_FOUND');
-        $componentes = array_values(array_diff(array_unique(array_map('intval', $lista)), [$id]));
-        sort($componentes);
-        if ([] !== $componentes && !ClasesActivo::reglas($tipo['TAC_Clase'])['componentes']) {
-            throw new ErrorApi(422, 'ASSET_CLASS_NO_COMPONENTS');
-        }
-        foreach ($componentes as $c) {
-            if (null === $this->crud->repositorio->obtener(T::tipoActivo(), $c)) {
-                throw new ErrorApi(404, 'ASSET_TYPE_NOT_FOUND');
-            }
-        }
-        $this->transaccion->ejecutar(function () use ($id, $tipo, $componentes, $r): void {
-            $antes = $this->datos->componentesDe($id);
-            $this->datos->reemplazarComponentes($id, $componentes);
-            $this->crud->auditar('UPDATE', 'INV_TIPO_COMPONENTE', ['tipo' => $tipo['TAC_Nombre'], 'antes' => $antes, 'despues' => $componentes], ClienteHttp::origen($r));
-        });
 
-        return new JsonResponse($componentes);
+        return new JsonResponse($this->catalogo->fijarComponentesDeTipo($id, array_map('intval', $lista), ClienteHttp::origen($r)));
     }
 
     #[Route('/tipos-activo/{id}', methods: ['GET'])]
     public function obtenerTipo(Request $r): JsonResponse
     {
-        return new JsonResponse(self::conReglas($this->crud->obtenerO404(T::tipoActivo(), Peticion::enteroDeRuta($r), 'ASSET_TYPE_NOT_FOUND')));
+        return new JsonResponse($this->catalogo->tipoConReglas(Peticion::enteroDeRuta($r)));
     }
 
     #[Route('/tipos-activo/{id}', methods: ['PATCH'])]
@@ -133,18 +96,8 @@ final readonly class CatalogoTecnicoController
     {
         $id = Peticion::enteroDeRuta($r);
         $cambios = $this->cambios(T::tipoActivo(), $r);
-        $this->crud->obtenerO404(T::tipoActivo(), $id, 'ASSET_TYPE_NOT_FOUND');
-        $tipo = $this->transaccion->ejecutar(function () use ($id, $cambios, $r): array {
-            $this->crud->repositorio->actualizar(T::tipoActivo(), $id, $cambios);
-            if (!empty($cambios['TAC_Clase'])) {
-                $this->plantilla->aplicar($id);
-            }
-            $this->crud->auditar('UPDATE', 'INV_TIPO_ACTIVO', ['id' => $id, 'cambios' => (object) $cambios], ClienteHttp::origen($r));
 
-            return (array) $this->crud->repositorio->obtener(T::tipoActivo(), $id);
-        });
-
-        return new JsonResponse(self::conReglas($tipo));
+        return new JsonResponse($this->catalogo->cambiarTipo($id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/tipos-activo/{id}', methods: ['DELETE'])]
@@ -160,12 +113,7 @@ final readonly class CatalogoTecnicoController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crearMarca(Request $r): JsonResponse
     {
-        $d = $this->creacion(T::marca(), $r);
-        if ($this->datos->existeMarcaLlamada($d['MAR_Nombre'])) {
-            throw new ErrorApi(400, 'BRAND_ALREADY_EXISTS');
-        }
-
-        return new JsonResponse($this->crud->crear(T::marca(), $d, ClienteHttp::origen($r), ['nombre' => $d['MAR_Nombre']]), 201);
+        return new JsonResponse($this->catalogo->crearMarca($this->creacion(T::marca(), $r), ClienteHttp::origen($r)), 201);
     }
 
     #[Route('/marcas', methods: ['GET'])]
@@ -269,14 +217,8 @@ final readonly class CatalogoTecnicoController
         [$hayLimite, $limite] = $q->campo(Campo::entero('limit', minimo: 1, maximo: 1000), false);
         [, $tipo] = $q->campo(Campo::entero('tipo_id'), false);
         $q->validar();
-        $filas = $this->datos->modelosConMarca($tipo, $texto, $hayLimite && null !== $limite ? (int) $limite : 500);
-        $entero = static fn (mixed $v): ?int => null === $v ? null : (int) $v;
 
-        return new JsonResponse(array_map(static fn (array $f): array => [
-            'MOD_Modelo' => (int) $f['MOD_Modelo'], 'MOD_Nombre' => $f['MOD_Nombre'], 'MAR_Marca' => (int) $f['MAR_Marca'],
-            'MAR_Nombre' => $f['MAR_Nombre'], 'TCN_Tipo_Conexion' => $entero($f['TCN_Tipo_Conexion']),
-            'TAC_Tipo_Activo' => $entero($f['TAC_Tipo_Activo']), 'MOD_Anio_Lanzamiento' => $entero($f['MOD_Anio_Lanzamiento']),
-        ], $filas));
+        return new JsonResponse($this->catalogo->modelosConMarca($tipo, $texto, $hayLimite && null !== $limite ? (int) $limite : 500));
     }
 
     #[Route('/modelos/{id}', methods: ['GET'])]
@@ -303,16 +245,7 @@ final readonly class CatalogoTecnicoController
     #[Route('/modelos/{id}/contexto', methods: ['GET'])]
     public function contextoModelo(Request $r): JsonResponse
     {
-        $modelo = $this->crud->obtenerO404(T::modelo(), Peticion::enteroDeRuta($r), 'MODEL_NOT_FOUND');
-        $marca = $this->crud->repositorio->obtener(T::marca(), $modelo['MAR_Marca']);
-        $tipoId = $this->datos->tipoMasUsadoDeModelo($modelo['MOD_Modelo']);
-        $tipo = null === $tipoId ? null : $this->crud->repositorio->obtener(T::tipoActivo(), $tipoId);
-
-        return new JsonResponse([
-            'marca' => null === $marca ? null : ['MAR_Marca' => $marca['MAR_Marca'], 'nombre' => $marca['MAR_Nombre']],
-            'tipo_sugerido' => null === $tipo ? null : ['TAC_Tipo_Activo' => $tipo['TAC_Tipo_Activo'], 'nombre' => $tipo['TAC_Nombre'],
-                'prefijo' => $tipo['TAC_Prefijo'], 'origen' => 'activos_del_modelo'],
-        ]);
+        return new JsonResponse($this->catalogo->contextoDeModelo(Peticion::enteroDeRuta($r)));
     }
 
     // ================= ESTADO OPERATIVO =================
@@ -404,22 +337,6 @@ final readonly class CatalogoTecnicoController
     }
 
     // ================= apoyo =================
-
-    /**
-     * @param array<string, mixed> $tipo
-     *
-     * @return array<string, mixed>
-     */
-    private static function conReglas(array $tipo): array
-    {
-        return [...$tipo, 'reglas' => ClasesActivo::reglas($tipo['TAC_Clase'])];
-    }
-
-    /** @return list<int> */
-    private function componentesDe(int $tipo): array
-    {
-        return $this->datos->componentesDe($tipo);
-    }
 
     private static function delSistema(?string $nombre): bool
     {

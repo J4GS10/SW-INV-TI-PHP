@@ -27,23 +27,12 @@ final readonly class ReceivedInventoryStore
             ['s' => $serial, 'h' => $hostname, 'p' => $pending ? 1 : 0, 'a' => $asset]);
     }
 
-    /** Whether another asset has that serial number (run it elevated to check the whole company). */
+    /** Whether another asset has that serial number, whatever its case and outer spaces (run it elevated to check the whole company). */
     public function serialTaken(string $serial, ?string $except): bool
     {
-        return $this->assetValueTaken('ACT_Serie_Fabricante', $serial, $except, '');
-    }
-
-    /** Whether another asset still in service has that hostname (run it elevated to check the whole company). */
-    public function hostnameTaken(string $hostname, ?string $except): bool
-    {
-        return $this->assetValueTaken('ACT_Hostname', $hostname, $except, ' AND "ACT_Baja_Fecha" IS NULL');
-    }
-
-    private function assetValueTaken(string $column, string $value, ?string $except, string $extra): bool
-    {
         return false !== $this->connection->fetchOne(
-            "SELECT 1 FROM \"INV_ACTIVO\" WHERE LOWER(TRIM(\"{$column}\")) = LOWER(TRIM(:v)){$extra}".(null === $except ? '' : ' AND "ACT_Activo" <> :a').' FETCH FIRST 1 ROWS ONLY',
-            ['v' => $value, ...(null === $except ? [] : ['a' => $except])],
+            'SELECT 1 FROM "INV_ACTIVO" WHERE LOWER(TRIM("ACT_Serie_Fabricante")) = LOWER(TRIM(:v))'.(null === $except ? '' : ' AND "ACT_Activo" <> :a').' FETCH FIRST 1 ROWS ONLY',
+            ['v' => $serial, ...(null === $except ? [] : ['a' => $except])],
         );
     }
 
@@ -127,12 +116,6 @@ final readonly class ReceivedInventoryStore
             .'"PRV_Proveedor", "MOD_Modelo", "TAC_Tipo_Activo", "EOP_Estado_Operativo", "SED_Sede", "ACT_Instalado", "ACT_Pending_Completion") VALUES '
             ."(:id, :code, TO_DATE(:bought, 'YYYY-MM-DD'), CASE WHEN :months IS NULL THEN NULL ELSE ADD_MONTHS(TO_DATE(:bought2, 'YYYY-MM-DD'), :months2) END, :cost, :currency, :invoice, "
             .':supplier, :model, :type, :state, :site, 0, 1)', [...$asset, 'bought2' => $asset['bought'], 'months' => $warrantyMonths, 'months2' => $warrantyMonths]);
-    }
-
-    public function addSpecification(string $asset, mixed $type, mixed $value): void
-    {
-        $this->connection->executeStatement('INSERT INTO "INV_ESPECIFICACION" ("ESP_Valor", "ACT_Activo", "TES_Tipo_Especificacion") VALUES (:v, :a, :t)',
-            ['v' => $value, 'a' => $asset, 't' => $type]);
     }
 
     public function specificationId(string $asset, int $type): int

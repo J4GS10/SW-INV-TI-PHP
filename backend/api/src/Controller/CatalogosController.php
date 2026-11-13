@@ -12,9 +12,7 @@ use App\Crud\Campo;
 use App\Crud\Operaciones;
 use App\Dominio\Roles;
 use App\Validacion\Entrada;
-use App\Http\ErrorApi;
 use App\Seguridad\Autenticado;
-use App\Catalogo\Infrastructure\CatalogoTecnicoStore;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -32,11 +30,8 @@ final readonly class CatalogosController
     public function __construct(
         private CatalogoGenerico $catalogos,
         private Operaciones $crud,
-        private CatalogoTecnicoStore $datos,
-        private \App\Inventario\Infrastructure\DatosActivos $activos,
-        private \App\Db\Transaccion $transaccion,
-        private \App\Catalogo\SpecificationRules $specificationRules,
-        private \App\Db\LogicalDelete $borrado,
+        private \App\Catalogo\EspecificacionesPorTipo $especificaciones,
+        private \App\Catalogo\KitsEstandar $kits,
     ) {
     }
 
@@ -53,18 +48,13 @@ final readonly class CatalogosController
     #[Route('/especificaciones-tipo', methods: ['GET'], priority: 10)]
     public function todasLasEspecificaciones(): JsonResponse
     {
-        $porTipo = [];
-        foreach ($this->filasEspecificaciones() as $f) {
-            $porTipo[(string) (int) $f['TAC_Tipo_Activo']][] = $this->especificacion($f);
-        }
-
-        return new JsonResponse((object) $porTipo);
+        return new JsonResponse((object) $this->especificaciones->todas());
     }
 
     #[Route('/especificaciones-tipo/{tipo}', methods: ['GET'], priority: 10)]
     public function especificacionesDeTipo(Request $r): JsonResponse
     {
-        return new JsonResponse(array_map($this->especificacion(...), $this->filasEspecificaciones(Peticion::enteroDeRuta($r, 'tipo'))));
+        return new JsonResponse($this->especificaciones->de(Peticion::enteroDeRuta($r, 'tipo')));
     }
 
     /** Reemplaza la lista de especificaciones que pide el tipo (en el orden recibido). */
@@ -95,29 +85,8 @@ final readonly class CatalogosController
                 'valores' => array_values(array_filter(array_map(trim(...), $valores), static fn (string $v): bool => '' !== $v))];
         }
         $entrada->validar();
-        if (!$this->datos->existeTipoDeActivo($tipo)) {
-            throw new ErrorApi(404, 'ASSET_TYPE_NOT_FOUND');
-        }
-        $ids = array_column($items, 'TES_Tipo_Especificacion');
-        if (\count(array_unique($ids)) !== \count($ids)) {
-            throw new ErrorApi(422, 'DUPLICATED_SPECIFICATION');
-        }
-        foreach ($ids as $id) {
-            if (!$this->activos->existeTipoEspecificacion($id)) {
-                throw new ErrorApi(404, 'SPECIFICATION_TYPE_NOT_FOUND');
-            }
-        }
-        $this->transaccion->ejecutar(function () use ($tipo, $items, $r): void {
-            $this->specificationRules->removeOptionsOfType($tipo);
-            $this->datos->quitarEspecificacionesDeTipo($tipo);
-            foreach ($items as $orden => $item) {
-                $this->datos->agregarEspecificacionATipo($tipo, $item['TES_Tipo_Especificacion'], $item['obligatoria'], ($orden + 1) * 10);
-                $this->specificationRules->replaceOptions($tipo, $item['TES_Tipo_Especificacion'], $item['valores']);
-            }
-            $this->crud->auditar('UPDATE', 'INV_ESPECIFICACION_TIPO_ACTIVO', ['tipo' => $tipo, 'especificaciones' => $items], ClienteHttp::origen($r));
-        });
 
-        return new JsonResponse(array_map($this->especificacion(...), $this->filasEspecificaciones($tipo)));
+        return new JsonResponse($this->especificaciones->fijar($tipo, $items, ClienteHttp::origen($r)));
     }
 
     // ── Kits estándar de puesto ─────────────────────────────────────────────
@@ -125,56 +94,28 @@ final readonly class CatalogosController
     #[Route('/kits', methods: ['GET'], priority: 10)]
     public function listarKits(): JsonResponse
     {
-        $ids = $this->datos->idsDeKits();
-
-        return new JsonResponse(array_map(fn ($id): array => (array) $this->kit((int) $id), $ids));
+        return new JsonResponse($this->kits->listar());
     }
 
     #[Route('/kits', methods: ['POST'], priority: 10)]
     #[Autenticado(roles: Roles::ADMIN)]
     public function crearKit(Request $r): JsonResponse
     {
-        $datos = $this->datosKit($r);
-        $this->validarKit($datos);
-        $id = $this->transaccion->ejecutar(function () use ($datos, $r): int {
-            $id = $this->datos->crearKit($datos['KIT_Nombre'], $datos['CAR_Cargo'], $datos['DEP_Departamento'], (bool) $datos['KIT_Activo']);
-            $this->datos->reemplazarItemsDeKit($id, $datos['items']);
-            $this->crud->auditar('CREATE', 'INV_KIT_ESTANDAR', ['id' => $id, ...$datos], ClienteHttp::origen($r));
-
-            return $id;
-        });
-
-        return new JsonResponse($this->kit($id), 201);
+        return new JsonResponse($this->kits->crear($this->datosKit($r), ClienteHttp::origen($r)), 201);
     }
 
     #[Route('/kits/{kit}', methods: ['PUT'], priority: 10)]
     #[Autenticado(roles: Roles::ADMIN)]
     public function editarKit(Request $r): JsonResponse
     {
-        $id = Peticion::enteroDeRuta($r, 'kit');
-        $datos = $this->datosKit($r);
-        $this->kit($id) ?? throw new ErrorApi(404, 'STANDARD_KIT_NOT_FOUND');
-        $this->validarKit($datos, $id);
-        $this->transaccion->ejecutar(function () use ($id, $datos, $r): void {
-            $this->datos->actualizarKit($id, $datos['KIT_Nombre'], $datos['CAR_Cargo'], $datos['DEP_Departamento'], (bool) $datos['KIT_Activo']);
-            $this->datos->reemplazarItemsDeKit($id, $datos['items']);
-            $this->crud->auditar('UPDATE', 'INV_KIT_ESTANDAR', ['id' => $id, ...$datos], ClienteHttp::origen($r));
-        });
-
-        return new JsonResponse($this->kit($id));
+        return new JsonResponse($this->kits->editar(Peticion::enteroDeRuta($r, 'kit'), $this->datosKit($r), ClienteHttp::origen($r)));
     }
 
     #[Route('/kits/{kit}', methods: ['DELETE'], priority: 10)]
     #[Autenticado(roles: Roles::ADMIN)]
     public function borrarKit(Request $r): Response
     {
-        $id = Peticion::enteroDeRuta($r, 'kit');
-        $kit = $this->kit($id) ?? throw new ErrorApi(404, 'STANDARD_KIT_NOT_FOUND');
-        $this->transaccion->ejecutar(function () use ($id, $kit, $r): void {
-            // El kit se archiva; su composición queda en la auditoría (los renglones son vínculos y se quitan con él).
-            $this->borrado->archive('INV_KIT_ESTANDAR', 'KIT_Kit', $id);
-            $this->crud->auditar('DELETE', 'INV_KIT_ESTANDAR', ['id' => $id, 'nombre' => $kit['KIT_Nombre'], 'items' => $kit['items'] ?? []], ClienteHttp::origen($r));
-        });
+        $this->kits->borrar(Peticion::enteroDeRuta($r, 'kit'), ClienteHttp::origen($r));
 
         return new Response(null, 204);
     }
@@ -279,49 +220,6 @@ final readonly class CatalogosController
         return fn (string $accion, string $entidad, array $snapshot) => $this->crud->auditar($accion, $entidad, $snapshot, ClienteHttp::origen($r));
     }
 
-    /** @return list<array<string, mixed>> */
-    private function filasEspecificaciones(?int $tipo = null): array
-    {
-        return $this->datos->especificacionesPorTipo($tipo);
-    }
-
-    /**
-     * @param array<string, mixed> $f
-     * @return array<string, mixed>
-     */
-    private function especificacion(array $f): array
-    {
-        return [
-            'TES_Tipo_Especificacion' => (int) $f['TES_Tipo_Especificacion'],
-            'nombre' => $f['TES_Nombre'],
-            'unidad' => $f['TES_Unidad_Medida'],
-            'obligatoria' => 1 === (int) $f['ETA_Obligatoria'],
-            'valores' => $this->specificationRules->options((int) $f['TAC_Tipo_Activo'], (int) $f['TES_Tipo_Especificacion']),
-            'tipo_dato' => $f['TES_Data_Type'],
-            'minimo' => null === $f['TES_Min_Value'] ? null : (float) $f['TES_Min_Value'],
-            'maximo' => null === $f['TES_Max_Value'] ? null : (float) $f['TES_Max_Value'],
-            'orden' => (int) $f['ETA_Orden'],
-        ];
-    }
-
-    /** @return array<string, mixed>|null */
-    private function kit(int $id): ?array
-    {
-        $k = $this->datos->kit($id);
-        if (false === $k) {
-            return null;
-        }
-        $entero = static fn (mixed $v): ?int => null === $v ? null : (int) $v;
-        $items = $this->datos->itemsDeKit($id);
-
-        return [
-            'KIT_Kit' => (int) $k['KIT_Kit'], 'KIT_Nombre' => $k['KIT_Nombre'], 'CAR_Cargo' => $entero($k['CAR_Cargo']),
-            'DEP_Departamento' => $entero($k['DEP_Departamento']), 'KIT_Activo' => 1 === (int) $k['KIT_Activo'],
-            'items' => array_map(static fn (array $i): array => ['KIT_Item' => (int) $i['KIT_Item'], 'TAC_Tipo_Activo' => $entero($i['TAC_Tipo_Activo']),
-                'KIT_Cantidad' => (int) $i['KIT_Cantidad'], 'LIC_Licencia' => $entero($i['LIC_Licencia'])], $items),
-        ];
-    }
-
     /** @return array{KIT_Nombre: string, CAR_Cargo: ?int, DEP_Departamento: ?int, KIT_Activo: bool, items: list<array<string, mixed>>} */
     private function datosKit(Request $r): array
     {
@@ -349,29 +247,5 @@ final readonly class CatalogosController
 
         return ['KIT_Nombre' => (string) $nombre, 'CAR_Cargo' => $cargo, 'DEP_Departamento' => $departamento,
             'KIT_Activo' => $hayActivo && null !== $activo ? (bool) $activo : true, 'items' => $items];
-    }
-
-    /**
-     * @param array<string, mixed> $datos
-     */
-    private function validarKit(array $datos, ?int $excepto = null): void
-    {
-        [$cargo, $departamento] = [$datos['CAR_Cargo'], $datos['DEP_Departamento']];
-        if ((null === $cargo) === (null === $departamento)) {
-            throw new ErrorApi(422, 'STANDARD_KIT_NEEDS_POSITION_OR_DEPARTMENT');
-        }
-        if (null !== $cargo && !$this->datos->existeCargo($cargo)) {
-            throw new ErrorApi(404, 'POSITION_NOT_FOUND');
-        }
-        if (null !== $departamento && !$this->datos->existeDepartamento($departamento)) {
-            throw new ErrorApi(404, 'DEPARTMENT_NOT_FOUND');
-        }
-        // Un solo kit activo por cargo o por departamento.
-        if ($datos['KIT_Activo'] && $this->datos->hayKitActivoPara($cargo, $departamento, $excepto)) {
-            throw new ErrorApi(409, 'STANDARD_KIT_ALREADY_EXISTS');
-        }
-        if ([] === $datos['items']) {
-            throw new ErrorApi(422, 'STANDARD_KIT_EMPTY');
-        }
     }
 }
