@@ -25,7 +25,7 @@ final readonly class Aprobaciones
         private Alcance $alcance,
         private GobiernoRepositorio $gobierno,
         private Solicitudes $solicitudes,
-        private Activos $activos,
+        private BajaDeActivos $bajas,
         private Consumibles $consumibles,
         private Reclasificacion $reclasificacion,
         private Faltantes $faltantes,
@@ -93,7 +93,7 @@ final readonly class Aprobaciones
             $payload = json_decode((string) $a['APR_Payload'], true) ?: [];
             switch ($a['APR_Tipo']) {
                 case 'BAJA':
-                    $this->activos->darDeBaja((string) $a['ACT_Activo'], Esquemas::baja(Entrada::de($payload)), $solicitante, $traza);
+                    $this->bajas->darDeBaja((string) $a['ACT_Activo'], Esquemas::baja(Entrada::de($payload)), $solicitante, $traza);
                     $this->faltantes->alResolverBaja((int) $a['APR_Aprobacion'], true);
                     break;
                 case 'AJUSTE_CONSUMIBLE':

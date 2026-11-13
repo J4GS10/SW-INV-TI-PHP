@@ -47,6 +47,7 @@ final readonly class GoodsReceiptService
         private Software $software,
         private Solicitudes $approvals,
         private Activos $assets,
+        private \App\Inventario\EspecificacionesDeActivo $specifications,
         private Notificador $notifier,
         private \App\Config\Ajustes $settings,
         private \App\Catalogo\SpecificationRules $specificationRules,
@@ -723,7 +724,7 @@ final readonly class GoodsReceiptService
     private function saveSpecification(string $asset, int $type, mixed $current, string $value, string $user, ?string $ip): void
     {
         if (null === $current) {
-            $this->assets->agregarEspecificacion($asset, $type, $value, 'Datos completados tras el ingreso', $user, $ip);
+            $this->specifications->agregarEspecificacion($asset, $type, $value, 'Datos completados tras el ingreso', $user, $ip);
 
             return;
         }
@@ -731,7 +732,7 @@ final readonly class GoodsReceiptService
             return;
         }
         $id = $this->inventory->specificationId($asset, $type);
-        $this->assets->cambiarEspecificacion($id, $value, 'Datos completados tras el ingreso', $user, $ip);
+        $this->specifications->cambiarEspecificacion($id, $value, 'Datos completados tras el ingreso', $user, $ip);
     }
 
     /**

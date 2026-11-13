@@ -33,6 +33,8 @@ final readonly class CoreController
 {
     public function __construct(
         private Activos $activos,
+        private \App\Inventario\ComponentesDeActivo $componentes,
+        private \App\Inventario\EspecificacionesDeActivo $especificaciones,
         private EdicionLote $lote,
         private Solicitudes $solicitudes,
         private Reclasificacion $reclasificacion,
@@ -53,7 +55,7 @@ final readonly class CoreController
     #[Route('/activos/{activo}/especificaciones', methods: ['GET'])]
     public function especificaciones(Request $request): JsonResponse
     {
-        return new JsonResponse($this->activos->especificaciones(Entrada::uuidDeRuta($request, 'activo')));
+        return new JsonResponse($this->especificaciones->especificaciones(Entrada::uuidDeRuta($request, 'activo')));
     }
 
     #[Route('/activos/{activo}/especificaciones', methods: ['POST'])]
@@ -67,7 +69,7 @@ final readonly class CoreController
         [, $motivo] = $e->campo(Campo::texto('motivo', max: 255), true);
         $e->validar();
 
-        return new JsonResponse($this->activos->agregarEspecificacion($activo, (int) $tipo, (string) $valor, $motivo, $this->usuario(), ClienteHttp::ip($request)), 201);
+        return new JsonResponse($this->especificaciones->agregarEspecificacion($activo, (int) $tipo, (string) $valor, $motivo, $this->usuario(), ClienteHttp::ip($request)), 201);
     }
 
     #[Route('/especificaciones/{id}', methods: ['PATCH'])]
@@ -78,7 +80,7 @@ final readonly class CoreController
         [, $valor] = $e->campo(Campo::texto('ESP_Valor', true, 1, 255), true);
         [, $motivo] = $e->campo(Campo::texto('motivo', max: 255), true);
         $e->validar();
-        $this->activos->cambiarEspecificacion($id, (string) $valor, $motivo, $this->usuario(), ClienteHttp::ip($request));
+        $this->especificaciones->cambiarEspecificacion($id, (string) $valor, $motivo, $this->usuario(), ClienteHttp::ip($request));
 
         return new Response(status: 204);
     }
@@ -87,7 +89,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function eliminarEspecificacion(int $id, Request $request): Response
     {
-        $this->activos->eliminarEspecificacion($id, $this->usuario(), ClienteHttp::ip($request));
+        $this->especificaciones->eliminarEspecificacion($id, $this->usuario(), ClienteHttp::ip($request));
 
         return new Response(status: 204);
     }
@@ -245,7 +247,7 @@ final readonly class CoreController
     #[Route('/activos/{activo}/componentes', methods: ['GET'])]
     public function componentes(Request $request): JsonResponse
     {
-        return new JsonResponse($this->activos->componentes(Entrada::uuidDeRuta($request, 'activo')));
+        return new JsonResponse($this->componentes->componentes(Entrada::uuidDeRuta($request, 'activo')));
     }
 
     #[Route('/activos/{activo}/componentes', methods: ['POST'])]
@@ -258,7 +260,7 @@ final readonly class CoreController
         [, $motivo] = $e->campo(Campo::texto('motivo', max: 255), true);
         $e->validar();
 
-        return new JsonResponse($this->activos->instalarComponente($equipo, Ident::aHex((string) $comp), $motivo, $this->usuario()));
+        return new JsonResponse($this->componentes->instalarComponente($equipo, Ident::aHex((string) $comp), $motivo, $this->usuario()));
     }
 
     #[Route('/activos/{activo}/componentes/{componente}/retirar', methods: ['POST'])]
@@ -271,7 +273,7 @@ final readonly class CoreController
         [, $motivo] = $e->campo(Campo::texto('motivo', max: 255), true);
         $e->validar();
 
-        return new JsonResponse($this->activos->retirarComponente($equipo, $comp, $motivo, \App\Inventario\EstadosActivo::BODEGA, $this->usuario()));
+        return new JsonResponse($this->componentes->retirarComponente($equipo, $comp, $motivo, \App\Inventario\EstadosActivo::BODEGA, $this->usuario()));
     }
 
     /** Consumibles instalados en el equipo y los compatibles con su modelo. */

@@ -27,6 +27,7 @@ final readonly class Solicitudes
         private SolicitudesDatos $datos,
         private GobiernoRepositorio $gobierno,
         private Activos $activos,
+        private BajaDeActivos $bajas,
         private Reclasificacion $reclasificacion,
         private Operador $operador,
         private Transaccion $transaccion,
@@ -75,7 +76,7 @@ final readonly class Solicitudes
         return $this->transaccion->ejecutar(function () use ($activo, $baja, $usuario, $ip): array {
             // El activo bloqueado: dos solicitudes de baja simultáneas no pasan las dos la revisión de «ya pedida».
             $this->activos->bloquearEnOrden([$activo]);
-            [$a] = $this->activos->validarBaja($activo, $baja);
+            [$a] = $this->bajas->validarBaja($activo, $baja);
             $pendiente = $this->datos->bajaPendienteDe($activo);
             if (null !== $pendiente) {
                 throw ErrorDominio::conflicto("DECOMMISSION_ALREADY_REQUESTED:{$pendiente}");
