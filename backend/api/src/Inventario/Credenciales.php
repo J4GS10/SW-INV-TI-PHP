@@ -11,7 +11,7 @@ use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\CifradoCampos;
-use Doctrine\DBAL\Connection;
+use App\Inventario\Infrastructure\CredencialesStore;
 
 /**
  * Credenciales y cupos de las licencias. El método de activación decide qué
@@ -28,7 +28,7 @@ final readonly class Credenciales
     private const int ROTACION_DIAS = 180;
 
     public function __construct(
-        private Connection $conexion,
+        private CredencialesStore $datos,
         private Kardex $kardex,
         private GobiernoRepositorio $gobierno,
         private CifradoCampos $cifrado,
@@ -49,9 +49,7 @@ final readonly class Credenciales
     /** @return array<string, mixed> licencia con su método y forma */
     private function licencia(int $id): array
     {
-        $f = $this->conexion->fetchAssociative('SELECT l."LIC_Licencia", l."LIC_Cantidad_Total", l."LIC_Cantidad_Usada", l."LIC_Clave_Activacion", '
-            .'l."MAC_Metodo_Activacion", fc."FCO_Codigo", m.* FROM "INV_LICENCIA" l LEFT JOIN "INV_FORMA_CONTEO" fc ON fc."FCO_Forma" = l."FCO_Forma_Conteo" '
-            .'LEFT JOIN "INV_METODO_ACTIVACION" m ON m."MAC_Metodo" = l."MAC_Metodo_Activacion" WHERE l."LIC_Licencia" = :id', ['id' => $id]);
+        $f = $this->datos->licencia($id);
 
         return false === $f ? throw ErrorDominio::noEncontrado('LICENSE_NOT_FOUND') : $f;
     }
@@ -59,7 +57,7 @@ final readonly class Credenciales
     /** @return array<string, mixed> */
     private function credencial(int $id, bool $bloquear = false): array
     {
-        $f = $this->conexion->fetchAssociative('SELECT * FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Licencia_Clave" = :id'.($bloquear ? ' FOR UPDATE' : ''), ['id' => $id]);
+        $f = $this->datos->porId($id, $bloquear);
 
         return false === $f ? throw ErrorDominio::noEncontrado('LICENSE_KEY_NOT_FOUND') : $f;
     }
@@ -167,8 +165,7 @@ final readonly class Credenciales
 
     private function referencia(int $licencia): string
     {
-        $sw = $this->conexion->fetchAssociative('SELECT s."SOF_Nombre", s."SOF_Version" FROM "INV_SOFTWARE" s JOIN "INV_LICENCIA" l ON l."SOF_Software" = s."SOF_Software" '
-            .'WHERE l."LIC_Licencia" = :l', ['l' => $licencia]);
+        $sw = $this->datos->softwareDeLicencia($licencia);
         $nombre = false === $sw ? 'Licencia' : implode(' ', array_filter([$sw['SOF_Nombre'], $sw['SOF_Version']]));
 
         return mb_substr("{$nombre} · licencia #{$licencia}", 0, 200);
@@ -191,17 +188,11 @@ final readonly class Credenciales
             if (\count($reales) !== \count(array_unique($reales))) {
                 throw ErrorDominio::invalido('DUPLICATE_LICENSE_KEY_IN_REQUEST');
             }
-            if ([] !== $reales) {
-                $p = [];
-                foreach ($reales as $i => $h) {
-                    $p["h{$i}"] = $h;
-                }
-                if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Clave_Hash" IN (:'.implode(', :', array_keys($p)).') FETCH FIRST 1 ROWS ONLY', $p)) {
-                    throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
-                }
+            if ($this->datos->existeHuella($reales)) {
+                throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
             }
             // Las credenciales son cupos: no más que los comprados (salvo por sitio).
-            $existentes = (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"INV_LICENCIA_CLAVE\" WHERE \"LIC_Licencia\" = :l AND \"LCL_Estado\" <> 'BAJA'", ['l' => $licencia]);
+            $existentes = $this->datos->vigentesDeLicencia($licencia);
             if ('SITIO' !== $lic['FCO_Codigo'] && $existentes + \count($lote) > (int) $lic['LIC_Cantidad_Total']) {
                 throw ErrorDominio::conflicto('LICENSE_CREDENTIALS_EXCEED_SEATS:'.(int) $lic['LIC_Cantidad_Total']);
             }
@@ -210,7 +201,7 @@ final readonly class Credenciales
             $usuarios = [];
             foreach ($limpios as $i => $d) {
                 if (null !== ($d['archivo'] ?? null)) {
-                    $adj = $this->conexion->fetchOne('SELECT "LIC_Licencia" FROM "INV_ADJUNTO" WHERE "ADJ_Adjunto" = :a', ['a' => $d['archivo']]);
+                    $adj = $this->datos->licenciaDeAdjunto($d['archivo']);
                     if (false === $adj || (int) $adj !== $licencia) {
                         throw ErrorDominio::noProcesable('LICENSE_FILE_NOT_FOUND');
                     }
@@ -218,11 +209,7 @@ final readonly class Credenciales
                 $cols = ['LIC_Licencia' => $licencia, 'LCL_Clave_Hash' => $huellas[$i], 'LCL_Estado' => 'DISPONIBLE', 'LCL_Requiere_Cambio' => 0,
                     'LCL_Referencia' => self::texto($lote[$i]['referencia'] ?? null),
                     'LCL_Ultimo_Cambio_Secreto' => null !== ($d['secreto'] ?? null) ? $ahora : null, ...$this->columnas($d)];
-                $ids[] = (int) \App\Db\InsercionOracle::insertar($this->conexion, 'INV_LICENCIA_CLAVE', $cols, 'LCL_Licencia_Clave');
-                if (null !== ($lote[$i]['vence'] ?? null)) {
-                    $this->conexion->executeStatement('UPDATE "INV_LICENCIA_CLAVE" SET "LCL_Vence" = TO_DATE(:v, \'YYYY-MM-DD\') WHERE "LCL_Licencia_Clave" = :id',
-                        ['v' => $lote[$i]['vence'], 'id' => end($ids)]);
-                }
+                $ids[] = $this->datos->insertar($cols, isset($lote[$i]['vence']) ? (string) $lote[$i]['vence'] : null);
                 if (null !== ($d['usuario'] ?? null)) {
                     $usuarios[] = $d['usuario'];
                 }
@@ -247,11 +234,7 @@ final readonly class Credenciales
     public function listar(int $licencia): array
     {
         $lic = $this->licencia($licencia);
-        $filas = $this->conexion->fetchAllAssociative('SELECT c.*, i."INS_Fecha_Instalacion", i."ACT_Activo" AS "I_ACT", i."PER_Persona" AS "I_PER", '
-            .'a."ACT_Codigo_Interno", p."PER_Primer_Nombre", p."PER_Primer_Apellido", p."PER_Email_Corporativo", ad."ADJ_Nombre_Original" '
-            .'FROM "INV_LICENCIA_CLAVE" c LEFT JOIN "INV_INSTALACION" i ON i."LCL_Licencia_Clave" = c."LCL_Licencia_Clave" AND i."INS_Estado" = 1 '
-            .'LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = i."ACT_Activo" LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = i."PER_Persona" '
-            .'LEFT JOIN "INV_ADJUNTO" ad ON ad."ADJ_Adjunto" = c."LCL_Archivo" WHERE c."LIC_Licencia" = :l ORDER BY c."LCL_Licencia_Clave"', ['l' => $licencia]);
+        $filas = $this->datos->deLicenciaConDestino($licencia);
         $hoy = Reloj::ahora();
         $salida = [];
         foreach ($filas as $c) {
@@ -317,25 +300,12 @@ final readonly class Credenciales
                 $actual = ['usuario' => $c['LCL_Usuario'], 'serial' => $c['LCL_Serial'], 'servidor' => $c['LCL_Servidor'], 'dispositivo' => $c['LCL_Dispositivo'],
                     ...$limpios, 'clave' => null === $c['LCL_Clave_Activacion'] ? null : $this->cifrado->descifrar($c['LCL_Clave_Activacion'])];
                 $nueva = $this->huella((int) $c['LIC_Licencia'], $actual);
-                if ($nueva !== $c['LCL_Clave_Hash'] && null !== $nueva && false !== $this->conexion->fetchOne(
-                    'SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Clave_Hash" = :h FETCH FIRST 1 ROWS ONLY', ['h' => $nueva])) {
+                if ($nueva !== $c['LCL_Clave_Hash'] && null !== $nueva && $this->datos->existeHuella([$nueva])) {
                     throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
                 }
                 $cambios['LCL_Clave_Hash'] = $nueva;
             }
-            $sets = [];
-            $p = ['id' => $id];
-            foreach ($cambios as $col => $v) {
-                $sets[] = "\"{$col}\" = :{$col}";
-                $p[$col] = $v;
-            }
-            if ($vence) {
-                $sets[] = "\"LCL_Vence\" = TO_DATE(:vence, 'YYYY-MM-DD')";
-                $p['vence'] = $datos['vence'];
-            }
-            if ([] !== $sets) {
-                $this->conexion->executeStatement('UPDATE "INV_LICENCIA_CLAVE" SET '.implode(', ', $sets).' WHERE "LCL_Licencia_Clave" = :id', $p);
-            }
+            $this->datos->actualizar($id, $cambios, $vence, $vence && null !== $datos['vence'] ? (string) $datos['vence'] : null);
             $nombres = array_values(array_filter(array_keys($cambios), static fn (string $k): bool => 'LCL_Clave_Hash' !== $k));
             if ($vence) {
                 $nombres[] = 'LCL_Vence';
@@ -389,19 +359,12 @@ final readonly class Credenciales
             $cambios = $this->columnas($nuevos);
             if (isset($nuevos['clave'])) {
                 $h = $this->cifrado->huella($nuevos['clave']);
-                if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Clave_Hash" = :h AND "LCL_Licencia_Clave" <> :id '
-                    .'FETCH FIRST 1 ROWS ONLY', ['h' => $h, 'id' => $id])) {
+                if ($this->datos->existeHuella([$h], $id)) {
                     throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
                 }
                 $cambios['LCL_Clave_Hash'] = $h;
             }
-            $sets = ['"LCL_Ultimo_Cambio_Secreto" = :ahora', '"LCL_Requiere_Cambio" = 0'];
-            $p = ['id' => $id, 'ahora' => Reloj::aBd(Reloj::ahora())];
-            foreach ($cambios as $col => $v) {
-                $sets[] = "\"{$col}\" = :{$col}";
-                $p[$col] = $v;
-            }
-            $this->conexion->executeStatement('UPDATE "INV_LICENCIA_CLAVE" SET '.implode(', ', $sets).' WHERE "LCL_Licencia_Clave" = :id', $p);
+            $this->datos->actualizar($id, ['LCL_Ultimo_Cambio_Secreto' => Reloj::aBd(Reloj::ahora()), 'LCL_Requiere_Cambio' => 0, ...$cambios]);
             $campos = array_keys($nuevos);
             sort($campos);
             $this->kardex->registrar('LICENCIA_SECRETO_CAMBIADO', licencia: (int) $c['LIC_Licencia'], clave: $id, referencia: $this->referencia((int) $c['LIC_Licencia']),
@@ -418,15 +381,6 @@ final readonly class Credenciales
      */
     public function marcarCambioTrasSalida(array $ids): int
     {
-        if ([] === $ids) {
-            return 0;
-        }
-        $p = [];
-        foreach ($ids as $i => $id) {
-            $p["c{$i}"] = $id;
-        }
-
-        return $this->conexion->executeStatement('UPDATE "INV_LICENCIA_CLAVE" SET "LCL_Requiere_Cambio" = 1 WHERE "LCL_Licencia_Clave" IN (:'
-            .implode(', :', array_keys($p)).') AND "LCL_Secreto_Enc" IS NOT NULL', $p);
+        return [] === $ids ? 0 : $this->datos->exigirCambio($ids);
     }
 }

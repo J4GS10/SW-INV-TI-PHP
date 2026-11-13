@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Importacion;
 
-use App\Db\InsercionOracle;
+use App\Importacion\Infrastructure\ImportacionStore;
 use App\Db\Transaccion;
 use App\Documentos\FormatoLocal;
 use App\Documentos\LibroExcel;
@@ -13,7 +13,6 @@ use App\Inventario\Activos;
 use App\Inventario\Infrastructure\Secuencias;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
 
 /**
  * Importación de activos desde Excel con vista previa. El usuario descarga la
@@ -35,7 +34,7 @@ final readonly class ImportacionActivos
     private const string NOTA_SIN_SERIE = 'Sin serie del fabricante: se usa el código interno.';
 
     public function __construct(
-        private Connection $conexion,
+        private ImportacionStore $datos,
         private LectorExcel $lector,
         private Activos $activos,
         private Secuencias $secuencias,
@@ -49,7 +48,7 @@ final readonly class ImportacionActivos
     /** La importación es solo para la carga inicial: termina con el primer cierre mensual de cualquier sede. */
     public function disponible(): bool
     {
-        return false === $this->alcance->elevado(fn (): mixed => $this->conexion->fetchOne('SELECT 1 FROM TRC_MONTH_END_CLOSE FETCH FIRST 1 ROWS ONLY'));
+        return !$this->alcance->elevado(fn (): bool => $this->datos->hayCierreMensual());
     }
 
     private function exigirDisponible(): void
@@ -82,17 +81,14 @@ final readonly class ImportacionActivos
             if ([] === $validas) {
                 throw ErrorDominio::invalido('IMPORT_NOTHING_TO_IMPORT');
             }
-            $disponible = (int) ($this->conexion->fetchOne('SELECT "EOP_Estado_Operativo" FROM "INV_ESTADO_OPERATIVO" WHERE "EOP_Nombre" = :n', ['n' => 'En Bodega'])
-                ?: throw new \LogicException('Falta el estado operativo «En Bodega».'));
+            $disponible = $this->datos->idEstadoOperativo('En Bodega') ?? throw new \LogicException('Falta el estado operativo «En Bodega».');
             $especificaciones = $this->tiposEspecificacion();
             [, $marcas, $modelos] = $this->catalogos();
 
             $creados = [];
             foreach ($validas as $f) {
-                $marca = $marcas[Texto::normalizar($f->marca)] ??= (int) InsercionOracle::insertar($this->conexion, 'INV_MARCA',
-                    ['MAR_Nombre' => mb_substr($f->marca, 0, 100)], 'MAR_Marca');
-                $modelo = $modelos[$marca.'|'.Texto::normalizar($f->modelo)] ??= (int) InsercionOracle::insertar($this->conexion, 'INV_MODELO',
-                    ['MOD_Nombre' => $f->modelo, 'MAR_Marca' => $marca, 'TAC_Tipo_Activo' => $f->tipo['TAC_Tipo_Activo']], 'MOD_Modelo');
+                $marca = $marcas[Texto::normalizar($f->marca)] ??= $this->datos->crearMarca(mb_substr($f->marca, 0, 100));
+                $modelo = $modelos[$marca.'|'.Texto::normalizar($f->modelo)] ??= $this->datos->crearModelo($f->modelo, $marca, (int) $f->tipo['TAC_Tipo_Activo']);
                 $codigo = $f->texto('codigo');
                 if ('' === $codigo) {
                     $prefijo = (string) $f->tipo['TAC_Prefijo'];
@@ -117,8 +113,7 @@ final readonly class ImportacionActivos
                 } catch (ErrorDominio $e) {
                     throw new ErrorDominio($e->motivo, "IMPORT_ROW_FAILED:{$f->numero}:{$e->detalle}");
                 }
-                $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "ARE_Area_Ubicacion" = :a WHERE "ACT_Activo" = :id',
-                    ['a' => $f->area['ARE_Area'], 'id' => \App\Dominio\Ident::aHex((string) $activo['ACT_Activo'])]);
+                $this->datos->ubicarActivo(\App\Dominio\Ident::aHex((string) $activo['ACT_Activo']), (int) $f->area['ARE_Area']);
                 $creados[] = $codigo;
             }
             $this->ajustarSecuencias();
@@ -138,9 +133,9 @@ final readonly class ImportacionActivos
         LibroExcel::anchos($inventario, self::ANCHOS_PLANTILLA);
         $listas = $libro->hoja('Listas', ['Categorías', 'Ubicaciones', 'Marcas existentes', 'Monedas'], ['negrita' => false]);
         $columnas = [
-            $this->conexion->fetchFirstColumn('SELECT "TAC_Nombre" FROM "INV_TIPO_ACTIVO" ORDER BY "TAC_Nombre"'),
-            $this->conexion->fetchFirstColumn('SELECT "ARE_Nombre" FROM "INV_AREA" ORDER BY "ARE_Nombre"'),
-            $this->conexion->fetchFirstColumn('SELECT "MAR_Nombre" FROM "INV_MARCA" ORDER BY "MAR_Nombre"'),
+            $this->datos->nombresDeTipos(),
+            $this->datos->nombresDeAreas(),
+            $this->datos->nombresDeMarcas(),
             Activos::MONEDAS,
         ];
         $alto = max(array_map('count', $columnas));
@@ -162,7 +157,7 @@ final readonly class ImportacionActivos
         // Unicidad en toda la empresa (no solo en el alcance) y sin importar ceros a la izquierda.
         [$codigosBd, $seriesBd] = $this->alcance->elevado(fn (): array => [
             array_fill_keys(array_map(static fn (string $c): string => Texto::claveCodigo($c),
-                $this->conexion->fetchFirstColumn('SELECT "ACT_Codigo_Interno" FROM "INV_ACTIVO"')), true),
+                $this->datos->codigosInternos()), true),
             $this->seriesExistentes($series),
         ]);
 
@@ -376,19 +371,19 @@ final readonly class ImportacionActivos
     private function catalogos(): array
     {
         $tipos = [];
-        foreach ($this->conexion->fetchAllAssociative('SELECT "TAC_Tipo_Activo", "TAC_Nombre", "TAC_Prefijo" FROM "INV_TIPO_ACTIVO" ORDER BY "TAC_Tipo_Activo"') as $t) {
+        foreach ($this->datos->tipos() as $t) {
             $tipos[Texto::normalizar($t['TAC_Nombre'])] = ['TAC_Tipo_Activo' => (int) $t['TAC_Tipo_Activo'], 'TAC_Nombre' => $t['TAC_Nombre'], 'TAC_Prefijo' => $t['TAC_Prefijo']];
         }
         $marcas = [];
-        foreach ($this->conexion->fetchAllNumeric('SELECT "MAR_Marca", "MAR_Nombre" FROM "INV_MARCA" ORDER BY "MAR_Marca"') as [$id, $nombre]) {
+        foreach ($this->datos->marcas() as [$id, $nombre]) {
             $marcas[Texto::normalizar($nombre)] = (int) $id;
         }
         $modelos = [];
-        foreach ($this->conexion->fetchAllNumeric('SELECT "MOD_Modelo", "MAR_Marca", "MOD_Nombre" FROM "INV_MODELO" ORDER BY "MOD_Modelo"') as [$id, $marca, $nombre]) {
+        foreach ($this->datos->modelos() as [$id, $marca, $nombre]) {
             $modelos[(int) $marca.'|'.Texto::normalizar($nombre)] = (int) $id;
         }
         $areas = [];
-        foreach ($this->conexion->fetchAllNumeric('SELECT "ARE_Area", "ARE_Nombre" FROM "INV_AREA" ORDER BY "ARE_Area"') as [$id, $nombre]) {
+        foreach ($this->datos->areas() as [$id, $nombre]) {
             $areas[Texto::normalizar($nombre)] = ['ARE_Area' => (int) $id, 'ARE_Nombre' => $nombre];
         }
 
@@ -404,13 +399,8 @@ final readonly class ImportacionActivos
     {
         $existentes = [];
         foreach (array_chunk(array_values(array_unique(array_map('mb_strtolower', $series))), 500) as $lote) {
-            $p = [];
-            foreach ($lote as $i => $s) {
-                $p["s{$i}"] = $s;
-            }
-            foreach ($this->conexion->fetchFirstColumn('SELECT LOWER("ACT_Serie_Fabricante") FROM "INV_ACTIVO" WHERE LOWER("ACT_Serie_Fabricante") IN (:'
-                .implode(', :', array_keys($p)).')', $p) as $s) {
-                $existentes[(string) $s] = true;
+            foreach ($this->datos->seriesExistentes($lote) as $s) {
+                $existentes[$s] = true;
             }
         }
 
@@ -426,10 +416,7 @@ final readonly class ImportacionActivos
     {
         $ids = [];
         foreach (self::ESPECIFICACIONES as $nombre) {
-            $id = $this->conexion->fetchOne('SELECT "TES_Tipo_Especificacion" FROM "INV_TIPO_ESPECIFICACION" WHERE LOWER("TES_Nombre") = :n '
-                .'ORDER BY "TES_Tipo_Especificacion" FETCH FIRST 1 ROWS ONLY', ['n' => mb_strtolower($nombre)]);
-            $ids[$nombre] = false !== $id ? (int) $id
-                : (int) InsercionOracle::insertar($this->conexion, 'INV_TIPO_ESPECIFICACION', ['TES_Nombre' => $nombre], 'TES_Tipo_Especificacion');
+            $ids[$nombre] = $this->datos->idTipoEspecificacion($nombre) ?? $this->datos->crearTipoEspecificacion($nombre);
         }
 
         return $ids;
@@ -438,20 +425,14 @@ final readonly class ImportacionActivos
     /** Sede del área (Área → Nivel → Edificio → Sede); el alta valida que esté en el alcance. */
     private function sedeDeArea(int $area): ?int
     {
-        $sede = $this->conexion->fetchOne('SELECT e."SED_Sede" FROM "INV_AREA" a JOIN "INV_NIVEL" n ON n."NIV_Nivel" = a."NIV_Nivel" '
-            .'JOIN "INV_EDIFICIO" e ON e."EDI_Edificio" = n."EDI_Edificio" WHERE a."ARE_Area" = :a', ['a' => $area]);
-
-        return false === $sede || null === $sede ? null : (int) $sede;
+        return $this->datos->sedeDeArea($area);
     }
 
     /** Lleva cada secuencia al mayor número usado: el próximo código automático no choca con uno importado. */
     private function ajustarSecuencias(): void
     {
-        foreach ($this->conexion->fetchFirstColumn('SELECT "TAC_Prefijo" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Prefijo" IS NOT NULL') as $prefijo) {
-            $prefijo = (string) $prefijo;
-            $codigos = $this->alcance->elevado(fn (): array => $this->conexion->fetchFirstColumn(
-                "SELECT \"ACT_Codigo_Interno\" FROM \"INV_ACTIVO\" WHERE UPPER(\"ACT_Codigo_Interno\") LIKE :p ESCAPE '\\'",
-                ['p' => mb_strtoupper(addcslashes($prefijo, '%_\\')).'%']));
+        foreach ($this->datos->prefijosDeTipos() as $prefijo) {
+            $codigos = $this->alcance->elevado(fn (): array => $this->datos->codigosConPrefijo($prefijo));
             $mayor = 0;
             foreach ($codigos as $codigo) {
                 if (1 === preg_match('/^'.preg_quote($prefijo, '/').'(\d+)$/i', (string) $codigo, $m)) {

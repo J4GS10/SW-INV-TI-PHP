@@ -79,7 +79,7 @@ final readonly class MantenimientoSeguridad implements TareaExclusiva
             if ([] === $candidatas) {
                 return [];
             }
-            $superAdmins = $this->datos->superAdministradoresActivos();
+            $superAdmins = $this->identidades->superAdministradoresActivos();
             $desactivadas = [];
             foreach ($candidatas as $u) {
                 if (Roles::SUPER_ADMIN === $u['USU_Rol']) {

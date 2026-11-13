@@ -7,9 +7,8 @@ namespace App\Catalogo;
 use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception\ConstraintViolationException;
-use Doctrine\DBAL\ParameterType;
+use App\Catalogo\Infrastructure\CatalogoStore;
+use App\Db\Transaccion;
 
 /**
  * Un solo servicio para todos los catálogos estándar: listar (con uso e
@@ -21,7 +20,8 @@ use Doctrine\DBAL\ParameterType;
 final class CatalogoGenerico
 {
     public function __construct(
-        private readonly Connection $conexion,
+        private readonly CatalogoStore $datos,
+        private readonly Transaccion $transaccion,
         private readonly Alcance $alcance,
         private readonly \App\Db\SchemaReferences $esquema,
         private readonly \App\Db\LogicalDelete $borrado,
@@ -48,10 +48,7 @@ final class CatalogoGenerico
     {
         $d = RegistroCatalogos::definicion($clave);
         $p = $d['prefijo'];
-        $filas = $this->conexion->fetchAllAssociative(
-            'SELECT * FROM "'.$d['tabla'].'"'.($inactivos ? '' : " WHERE \"{$p}_Activo\" = 1")
-            ." ORDER BY \"{$p}_Orden\", LOWER(\"{$p}_Nombre\")",
-        );
+        $filas = $this->datos->filas($d['tabla'], $p, $inactivos);
         $uso = $this->uso($d);
 
         return array_map(fn (array $f): array => $this->serializar($d, $f, $uso[(int) $f[$d['pk']]] ?? 0), $filas);
@@ -82,10 +79,7 @@ final class CatalogoGenerico
     {
         $d = RegistroCatalogos::definicion($clave);
         $p = $d['prefijo'];
-        $f = $this->conexion->fetchAssociative(
-            'SELECT * FROM "'.$d['tabla']."\" WHERE \"{$p}_Codigo\" = :c".($soloActivos ? " AND \"{$p}_Activo\" = 1" : ''),
-            ['c' => $codigo],
-        );
+        $f = $this->datos->porCodigo($d['tabla'], $p, $codigo, $soloActivos);
 
         return false === $f ? null : $f;
     }
@@ -107,15 +101,15 @@ final class CatalogoGenerico
             throw ErrorDominio::noProcesable('CATALOG_NAME_TOO_LONG');
         }
 
-        return $this->conexion->transactional(function () use ($d, $p, $datos, $nombre, $auditar): array {
+        return $this->transaccion->ejecutar(function () use ($d, $p, $datos, $nombre, $auditar): array {
             $this->nombreLibre($d, $nombre);
             $valores = ["{$p}_Nombre" => $nombre, "{$p}_Descripcion" => self::textoOpcional($datos['descripcion'] ?? null)];
             if ($d['codigo_automatico']) {
                 $valores["{$p}_Codigo"] = $this->codigoLibre($d, $nombre);
             }
-            $valores["{$p}_Orden"] = $datos['orden'] ?? ((int) $this->conexion->fetchOne("SELECT MAX(\"{$p}_Orden\") FROM \"{$d['tabla']}\"") + 10);
+            $valores["{$p}_Orden"] = $datos['orden'] ?? ($this->datos->mayorOrden($d['tabla'], $p) + 10);
             $valores = [...$valores, ...$this->validarExtras($d, (array) ($datos['extras'] ?? []))];
-            $id = (int) \App\Db\InsercionOracle::insertar($this->conexion, $d['tabla'], self::aBase($valores), $d['pk']);
+            $id = $this->datos->insertar($d['tabla'], self::aBase($valores), $d['pk']);
             $auditar('CREATE', $d['tabla'], ['id' => $id, 'nombre' => $nombre]);
 
             return $this->serializar($d, (array) $this->fila($d, $id));
@@ -132,7 +126,7 @@ final class CatalogoGenerico
         $d = RegistroCatalogos::definicion($clave);
         $p = $d['prefijo'];
 
-        return $this->conexion->transactional(function () use ($d, $p, $id, $datos, $auditar): array {
+        return $this->transaccion->ejecutar(function () use ($d, $p, $id, $datos, $auditar): array {
             $f = $this->fila($d, $id) ?? throw ErrorDominio::noEncontrado('CATALOG_ITEM_NOT_FOUND');
             $esSistema = $d['codigo'] && \in_array($f["{$p}_Codigo"], $d['sistema'], true);
             $cambios = [];
@@ -183,12 +177,9 @@ final class CatalogoGenerico
     public function reordenar(string $clave, array $ids, callable $auditar): void
     {
         $d = RegistroCatalogos::definicion($clave);
-        $this->conexion->transactional(function () use ($d, $ids, $auditar): void {
+        $this->transaccion->ejecutar(function () use ($d, $ids, $auditar): void {
             foreach ($ids as $posicion => $id) {
-                $this->conexion->executeStatement(
-                    "UPDATE \"{$d['tabla']}\" SET \"{$d['prefijo']}_Orden\" = :o WHERE \"{$d['pk']}\" = :id",
-                    ['o' => ($posicion + 1) * 10, 'id' => $id],
-                );
+                $this->datos->fijarOrden($d['tabla'], $d['prefijo'], $d['pk'], $id, ($posicion + 1) * 10);
             }
             $auditar('CATALOG_REORDER', $d['tabla'], ['ids' => $ids]);
         });
@@ -202,10 +193,7 @@ final class CatalogoGenerico
         $conteos = $this->conteos($d, $origen);
         if ('marcas' === $d['clave']) {
             // Los activos de los modelos de la marca también cambian de marca.
-            $conteos['INV_ACTIVO.MAR_Marca'] = (int) $this->conexion->fetchOne(
-                'SELECT COUNT(*) FROM "INV_ACTIVO" a JOIN "INV_MODELO" m ON m."MOD_Modelo" = a."MOD_Modelo" WHERE m."MAR_Marca" = :o',
-                ['o' => $origenId],
-            );
+            $conteos['INV_ACTIVO.MAR_Marca'] = $this->datos->activosDeMarca($origenId);
         }
 
         return ['conteos' => (object) $conteos, 'total' => array_sum($conteos)];
@@ -221,38 +209,27 @@ final class CatalogoGenerico
             throw ErrorDominio::prohibido('CATALOG_MERGE_REQUIRES_GLOBAL_SCOPE');
         }
 
-        return $this->conexion->transactional(function () use ($d, $p, $clave, $origenId, $destinoId, $auditar): array {
+        return $this->transaccion->ejecutar(function () use ($d, $p, $clave, $origenId, $destinoId, $auditar): array {
             [$origen, $destino] = $this->validarFusion($d, $origenId, $destinoId);
             $previa = $this->previaFusion($clave, $origenId, $destinoId);
             $nombreDestino = (string) $destino["{$p}_Nombre"];
-            try {
+            $unidos = $this->transaccion->sinViolaciones(function () use ($d, $p, $origen, $destino, $origenId, $destinoId, $nombreDestino): int {
                 $unidos = 'marcas' === $d['clave'] ? $this->fusionarModelosDeMarca($origenId, $destinoId) : 0;
                 foreach ($this->referencias($d['tabla'], $d['pk']) as $ref) {
-                    $sets = ["\"{$ref['columna']}\" = :destino"];
-                    $parametros = ['destino' => $destinoId, 'origen' => $origenId];
-                    $texto = $d['textos']["{$ref['tabla']}.{$ref['columna']}"] ?? null;
-                    if (null !== $texto) {
-                        [$columnaTexto, $fuente] = $texto;
-                        $largo = $this->largoColumna($ref['tabla'], $columnaTexto);
-                        $sets[] = "\"{$columnaTexto}\" = :texto";
-                        $parametros['texto'] = mb_substr((string) (($destino[$fuente] ?? null) ?: $nombreDestino), 0, $largo);
-                    }
-                    $this->conexion->executeStatement(
-                        "UPDATE \"{$ref['tabla']}\" SET ".implode(', ', $sets)." WHERE \"{$ref['columna']}\" = :origen",
-                        $parametros,
-                    );
+                    [$columnaTexto, $fuente] = $d['textos']["{$ref['tabla']}.{$ref['columna']}"] ?? [null, null];
+                    $this->datos->reapuntar($ref['tabla'], $ref['columna'], $origenId, $destinoId, $columnaTexto, null === $columnaTexto ? null
+                        : mb_substr((string) (($destino[$fuente] ?? null) ?: $nombreDestino), 0, $this->largoColumna($ref['tabla'], $columnaTexto)));
                 }
                 $codigoOrigen = $d['codigo'] ? $origen["{$p}_Codigo"] : null;
                 $codigoDestino = $d['codigo'] ? $destino["{$p}_Codigo"] : null;
                 if (null !== $codigoOrigen && null !== $codigoDestino) {
                     foreach ($d['codigos'] as [$tabla, $columna]) {
-                        $this->conexion->executeStatement("UPDATE \"{$tabla}\" SET \"{$columna}\" = :d WHERE \"{$columna}\" = :o",
-                            ['d' => $codigoDestino, 'o' => $codigoOrigen]);
+                        $this->datos->reapuntar($tabla, $columna, $codigoOrigen, $codigoDestino);
                     }
                 }
-            } catch (ConstraintViolationException) {
-                throw ErrorDominio::conflicto('CATALOG_MERGE_CONFLICT');
-            }
+
+                return $unidos;
+            }, ErrorDominio::conflicto('CATALOG_MERGE_CONFLICT'));
             $this->actualizar($d, $origenId, ["{$p}_Activo" => false, "{$p}_Fusionado_En" => $destinoId, "{$p}_Fusionado_Fecha" => Reloj::aBd(Reloj::ahora())]);
             $auditar('CATALOG_MERGE', $d['tabla'], [
                 'origen' => $origenId, 'origen_nombre' => $origen["{$p}_Nombre"], 'destino' => $destinoId,
@@ -307,16 +284,14 @@ final class CatalogoGenerico
     {
         $totales = [];
         foreach ($this->referencias($d['tabla'], $d['pk']) as $ref) {
-            foreach ($this->conexion->fetchAllNumeric(
-                "SELECT \"{$ref['columna']}\", COUNT(*) FROM \"{$ref['tabla']}\" WHERE \"{$ref['columna']}\" IS NOT NULL GROUP BY \"{$ref['columna']}\"",
-            ) as [$valor, $n]) {
+            foreach ($this->datos->usoPorValor($ref['tabla'], $ref['columna']) as [$valor, $n]) {
                 $totales[(int) $valor] = ($totales[(int) $valor] ?? 0) + (int) $n;
             }
         }
         if ([] !== $d['codigos']) {
-            $ids = $this->conexion->fetchAllKeyValue("SELECT \"{$d['prefijo']}_Codigo\", \"{$d['pk']}\" FROM \"{$d['tabla']}\"");
+            $ids = $this->datos->idsPorCodigo($d['tabla'], $d['prefijo'], $d['pk']);
             foreach ($d['codigos'] as [$tabla, $columna]) {
-                foreach ($this->conexion->fetchAllNumeric("SELECT \"{$columna}\", COUNT(*) FROM \"{$tabla}\" GROUP BY \"{$columna}\"") as [$codigo, $n]) {
+                foreach ($this->datos->usoPorValor($tabla, $columna) as [$codigo, $n]) {
                     if (isset($ids[$codigo])) {
                         $totales[(int) $ids[$codigo]] = ($totales[(int) $ids[$codigo]] ?? 0) + (int) $n;
                     }
@@ -338,14 +313,14 @@ final class CatalogoGenerico
         $conteos = [];
         $id = (int) $origen[$d['pk']];
         foreach ($this->referencias($d['tabla'], $d['pk']) as $ref) {
-            $n = (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"{$ref['tabla']}\" WHERE \"{$ref['columna']}\" = :id", ['id' => $id]);
+            $n = $this->datos->cuantos($ref['tabla'], $ref['columna'], $id);
             if ($n > 0) {
                 $conteos["{$ref['tabla']}.{$ref['columna']}"] = $n;
             }
         }
         $codigo = $d['codigo'] ? $origen[$d['prefijo'].'_Codigo'] : null;
         foreach (null === $codigo ? [] : $d['codigos'] as [$tabla, $columna]) {
-            $n = (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"{$tabla}\" WHERE \"{$columna}\" = :c", ['c' => $codigo]);
+            $n = $this->datos->cuantos($tabla, $columna, $codigo);
             if ($n > 0) {
                 $conteos["{$tabla}.{$columna}"] = $n;
             }
@@ -390,18 +365,17 @@ final class CatalogoGenerico
     private function fusionarModelosDeMarca(int $origenId, int $destinoId): int
     {
         $destino = [];
-        foreach ($this->conexion->fetchAllNumeric('SELECT "MOD_Modelo", "MOD_Nombre" FROM "INV_MODELO" WHERE "MAR_Marca" = :m', ['m' => $destinoId]) as [$id, $nombre]) {
+        foreach ($this->datos->modelosDeMarca($destinoId) as [$id, $nombre]) {
             $destino[mb_strtolower(trim((string) $nombre))] = (int) $id;
         }
         $unidos = 0;
-        foreach ($this->conexion->fetchAllNumeric('SELECT "MOD_Modelo", "MOD_Nombre" FROM "INV_MODELO" WHERE "MAR_Marca" = :m', ['m' => $origenId]) as [$id, $nombre]) {
+        foreach ($this->datos->modelosDeMarca($origenId) as [$id, $nombre]) {
             $gemelo = $destino[mb_strtolower(trim((string) $nombre))] ?? null;
             if (null === $gemelo) {
                 continue;
             }
             foreach ($this->referencias('INV_MODELO', 'MOD_Modelo') as $ref) {
-                $this->conexion->executeStatement("UPDATE \"{$ref['tabla']}\" SET \"{$ref['columna']}\" = :g WHERE \"{$ref['columna']}\" = :o",
-                    ['g' => $gemelo, 'o' => $id]);
+                $this->datos->reapuntar($ref['tabla'], $ref['columna'], $id, $gemelo);
             }
             // Sin referencias ya (se movieron al gemelo): se archiva, no se borra.
             $this->borrado->archive('INV_MODELO', 'MOD_Modelo', (int) $id);
@@ -428,7 +402,7 @@ final class CatalogoGenerico
      */
     private function fila(array $d, int $id): ?array
     {
-        $f = $this->conexion->fetchAssociative('SELECT * FROM "'.$d['tabla'].'" WHERE "'.$d['pk'].'" = :id', ['id' => $id]);
+        $f = $this->datos->fila($d['tabla'], $d['pk'], $id);
 
         return false === $f ? null : $f;
     }
@@ -438,13 +412,7 @@ final class CatalogoGenerico
      */
     private function nombreLibre(array $d, string $nombre, ?int $excepto = null): void
     {
-        $sql = "SELECT 1 FROM \"{$d['tabla']}\" WHERE LOWER(TRIM(\"{$d['prefijo']}_Nombre\")) = LOWER(TRIM(:n))";
-        $parametros = ['n' => $nombre];
-        if (null !== $excepto) {
-            $sql .= " AND \"{$d['pk']}\" <> :e";
-            $parametros['e'] = $excepto;
-        }
-        if (false !== $this->conexion->fetchOne($sql.' FETCH FIRST 1 ROWS ONLY', $parametros)) {
+        if ($this->datos->existeNombre($d['tabla'], $d['prefijo'], $d['pk'], $nombre, $excepto)) {
             throw ErrorDominio::conflicto('CATALOG_ITEM_ALREADY_EXISTS');
         }
     }
@@ -458,7 +426,7 @@ final class CatalogoGenerico
     {
         $base = self::codigoDesdeNombre($nombre, $d['largo_codigo'] - 3);
         $codigo = $base;
-        for ($n = 2; false !== $this->conexion->fetchOne("SELECT 1 FROM \"{$d['tabla']}\" WHERE \"{$d['prefijo']}_Codigo\" = :c", ['c' => $codigo]); ++$n) {
+        for ($n = 2; $this->datos->existeCodigo($d['tabla'], $d['prefijo'], $codigo); ++$n) {
             $codigo = "{$base}_{$n}";
         }
 
@@ -545,17 +513,7 @@ final class CatalogoGenerico
      */
     private function actualizar(array $d, int $id, array $cambios): void
     {
-        $sets = [];
-        $parametros = ['id' => $id];
-        $tipos = [];
-        foreach (self::aBase($cambios) as $columna => $valor) {
-            $sets[] = "\"{$columna}\" = :c".\count($sets);
-            $parametros['c'.(\count($sets) - 1)] = $valor;
-            if (\is_string($valor) && \strlen($valor) > 4000) {
-                $tipos['c'.(\count($sets) - 1)] = ParameterType::LARGE_OBJECT;
-            }
-        }
-        $this->conexion->executeStatement("UPDATE \"{$d['tabla']}\" SET ".implode(', ', $sets)." WHERE \"{$d['pk']}\" = :id", $parametros, $tipos);
+        $this->datos->actualizar($d['tabla'], $d['pk'], $id, self::aBase($cambios));
     }
 
     /**

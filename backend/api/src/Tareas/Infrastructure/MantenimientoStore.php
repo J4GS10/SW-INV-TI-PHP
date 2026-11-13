@@ -45,11 +45,6 @@ final readonly class MantenimientoStore
         );
     }
 
-    public function superAdministradoresActivos(): int
-    {
-        return (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_USUARIO" WHERE "USU_Rol" = :r AND "USU_Estado" = 1', ['r' => Roles::SUPER_ADMIN]);
-    }
-
     public function desactivarCuenta(string $usuario): void
     {
         $this->conexion->executeStatement('UPDATE "INV_USUARIO" SET "USU_Estado" = 0 WHERE "USU_Usuario" = :u', ['u' => $usuario]);

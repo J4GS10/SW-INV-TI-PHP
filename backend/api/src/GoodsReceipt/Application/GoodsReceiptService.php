@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\GoodsReceipt\Application;
 
 use App\Correo\Notificador;
-use App\Db\InsercionOracle;
+use App\GoodsReceipt\Infrastructure\ReceivedInventoryStore;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
@@ -24,7 +24,6 @@ use App\Inventario\Solicitudes;
 use App\Inventario\Valoracion;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
 
 /**
  * Goods receipt use cases. Purchasing registers what arrived; IT classifies and confirms. Nothing reaches
@@ -36,7 +35,7 @@ final readonly class GoodsReceiptService
     private const array CURRENCIES = ['GTQ', 'USD', 'CHF'];
 
     public function __construct(
-        private Connection $connection,
+        private ReceivedInventoryStore $inventory,
         private GoodsReceiptRepository $receipts,
         private Alcance $scope,
         private Transaccion $transaction,
@@ -203,7 +202,7 @@ final readonly class GoodsReceiptService
     {
         return $this->transaction->ejecutar(function () use ($asset, $input, $user, $ip): array {
             $row = $this->assets->filaO404($asset);
-            $this->connection->fetchOne('SELECT 1 FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a FOR UPDATE', ['a' => $asset]);
+            $this->inventory->lockAsset($asset);
             $receipt = $this->receipts->receiptOfAsset($asset);
             if (null === $receipt || 1 !== (int) $row['ACT_Pending_Completion']) {
                 throw ErrorDominio::conflicto('ASSET_NOT_PENDING_COMPLETION');
@@ -218,8 +217,7 @@ final readonly class GoodsReceiptService
             }
             $missing = $this->applySpecifications($asset, $row, $input['specifications'] ?? [], $user, $ip);
             $pending = [] !== $missing ? 1 : 0;
-            $this->connection->executeStatement('UPDATE "INV_ACTIVO" SET "ACT_Serie_Fabricante" = :s, "ACT_Hostname" = NVL(:h, "ACT_Hostname"), "ACT_Pending_Completion" = :p WHERE "ACT_Activo" = :a',
-                ['s' => $serial, 'h' => $hostname, 'p' => $pending, 'a' => $asset]);
+            $this->inventory->completeAsset($asset, $serial, $hostname, 1 === $pending);
             $fresh = $this->assets->filaO404($asset);
             $this->kardex->registrar('CAMBIO_DATOS', activo: $fresh, usuario: $user, motivo: 'Datos completados tras el ingreso',
                 detalle: ['serie' => ['antes' => null, 'despues' => $serial], 'hostname' => ['antes' => $row['ACT_Hostname'], 'despues' => $hostname ?? $row['ACT_Hostname']]]);
@@ -260,22 +258,22 @@ final readonly class GoodsReceiptService
         $model = self::requiredText($model, 150, 'MODEL_NAME_REQUIRED');
 
         return $this->transaction->ejecutar(function () use ($assetType, $brand, $model, $user, $ip): array {
-            if (false === $this->connection->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $assetType])) {
+            if (!$this->inventory->assetTypeExists($assetType)) {
                 throw ErrorDominio::noEncontrado('ASSET_TYPE_NOT_FOUND');
             }
-            $brandId = $this->connection->fetchOne('SELECT "MAR_Marca" FROM "INV_MARCA" WHERE LOWER(TRIM("MAR_Nombre")) = LOWER(:n) FETCH FIRST 1 ROWS ONLY', ['n' => $brand]);
-            if (false === $brandId) {
-                $brandId = InsercionOracle::insertar($this->connection, 'INV_MARCA', ['MAR_Nombre' => $brand], 'MAR_Marca');
+            $brandId = $this->inventory->brandByName($brand);
+            if (null === $brandId) {
+                $brandId = $this->inventory->createBrand($brand);
                 $this->audit->registrarAuditoria('CREATE', 'INV_MARCA', ['nombre' => $brand, 'origen' => 'Confirmación de ingreso'], $user, $ip);
             }
-            $existing = $this->connection->fetchOne('SELECT "MOD_Modelo" FROM "INV_MODELO" WHERE "MAR_Marca" = :b AND LOWER(TRIM("MOD_Nombre")) = LOWER(:n) FETCH FIRST 1 ROWS ONLY', ['b' => $brandId, 'n' => $model]);
-            if (false !== $existing) {
-                return ['model_id' => (int) $existing, 'brand_id' => (int) $brandId, 'created' => false];
+            $existing = $this->inventory->modelByName($brandId, $model);
+            if (null !== $existing) {
+                return ['model_id' => $existing, 'brand_id' => $brandId, 'created' => false];
             }
-            $id = InsercionOracle::insertar($this->connection, 'INV_MODELO', ['MOD_Nombre' => $model, 'MAR_Marca' => $brandId, 'TAC_Tipo_Activo' => $assetType], 'MOD_Modelo');
+            $id = $this->inventory->createModel($model, $brandId, $assetType);
             $this->audit->registrarAuditoria('CREATE', 'INV_MODELO', ['nombre' => $model, 'marca' => $brand, 'origen' => 'Confirmación de ingreso'], $user, $ip);
 
-            return ['model_id' => (int) $id, 'brand_id' => (int) $brandId, 'created' => true];
+            return ['model_id' => $id, 'brand_id' => $brandId, 'created' => true];
         });
     }
 
@@ -286,14 +284,13 @@ final readonly class GoodsReceiptService
     {
         $assetType = $this->assetTypeOfModel($model);
         $this->transaction->ejecutar(function () use ($model, $assetType, $values, $user, $ip): void {
-            $this->connection->executeStatement('DELETE FROM CAT_MODEL_SPECIFICATION WHERE MSP_MOD_MODEL = :m', ['m' => $model]);
+            $defaults = [];
             foreach ($values as $type => $value) {
-                if ('' === trim($value)) {
-                    continue;
+                if ('' !== trim($value)) {
+                    $defaults[(int) $type] = $this->specificationRules->normalize($assetType, (int) $type, $value);
                 }
-                $this->connection->executeStatement('INSERT INTO CAT_MODEL_SPECIFICATION (MSP_MOD_MODEL, MSP_TES_SPECIFICATION_TYPE, MSP_DEFAULT_VALUE) VALUES (:m, :t, :v)',
-                    ['m' => $model, 't' => (int) $type, 'v' => $this->specificationRules->normalize($assetType, (int) $type, $value)]);
             }
+            $this->inventory->replaceModelDefaults($model, $defaults);
             $this->audit->registrarAuditoria('UPDATE', 'CAT_MODEL_SPECIFICATION', ['modelo' => $model, 'valores' => $values], $user, $ip);
         });
     }
@@ -313,9 +310,7 @@ final readonly class GoodsReceiptService
 
     private function assetTypeOfModel(int $model): int
     {
-        $type = $this->connection->fetchOne('SELECT "TAC_Tipo_Activo" FROM "INV_MODELO" WHERE "MOD_Modelo" = :m', ['m' => $model]);
-
-        return false === $type || null === $type ? throw ErrorDominio::noEncontrado('MODEL_NOT_FOUND') : (int) $type;
+        return $this->inventory->assetTypeOfModel($model) ?? throw ErrorDominio::noEncontrado('MODEL_NOT_FOUND');
     }
 
     /** @return array<string, mixed> */
@@ -366,12 +361,13 @@ final readonly class GoodsReceiptService
 
     public function serialExists(string $serial, ?string $except = null): bool
     {
-        return $this->exists('ACT_Serie_Fabricante', $serial, $except);
+        // Checked without site scope: an asset elsewhere also counts. Only yes or no goes back.
+        return $this->scope->elevado(fn (): bool => $this->inventory->serialTaken($serial, $except));
     }
 
     public function hostnameExists(string $hostname, ?string $except = null): bool
     {
-        return $this->exists('ACT_Hostname', $hostname, $except, ' AND "ACT_Baja_Fecha" IS NULL');
+        return $this->scope->elevado(fn (): bool => $this->inventory->hostnameTaken($hostname, $except));
     }
 
     /** @return array<string, mixed>|null */
@@ -387,7 +383,7 @@ final readonly class GoodsReceiptService
     /** @return array<string, mixed> what the form can preload */
     public function formContext(string $user): array
     {
-        $last = $this->connection->fetchAssociative('SELECT GRC_PRV_SUPPLIER, GRC_CURRENCY FROM PUR_GOODS_RECEIPT WHERE GRC_USU_CREATED_BY = :u ORDER BY GRC_GOODS_RECEIPT DESC FETCH FIRST 1 ROWS ONLY', ['u' => $user]);
+        $last = $this->inventory->lastReceiptOf($user);
 
         return ['site_id' => $this->scope->sedePorDefecto(), 'received_date' => $this->today(),
             'supplier_id' => false === $last ? null : (int) $last['GRC_PRV_SUPPLIER'], 'currency' => false === $last ? 'GTQ' : $last['GRC_CURRENCY']];
@@ -417,15 +413,6 @@ final readonly class GoodsReceiptService
         }
     }
 
-    private function exists(string $column, string $value, ?string $except, string $extra = ''): bool
-    {
-        // Checked without site scope: an asset elsewhere also counts. Only yes or no goes back.
-        return $this->scope->elevado(fn (): bool => false !== $this->connection->fetchOne(
-            "SELECT 1 FROM \"INV_ACTIVO\" WHERE LOWER(TRIM(\"{$column}\")) = LOWER(TRIM(:v)){$extra}".(null === $except ? '' : ' AND "ACT_Activo" <> :a').' FETCH FIRST 1 ROWS ONLY',
-            ['v' => $value, ...(null === $except ? [] : ['a' => $except])],
-        ));
-    }
-
     /**
      * @param array<string, mixed> $input
      *
@@ -434,7 +421,7 @@ final readonly class GoodsReceiptService
     private function validHeader(array $input): array
     {
         $supplier = self::integer($input['supplier_id'] ?? null) ?? 0;
-        if (false === $this->connection->fetchOne('SELECT 1 FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :p AND "PRV_Activo" = 1', ['p' => $supplier])) {
+        if (!$this->inventory->supplierIsActive($supplier)) {
             throw ErrorDominio::noEncontrado('SUPPLIER_NOT_FOUND');
         }
         $date = $input['received_date'] ?? $this->today();
@@ -614,8 +601,8 @@ final readonly class GoodsReceiptService
      */
     private function createPendingAssets(array $receipt, array $line, int $received, array $document, string $origin, ?array $detail, string $user, ?string $ip): int
     {
-        $prefix = $this->connection->fetchOne('SELECT "TAC_Prefijo" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $line['GRL_TAC_ASSET_TYPE']]);
-        if (false === $prefix || null === $prefix || '' === $prefix) {
+        $prefix = $this->inventory->prefixOfAssetType((int) $line['GRL_TAC_ASSET_TYPE']);
+        if (null === $prefix) {
             throw ErrorDominio::invalido('ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION');
         }
         $storage = $this->states->idDe(EstadosActivo::BODEGA) ?? throw ErrorDominio::interno('OPERATIONAL_STATE_NOT_FOUND');
@@ -623,18 +610,14 @@ final readonly class GoodsReceiptService
         $defaults = array_filter($this->receipts->specificationsFor((int) $line['GRL_TAC_ASSET_TYPE'], (int) $line['GRL_MOD_MODEL'], null), static fn (array $s): bool => null !== $s['DEFAULT_VALUE']);
         for ($i = 0; $i < $received; ++$i) {
             $id = Ident::nuevo();
-            $code = $this->sequences->siguiente("ASSET_{$prefix}", (string) $prefix);
+            $code = $this->sequences->siguiente("ASSET_{$prefix}", $prefix);
             $months = null === $line['GRL_WARRANTY_MONTHS'] ? null : (int) $line['GRL_WARRANTY_MONTHS'];
-            $this->connection->executeStatement('INSERT INTO "INV_ACTIVO" ("ACT_Activo", "ACT_Codigo_Interno", "ACT_Fecha_Compra", "ACT_Fin_Garantia", "ACT_Costo", "ACT_Moneda", "ACT_Factura", '
-                .'"PRV_Proveedor", "MOD_Modelo", "TAC_Tipo_Activo", "EOP_Estado_Operativo", "SED_Sede", "ACT_Instalado", "ACT_Pending_Completion") VALUES '
-                ."(:id, :code, TO_DATE(:bought, 'YYYY-MM-DD'), CASE WHEN :months IS NULL THEN NULL ELSE ADD_MONTHS(TO_DATE(:bought2, 'YYYY-MM-DD'), :months2) END, :cost, :currency, :invoice, "
-                .':supplier, :model, :type, :state, :site, 0, 1)', ['id' => $id, 'code' => $code, 'bought' => $receipt['RECEIVED_DATE'], 'months' => $months, 'bought2' => $receipt['RECEIVED_DATE'], 'months2' => $months,
-                    'cost' => $line['GRL_UNIT_COST'], 'currency' => $receipt['GRC_CURRENCY'], 'invoice' => mb_substr((string) $receipt['GRC_DOCUMENT_NUMBER'], 0, 60), 'supplier' => $receipt['GRC_PRV_SUPPLIER'],
-                    'model' => $line['GRL_MOD_MODEL'], 'type' => $line['GRL_TAC_ASSET_TYPE'], 'state' => $storage, 'site' => $site]);
+            $this->inventory->insertPendingAsset(['id' => $id, 'code' => $code, 'bought' => $receipt['RECEIVED_DATE'], 'cost' => $line['GRL_UNIT_COST'], 'currency' => $receipt['GRC_CURRENCY'],
+                'invoice' => mb_substr((string) $receipt['GRC_DOCUMENT_NUMBER'], 0, 60), 'supplier' => $receipt['GRC_PRV_SUPPLIER'], 'model' => $line['GRL_MOD_MODEL'],
+                'type' => $line['GRL_TAC_ASSET_TYPE'], 'state' => $storage, 'site' => $site], $months);
             $this->receipts->linkUnit((int) $line['GRL_GOODS_RECEIPT_LINE'], $id);
             foreach ($defaults as $default) {
-                $this->connection->executeStatement('INSERT INTO "INV_ESPECIFICACION" ("ESP_Valor", "ACT_Activo", "TES_Tipo_Especificacion") VALUES (:v, :a, :t)',
-                    ['v' => $default['DEFAULT_VALUE'], 'a' => $id, 't' => $default['TES_Tipo_Especificacion']]);
+                $this->inventory->addSpecification($id, $default['TES_Tipo_Especificacion'], $default['DEFAULT_VALUE']);
             }
             $this->kardex->registrar('RECEPCION', activo: ['ACT_Activo' => $id, 'ACT_Codigo_Interno' => $code, 'ACT_Serie_Fabricante' => null, 'SED_Sede' => $site], destino: ['sede' => $site],
                 costo: (string) $line['GRL_UNIT_COST'], moneda: (string) $receipt['GRC_CURRENCY'], documento: $document, usuario: $user, motivo: $origin, detalle: $detail);
@@ -654,14 +637,11 @@ final readonly class GoodsReceiptService
     {
         $site = (int) $receipt['GRC_SED_SITE'];
         $consumable = $this->resolveConsumable($line, $site);
-        $row = $this->connection->fetchAssociative('SELECT "CON_Consumible", "CON_Nombre", "CON_Stock_Actual", "CON_Costo_Unitario", "CON_Moneda" FROM "INV_CONSUMIBLE" WHERE "CON_Consumible" = :c FOR UPDATE', ['c' => $consumable])
-            ?: throw ErrorDominio::noEncontrado('CONSUMABLE_NOT_FOUND');
+        $row = $this->inventory->consumableForUpdate($consumable) ?: throw ErrorDominio::noEncontrado('CONSUMABLE_NOT_FOUND');
         [$average, $currency, $cost] = Valoracion::entrada((int) $row['CON_Stock_Actual'], null === $row['CON_Costo_Unitario'] ? null : (string) $row['CON_Costo_Unitario'], $row['CON_Moneda'],
             $received, (string) $line['GRL_UNIT_COST'], (string) $receipt['GRC_CURRENCY']);
         $balance = (int) $row['CON_Stock_Actual'] + $received;
-        $this->connection->executeStatement('UPDATE "INV_CONSUMIBLE" SET "CON_Stock_Actual" = :b, "CON_Costo_Unitario" = :p, "CON_Moneda" = :m WHERE "CON_Consumible" = :c', ['b' => $balance, 'p' => $average, 'm' => $currency, 'c' => $consumable]);
-        InsercionOracle::insertar($this->connection, 'INV_MOVIMIENTO_CONSUMIBLE', ['MOC_Tipo' => 'ENTRADA', 'MOC_Cantidad' => $received, 'MOC_Stock_Resultante' => $balance, 'MOC_Motivo' => $origin,
-            'MOC_Fecha' => Reloj::aBd(Reloj::ahora()), 'CON_Consumible' => $consumable, 'USU_Usuario' => $user], 'MOC_Movimiento');
+        $this->inventory->recordStockEntry($consumable, $received, $balance, $average, $currency, $origin, $user);
         $this->kardex->registrar('CONSUMIBLE_ENTRADA', consumible: $consumable, referencia: (string) $row['CON_Nombre'], cantidad: $received, saldo: $balance, costo: $cost, moneda: $currency,
             saldoValor: Valoracion::valorSaldo($balance, $average), destino: ['sede' => $site], documento: $document, usuario: $user, motivo: $origin, detalle: $detail);
         $this->receipts->updateLine((int) $line['GRL_GOODS_RECEIPT_LINE'], ['GRL_CON_CONSUMABLE' => $consumable]);
@@ -674,13 +654,8 @@ final readonly class GoodsReceiptService
         if (null !== $line['GRL_CON_CONSUMABLE']) {
             return (int) $line['GRL_CON_CONSUMABLE'];
         }
-        $found = $this->connection->fetchOne('SELECT "CON_Consumible" FROM "INV_CONSUMIBLE" WHERE "SED_Sede" = :s AND LOWER(TRIM("CON_Nombre")) = LOWER(TRIM(:n)) FETCH FIRST 1 ROWS ONLY', ['s' => $site, 'n' => $line['GRL_CONSUMABLE_NAME']]);
-        if (false !== $found) {
-            return (int) $found;
-        }
-
-        return (int) InsercionOracle::insertar($this->connection, 'INV_CONSUMIBLE', ['CON_Nombre' => $line['GRL_CONSUMABLE_NAME'], 'CON_Unidad' => $line['GRL_CONSUMABLE_UNIT'] ?? 'unidad',
-            'SED_Sede' => $site, 'CON_Stock_Actual' => 0, 'CON_Stock_Minimo' => 0, 'CON_Activo' => 1], 'CON_Consumible');
+        return $this->inventory->consumableByName($site, $line['GRL_CONSUMABLE_NAME'])
+            ?? $this->inventory->createConsumable($line['GRL_CONSUMABLE_NAME'], $line['GRL_CONSUMABLE_UNIT'] ?? 'unidad', $site);
     }
 
     /**
@@ -755,7 +730,7 @@ final readonly class GoodsReceiptService
         if ((string) $current === $value) {
             return;
         }
-        $id = (int) $this->connection->fetchOne('SELECT "ESP_Especificacion" FROM "INV_ESPECIFICACION" WHERE "ACT_Activo" = :a AND "TES_Tipo_Especificacion" = :t', ['a' => $asset, 't' => $type]);
+        $id = $this->inventory->specificationId($asset, $type);
         $this->assets->cambiarEspecificacion($id, $value, 'Datos completados tras el ingreso', $user, $ip);
     }
 

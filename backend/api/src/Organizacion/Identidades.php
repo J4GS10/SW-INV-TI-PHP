@@ -10,6 +10,7 @@ use App\Config\Ajustes;
 use App\Correo\Notificador;
 use App\Crud\Esquema;
 use App\Db\ContextoRls;
+use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
@@ -25,7 +26,7 @@ use App\Seguridad\BloqueoCuenta;
 use App\Seguridad\Contrasenas;
 use App\Seguridad\PoliticaContrasenas;
 use App\Seguridad\PoliticaSesion;
-use Doctrine\DBAL\Connection;
+use App\Organizacion\Infrastructure\CuentasStore;
 
 /**
  * Gestión de identidades (SUPER_ADMIN y ADMIN_SEGURIDAD), con las reglas del
@@ -40,7 +41,8 @@ use Doctrine\DBAL\Connection;
 final readonly class Identidades
 {
     public function __construct(
-        private Connection $conexion,
+        private CuentasStore $cuentas,
+        private Transaccion $transaccion,
         private UsuarioRepositorio $usuarios,
         private GobiernoRepositorio $gobierno,
         private CredencialesRepositorio $credenciales,
@@ -59,6 +61,12 @@ final readonly class Identidades
 
     // ---- Lectura -----------------------------------------------------------
 
+    /** Active super administrators: the last one can be neither disabled nor demoted, here or in the scheduled tasks. */
+    public function superAdministradoresActivos(): int
+    {
+        return $this->cuentas->superAdministradoresActivos();
+    }
+
     /**
      * Todas las cuentas en tres consultas (cuentas, personas y sedes), sin importar cuántas sean.
      *
@@ -66,16 +74,13 @@ final readonly class Identidades
      */
     public function listar(): array
     {
-        $cuentas = $this->conexion->fetchAllAssociative('SELECT u.*, f."UFO_Fecha_Modificacion" AS "FOTO_EN" FROM "INV_USUARIO" u '
-            .'LEFT JOIN "INV_USUARIO_FOTO" f ON f."USU_Usuario" = u."USU_Usuario" ORDER BY u."USU_Creado_En", u."USU_Username"');
+        $cuentas = $this->cuentas->todas();
         $personas = [];
-        foreach ($this->conexion->fetchAllAssociative('SELECT '.Entidades::persona()->columnasSelect().' FROM "INV_PERSONA" t '
-            .'WHERE t."PER_Persona" IN (SELECT "PER_Persona" FROM "INV_USUARIO")') as $p) {
+        foreach ($this->cuentas->personasConCuenta() as $p) {
             $personas[(string) $p['PER_Persona']] = $p;
         }
         $sedes = [];
-        foreach ($this->conexion->fetchAllAssociative('SELECT us."USU_Usuario", s."SED_Sede", s."SED_Nombre" FROM "INV_SEDE" s '
-            .'JOIN "INV_USUARIO_SEDE" us ON us."SED_Sede" = s."SED_Sede" ORDER BY s."SED_Nombre"') as $s) {
+        foreach ($this->cuentas->sedesPorUsuario() as $s) {
             $sedes[(string) $s['USU_Usuario']][] = $s;
         }
 
@@ -85,15 +90,12 @@ final readonly class Identidades
     /** @return array<string, mixed>|null representación de la API (UsuarioResponse) */
     public function respuesta(string $idHex): ?array
     {
-        $u = $this->conexion->fetchAssociative('SELECT u.*, f."UFO_Fecha_Modificacion" AS "FOTO_EN" FROM "INV_USUARIO" u '
-            .'LEFT JOIN "INV_USUARIO_FOTO" f ON f."USU_Usuario" = u."USU_Usuario" WHERE u."USU_Usuario" = :id', ['id' => $idHex]);
+        $u = $this->cuentas->porId($idHex);
         if (false === $u) {
             return null;
         }
-        $persona = $this->conexion->fetchAssociative('SELECT '.Entidades::persona()->columnasSelect().' FROM "INV_PERSONA" t WHERE t."PER_Persona" = :p', ['p' => $u['PER_Persona']]);
-        $sedes = $this->conexion->fetchAllAssociative(
-            'SELECT s."SED_Sede", s."SED_Nombre" FROM "INV_SEDE" s JOIN "INV_USUARIO_SEDE" us ON us."SED_Sede" = s."SED_Sede" '
-            .'WHERE us."USU_Usuario" = :id ORDER BY s."SED_Nombre"', ['id' => $idHex]);
+        $persona = $this->cuentas->persona($u['PER_Persona']);
+        $sedes = $this->cuentas->sedesDe($idHex);
 
         return $this->armar($u, $persona, $sedes);
     }
@@ -172,7 +174,7 @@ final readonly class Identidades
             throw ErrorDominio::invalido('SSO_PROVIDER_REQUIRES_SSO_ENABLED');
         }
         $personaHex = Ident::aHex($d['PER_Persona']);
-        $persona = $this->conexion->fetchAssociative('SELECT * FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $personaHex]);
+        $persona = $this->cuentas->personaCompleta($personaHex);
         if (false === $persona) {
             throw ErrorDominio::noEncontrado('PERSONA_NOT_FOUND');
         }
@@ -182,25 +184,18 @@ final readonly class Identidades
         if (null !== $this->usuarios->porUsername($d['USU_Username'])) {
             throw ErrorDominio::invalido('USERNAME_ALREADY_EXISTS');
         }
-        if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_USUARIO" WHERE "PER_Persona" = :p', ['p' => $personaHex])) {
+        if ($this->cuentas->personaTieneCuenta($personaHex)) {
             throw ErrorDominio::invalido('PERSON_ALREADY_HAS_USER');
         }
         $alcance = $this->alcanceNuevo(['global' => false, 'sedes' => []], $d['USU_Rol'], $d['USU_Alcance_Global'], $d['sedes'], $solicitante->rol);
         $id = Ident::nuevo();
 
-        $this->conexion->transactional(function () use ($d, $id, $personaHex, $alcance, $auditar): void {
+        $this->transaccion->ejecutar(function () use ($d, $id, $personaHex, $alcance, $auditar): void {
             $this->alcance->elevado(function () use ($d, $id, $personaHex, $alcance): void {
-                $this->conexion->executeStatement(
-                    'INSERT INTO "INV_USUARIO" ("USU_Usuario", "USU_Username", "USU_Password_Hash", "USU_Rol", "USU_Estado", '
-                    .'"USU_SSO_Habilitado", "USU_SSO_Provider", "USU_Intentos_Fallidos", "USU_Bloqueos_Consecutivos", '
-                    .'"USU_2FA_Habilitado", "USU_Alcance_Global", "USU_Debe_Cambiar_Password", "PER_Persona", "USU_Creado_En") '
-                    .'VALUES (:id, :u, :h, :r, 1, :sso, :prov, 0, 0, 0, :g, :debe, :p, :ahora)',
-                    ['id' => $id, 'u' => $d['USU_Username'], 'h' => null === $d['USU_Password'] ? null : Contrasenas::hashear($d['USU_Password']),
-                        'r' => $d['USU_Rol'], 'sso' => $d['USU_SSO_Habilitado'] ? 1 : 0, 'prov' => $d['USU_SSO_Provider'],
-                        'g' => $alcance['global'] ? 1 : 0,
-                        // Contraseña elegida por un administrador: temporal, se cambia en el primer inicio.
-                        'debe' => null !== $d['USU_Password'] ? 1 : 0, 'p' => $personaHex, 'ahora' => Reloj::aBd(Reloj::ahora())],
-                );
+                $this->cuentas->crear(['id' => $id, 'u' => $d['USU_Username'], 'h' => null === $d['USU_Password'] ? null : Contrasenas::hashear($d['USU_Password']),
+                    'r' => $d['USU_Rol'], 'sso' => $d['USU_SSO_Habilitado'] ? 1 : 0, 'prov' => $d['USU_SSO_Provider'], 'g' => $alcance['global'] ? 1 : 0,
+                    // Contraseña elegida por un administrador: temporal, se cambia en el primer inicio.
+                    'debe' => null !== $d['USU_Password'] ? 1 : 0, 'p' => $personaHex], Reloj::ahora());
                 $this->guardarSedes($id, $alcance['sedes']);
             });
             $auditar('CREATE', 'INV_USUARIO', [
@@ -225,7 +220,7 @@ final readonly class Identidades
         if ($objetivo->id === $solicitante->id) {
             throw ErrorDominio::prohibido('CANNOT_MODIFY_OWN_ACCOUNT');
         }
-        $fila = (array) $this->conexion->fetchAssociative('SELECT * FROM "INV_USUARIO" WHERE "USU_Usuario" = :id', ['id' => $objetivoHex]);
+        $fila = (array) $this->cuentas->porId($objetivoHex);
         $rolAntes = $objetivo->rol;
         $estadoAntes = $objetivo->activo;
         $ssoAntes = 1 === (int) $fila['USU_SSO_Habilitado'];
@@ -250,7 +245,7 @@ final readonly class Identidades
         $desactiva = false === ($c['USU_Estado'] ?? null);
         $degrada = null !== $rolNuevo && Roles::SUPER_ADMIN !== $rolNuevo;
         if (Roles::SUPER_ADMIN === $objetivo->rol && ($desactiva || $degrada)
-            && (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"INV_USUARIO\" WHERE \"USU_Rol\" = 'SUPER_ADMIN' AND \"USU_Estado\" = 1") <= 1) {
+            && $this->cuentas->superAdministradoresActivos() <= 1) {
             throw ErrorDominio::invalido('CANNOT_DISABLE_LAST_SUPER_ADMIN');
         }
         $password = $c['USU_Password'] ?? null;
@@ -272,24 +267,20 @@ final readonly class Identidades
             \array_key_exists('sedes', $c) ? $c['sedes'] : null, $solicitante->rol);
         $accesoRevocado = $estadoAntes && $desactiva;
 
-        $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $c, $password, $alcance, $alcanceAntes, $accesoRevocado, $rolAntes, $estadoAntes, $ssoAntes, $proveedorAntes, $auditar): void {
+        $this->transaccion->ejecutar(function () use ($objetivo, $objetivoHex, $c, $password, $alcance, $alcanceAntes, $accesoRevocado, $rolAntes, $estadoAntes, $ssoAntes, $proveedorAntes, $auditar): void {
             if (null !== $password) {
                 $this->cambio->aplicar($objetivo, $password, false);
                 // Fijada por un administrador → temporal (cambio obligatorio).
-                $this->conexion->executeStatement('UPDATE "INV_USUARIO" SET "USU_Debe_Cambiar_Password" = 1 WHERE "USU_Usuario" = :id', ['id' => $objetivoHex]);
+                $this->cuentas->exigirCambioDeContrasena($objetivoHex);
             }
             $this->alcance->elevado(function () use ($objetivoHex, $c, $alcance, $alcanceAntes): void {
-                $sets = [];
-                $parametros = ['id' => $objetivoHex];
+                $cambios = ['USU_Alcance_Global' => $alcance['global'] ? 1 : 0];
                 foreach (['USU_Rol', 'USU_Estado', 'USU_SSO_Habilitado', 'USU_SSO_Provider'] as $columna) {
                     if (\array_key_exists($columna, $c)) {
-                        $sets[] = "\"{$columna}\" = :{$columna}";
-                        $parametros[$columna] = \is_bool($c[$columna]) ? ($c[$columna] ? 1 : 0) : $c[$columna];
+                        $cambios[$columna] = \is_bool($c[$columna]) ? ($c[$columna] ? 1 : 0) : $c[$columna];
                     }
                 }
-                $sets[] = '"USU_Alcance_Global" = :g';
-                $parametros['g'] = $alcance['global'] ? 1 : 0;
-                $this->conexion->executeStatement('UPDATE "INV_USUARIO" SET '.implode(', ', $sets).' WHERE "USU_Usuario" = :id', $parametros);
+                $this->cuentas->actualizar($objetivoHex, $cambios);
                 if ($alcance['sedes'] !== $alcanceAntes['sedes']) {
                     $this->guardarSedes($objetivoHex, $alcance['sedes']);
                 }
@@ -358,14 +349,14 @@ final readonly class Identidades
     public function restablecerContrasena(string $objetivoHex, Usuario $solicitante, callable $auditar, ?string $ip): string
     {
         $objetivo = $this->gestionable($objetivoHex, $solicitante);
-        $fila = (array) $this->conexion->fetchAssociative('SELECT "USU_SSO_Habilitado" FROM "INV_USUARIO" WHERE "USU_Usuario" = :id', ['id' => $objetivoHex]);
+        $fila = (array) $this->cuentas->porId($objetivoHex);
         if (1 === (int) $fila['USU_SSO_Habilitado'] && null === $objetivo->passwordHash) {
             throw ErrorDominio::invalido('SSO_ONLY_ACCOUNT');
         }
         $temporal = $this->politica->generarTemporal($objetivo->username);
-        $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $temporal, $auditar): void {
+        $this->transaccion->ejecutar(function () use ($objetivo, $objetivoHex, $temporal, $auditar): void {
             $this->cambio->aplicar($objetivo, $temporal, true);
-            $this->conexion->executeStatement('UPDATE "INV_USUARIO" SET "USU_Debe_Cambiar_Password" = 1 WHERE "USU_Usuario" = :id', ['id' => $objetivoHex]);
+            $this->cuentas->exigirCambioDeContrasena($objetivoHex);
             $auditar('PASSWORD_RESET_BY_ADMIN', 'INV_USUARIO', ['target_id' => Ident::aTexto($objetivoHex), 'target_username' => $objetivo->username]);
         });
         $persona = $this->usuarios->persona($objetivo);
@@ -378,7 +369,7 @@ final readonly class Identidades
     public function restablecer2fa(string $objetivoHex, Usuario $solicitante, callable $auditar): void
     {
         $objetivo = $this->gestionable($objetivoHex, $solicitante);
-        $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $auditar): void {
+        $this->transaccion->ejecutar(function () use ($objetivo, $objetivoHex, $auditar): void {
             $estaba = $objetivo->dosFactoresHabilitado;
             $objetivo->dosFactoresHabilitado = false;
             $objetivo->dosFactoresMetodo = null;
@@ -395,7 +386,7 @@ final readonly class Identidades
     public function desbloquear(string $objetivoHex, Usuario $solicitante, callable $auditar): void
     {
         $objetivo = $this->gestionable($objetivoHex, $solicitante);
-        $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $auditar): void {
+        $this->transaccion->ejecutar(function () use ($objetivo, $objetivoHex, $auditar): void {
             $estaba = null !== $objetivo->bloqueadoHasta;
             $previos = $objetivo->bloqueosConsecutivos;
             // También las IP bloqueadas por fallos desde ellas (fase 8).
@@ -428,8 +419,8 @@ final readonly class Identidades
                 throw ErrorDominio::noProcesable('LOCK_UNTIL_MUST_BE_FUTURE');
             }
         }
-        $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $auditar, $motivo, $hasta): void {
-            $this->conexion->fetchOne('SELECT 1 FROM "INV_USUARIO" WHERE "USU_Usuario" = :id FOR UPDATE', ['id' => $objetivoHex]);
+        $this->transaccion->ejecutar(function () use ($objetivo, $objetivoHex, $auditar, $motivo, $hasta): void {
+            $this->cuentas->bloquear($objetivoHex);
             $this->usuarios->guardarBloqueoAdministrativo($objetivoHex, $motivo, $hasta);
             $this->gobierno->revocarTodo($objetivoHex, Reloj::ahora()->modify('+1 year'));
             $auditar('ACCOUNT_LOCKED_BY_ADMIN', 'INV_USUARIO', ['target_id' => Ident::aTexto($objetivoHex), 'target_username' => $objetivo->username,
@@ -440,7 +431,7 @@ final readonly class Identidades
     public function revocarSesiones(string $objetivoHex, Usuario $solicitante, callable $auditar): void
     {
         $objetivo = $this->conSesionesGestionables($objetivoHex, $solicitante);
-        $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $auditar): void {
+        $this->transaccion->ejecutar(function () use ($objetivo, $objetivoHex, $auditar): void {
             $this->gobierno->revocarTodo($objetivoHex, Reloj::ahora()->modify('+1 year'));
             $auditar('SESSIONS_REVOKED_BY_ADMIN', 'INV_USUARIO', ['target_id' => Ident::aTexto($objetivoHex), 'target_username' => $objetivo->username]);
         });
@@ -464,7 +455,7 @@ final readonly class Identidades
         if (null === $sesion || $sesion['usuario'] !== $objetivoHex) {
             throw ErrorDominio::noEncontrado('SESSION_NOT_FOUND');
         }
-        $this->conexion->transactional(function () use ($objetivo, $objetivoHex, $sesion, $sesionId, $auditar): void {
+        $this->transaccion->ejecutar(function () use ($objetivo, $objetivoHex, $sesion, $sesionId, $auditar): void {
             if ($this->cierre->cerrar($sesion['id'], $objetivoHex, 'cerrada_por_administrador')) {
                 $auditar('SESSION_CLOSED', 'SYS_SESION', ['target_id' => Ident::aTexto($objetivoHex), 'target_username' => $objetivo->username,
                     'sesion' => $sesionId, 'dispositivo' => $sesion['dispositivo'], 'por' => 'administrador']);
@@ -483,12 +474,7 @@ final readonly class Identidades
      */
     public function todasLasSesiones(Usuario $solicitante): array
     {
-        $filas = $this->conexion->fetchAllAssociative(
-            'SELECT s."SES_Sesion", u."USU_Username", u."USU_Rol", p."PER_Primer_Nombre", p."PER_Primer_Apellido" FROM "SYS_SESION" s '
-            .'JOIN "INV_USUARIO" u ON u."USU_Usuario" = s."USU_Usuario" LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = u."PER_Persona" '
-            .'WHERE s."SES_Cerrada_En" IS NULL AND s."SES_Expira" > :ahora ORDER BY s."SES_Ultima_Actividad" DESC',
-            ['ahora' => Reloj::aBd(Reloj::ahora())],
-        );
+        $filas = $this->cuentas->sesionesAbiertas(Reloj::ahora());
 
         return array_map(function (array $f) use ($solicitante): array {
             $sesion = (array) $this->sesiones->obtener((string) $f['SES_Sesion']);
@@ -511,19 +497,14 @@ final readonly class Identidades
     public function resumenSeguridad(): array
     {
         $ahora = Reloj::ahora();
-        $usuarios = $this->conexion->fetchAllAssociative(
-            'SELECT u."USU_Usuario", u."USU_Rol", u."USU_Estado", u."USU_2FA_Habilitado", u."USU_SSO_Habilitado", u."USU_Alcance_Global", '
-            .'u."USU_Bloqueado_Hasta", u."USU_Bloqueo_Admin_Motivo", u."USU_Bloqueo_Admin_Hasta", u."USU_Debe_Cambiar_Password", '
-            .'(SELECT COUNT(*) FROM "INV_USUARIO_SEDE" us WHERE us."USU_Usuario" = u."USU_Usuario") AS "SEDES" '
-            .'FROM "INV_USUARIO" u',
-        );
+        $usuarios = $this->cuentas->resumenDeAcceso();
         $activos = array_values(array_filter($usuarios, static fn (array $u): bool => 1 === (int) $u['USU_Estado']));
         $global = static fn (array $u): bool => 1 === (int) $u['USU_Alcance_Global'] || \in_array($u['USU_Rol'], Roles::SIEMPRE_GLOBALES, true);
         $conMfa = \count(array_filter($activos, static fn (array $u): bool => 1 === (int) $u['USU_2FA_Habilitado']));
         $a = $this->ajustes;
 
         return [
-            'sesiones_activas' => (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "SYS_SESION" WHERE "SES_Cerrada_En" IS NULL AND "SES_Expira" > :a', ['a' => Reloj::aBd($ahora)]),
+            'sesiones_activas' => $this->cuentas->cuantasSesionesAbiertas($ahora),
             'usuarios_alcance_global' => \count(array_filter($activos, static fn (array $u): bool => \in_array($u['USU_Rol'], Roles::CON_ALCANCE, true) && $global($u))),
             'usuarios_sin_alcance' => \count(array_filter($activos, static fn (array $u): bool => \in_array($u['USU_Rol'], Roles::CON_ALCANCE, true) && !$global($u) && 0 === (int) $u['SEDES'])),
             'rls_base_datos' => $this->rls->capaActiva(),
@@ -611,7 +592,7 @@ final readonly class Identidades
         $ids = array_values(array_unique($sedes));
         sort($ids);
         foreach ($ids as $id) {
-            if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_SEDE" WHERE "SED_Sede" = :s', ['s' => $id])) {
+            if (!$this->cuentas->existeSede($id)) {
                 throw ErrorDominio::invalido('SEDE_NOT_FOUND');
             }
         }
@@ -622,9 +603,6 @@ final readonly class Identidades
     /** @param list<int> $sedes */
     private function guardarSedes(string $usuarioHex, array $sedes): void
     {
-        $this->conexion->executeStatement('DELETE FROM "INV_USUARIO_SEDE" WHERE "USU_Usuario" = :u', ['u' => $usuarioHex]);
-        foreach ($sedes as $sede) {
-            $this->conexion->executeStatement('INSERT INTO "INV_USUARIO_SEDE" ("USU_Usuario", "SED_Sede") VALUES (:u, :s)', ['u' => $usuarioHex, 's' => $sede]);
-        }
+        $this->cuentas->reemplazarSedes($usuarioHex, $sedes);
     }
 }

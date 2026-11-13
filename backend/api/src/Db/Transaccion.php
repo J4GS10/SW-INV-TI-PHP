@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Db;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception\ConstraintViolationException;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
@@ -54,6 +56,43 @@ final class Transaccion implements ResetInterface
         }
 
         return $resultado;
+    }
+
+    /**
+     * Como ejecutar(), pero el choque de un índice único (dos peticiones crean lo mismo a la vez) se convierte en `$siDuplica`.
+     *
+     * @template T
+     *
+     * @param \Closure(): T $bloque
+     *
+     * @return T
+     */
+    public function ejecutarUnica(\Closure $bloque, \Throwable $siDuplica): mixed
+    {
+        try {
+            return $this->ejecutar($bloque);
+        } catch (UniqueConstraintViolationException) {
+            throw $siDuplica;
+        }
+    }
+
+    /**
+     * Ejecuta `$bloque` dentro de la transacción en curso; si viola una restricción de la base (única, foránea o de
+     * comprobación) lanza `$siViola`, y quien abrió la transacción la revierte.
+     *
+     * @template T
+     *
+     * @param \Closure(): T $bloque
+     *
+     * @return T
+     */
+    public function sinViolaciones(\Closure $bloque, \Throwable $siViola): mixed
+    {
+        try {
+            return $bloque();
+        } catch (ConstraintViolationException) {
+            throw $siViola;
+        }
     }
 
     /** @param \Closure(): void $efecto se ejecuta tras el commit de la transacción externa */

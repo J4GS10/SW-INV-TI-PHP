@@ -53,11 +53,6 @@ final readonly class PersonasDirectorio
         $this->conexion->executeStatement('UPDATE "INV_PERSONA" SET "PER_Jefe" = :jefe WHERE "PER_Persona" = :id', ['jefe' => $jefe, 'id' => $persona]);
     }
 
-    public function superAdministradoresActivos(): int
-    {
-        return (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_USUARIO" WHERE "USU_Rol" = :r AND "USU_Estado" = 1', ['r' => Roles::SUPER_ADMIN]);
-    }
-
     /** Custodies the person still holds, in every site: whoever synchronizes may not see the business data. */
     public function custodiasAbiertas(string $persona): int
     {

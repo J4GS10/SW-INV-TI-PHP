@@ -218,7 +218,7 @@ final readonly class SincronizacionDirectorio
     {
         // El directorio no puede dejar el sistema sin un SUPER_ADMIN activo
         // (p. ej. la cuenta de emergencia vinculada por correo y luego eliminada del AD).
-        $superAdmins = $this->datos->superAdministradoresActivos();
+        $superAdmins = $this->identidades->superAdministradoresActivos();
         foreach ($ids as $id) {
             $p = $personas[$id];
             $resumen = ['persona_id' => Ident::aTexto($id), 'nombre' => $p['PER_Primer_Nombre'].' '.$p['PER_Primer_Apellido'], 'email' => (string) $p['PER_Email_Corporativo']];

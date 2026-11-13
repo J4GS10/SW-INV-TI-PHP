@@ -41,16 +41,9 @@ return array (
   ),
   'negocio-sin-sql' => 
   array (
-    0 => 'Catalogo/CatalogoGenerico.php',
-    1 => 'GoodsReceipt/Application/GoodsReceiptService.php',
-    2 => 'Importacion/ImportacionActivos.php',
-    3 => 'Inventario/Activos.php',
-    4 => 'Inventario/Consumibles.php',
-    5 => 'Inventario/Credenciales.php',
-    6 => 'Inventario/Mantenimientos.php',
-    7 => 'Inventario/Movimientos.php',
-    8 => 'Inventario/Software.php',
-    9 => 'Organizacion/Identidades.php',
+    0 => 'Inventario/Activos.php',
+    1 => 'Inventario/Movimientos.php',
+    2 => 'Inventario/Software.php',
   ),
   'entrega-sin-sql' => 
   array (
