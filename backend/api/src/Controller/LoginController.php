@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Autenticacion\CambioContrasena;
+use App\Autenticacion\AutoservicioContrasena;
+use App\Autenticacion\CierreDeSesion;
 use App\Autenticacion\DosFactores;
 use App\Autenticacion\InicioSesion;
-use App\Autenticacion\Sesiones;
+use App\Autenticacion\IntentosFallidos;
 use App\Config\Ajustes;
-use App\Correo\Notificador;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Dominio\Usuario;
 use App\Http\ClienteHttp;
 use App\Http\Entrada;
 use App\Http\ErrorApi;
@@ -20,14 +19,11 @@ use App\Http\ErrorValidacion;
 use App\Http\Limite;
 use App\ProfilePhoto\Domain\ProfilePhoto;
 use App\ProfilePhoto\Infrastructure\ProfilePhotoRepository;
-use App\Repositorio\CredencialesRepositorio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\SesionRepositorio;
 use App\Repositorio\UsuarioRepositorio;
 use App\Seguridad\Autenticado;
 use App\Seguridad\BloqueoCuenta;
-use App\Seguridad\CacheAuth;
-use App\Seguridad\CodigosSeguridad;
 use App\Seguridad\Contrasenas;
 use App\Seguridad\PoliticaSesion;
 use App\Seguridad\Tokens;
@@ -53,16 +49,14 @@ final readonly class LoginController
         private UsuarioRepositorio $usuarios,
         private GobiernoRepositorio $gobierno,
         private SesionRepositorio $sesiones,
-        private CredencialesRepositorio $credenciales,
+        private IntentosFallidos $intentos,
         private BloqueoCuenta $bloqueo,
         private PoliticaSesion $politica,
         private Tokens $tokens,
         private InicioSesion $inicio,
-        private Sesiones $cierre,
+        private CierreDeSesion $cierreDeSesion,
         private DosFactores $dosFactores,
-        private CambioContrasena $cambio,
-        private Notificador $notificador,
-        private CacheAuth $cache,
+        private AutoservicioContrasena $contrasenas,
         private Ajustes $ajustes,
         private TrustedDevices $equipos,
         private ProfilePhotoRepository $fotos,
@@ -104,16 +98,16 @@ final readonly class LoginController
         $passwordOk = Contrasenas::verificar($password, $usuario->passwordHash);
 
         if ($bloqueada) {
-            $this->falloSinIntento($usuario, 'account_locked', $ip, $ua);
+            $this->intentos->sinIntento($usuario, 'account_locked', $ip, $ua);
             throw new ErrorApi($passwordOk ? 429 : 400, $passwordOk ? 'ACCOUNT_LOCKED' : 'INCORRECT_USERNAME_OR_PASSWORD');
         }
         if (!$passwordOk) {
             $motivo = null === $usuario->passwordHash || '' === $usuario->passwordHash ? 'password_login_disabled' : 'bad_password';
-            $this->registrarFallo($usuario, $ahora, $motivo, 'password', $ip, $ua);
+            $this->intentos->registrar($usuario, $ahora, $motivo, 'password', $ip, $ua);
             throw new ErrorApi(400, 'INCORRECT_USERNAME_OR_PASSWORD');
         }
         if (!$usuario->activo) {
-            $this->falloSinIntento($usuario, 'inactive_user', $ip, $ua);
+            $this->intentos->sinIntento($usuario, 'inactive_user', $ip, $ua);
             throw new ErrorApi(400, 'INACTIVE_USER');
         }
 
@@ -197,7 +191,7 @@ final readonly class LoginController
         }
         if (!$this->dosFactores->verificarLogin($usuario, (string) $codigo)) {
             // Los códigos fallidos cuentan para el bloqueo igual que las contraseñas.
-            $bloqueadaAhora = $this->registrarFallo($usuario, $ahora, 'bad_2fa_code', '2fa', $ip, $ua);
+            $bloqueadaAhora = $this->intentos->registrar($usuario, $ahora, 'bad_2fa_code', '2fa', $ip, $ua);
             throw $bloqueadaAhora ? new ErrorApi(429, 'ACCOUNT_LOCKED') : new ErrorApi(400, 'INVALID_2FA_CODE');
         }
 
@@ -330,35 +324,7 @@ final readonly class LoginController
             $candidatos[] = [$m[1], 'access'];
         }
 
-        $revocados = $this->transaccion->ejecutar(function () use ($candidatos, $ip, $ua): array {
-            $usuario = null;
-            $revocados = [];
-            foreach ($candidatos as [$crudo, $tipo]) {
-                $payload = $this->tokens->decodificarSinExpiracion($crudo, $tipo);
-                if (null === $payload) {
-                    continue;
-                }
-                $usuario ??= $this->usuarios->porUsername((string) $payload['sub']);
-                if (null === $usuario || $usuario->username !== $payload['sub']) {
-                    continue; // tokens de usuarios distintos: se ignora el segundo
-                }
-                $expira = Tokens::expira($payload);
-                if ($expira > Reloj::ahora() && $this->gobierno->revocarJtiUnaVez((string) $payload['jti'], $tipo, $expira, $usuario->id)) {
-                    $revocados[] = (string) $payload['jti'];
-                }
-                $sesion = isset($payload['sid']) ? $this->sesiones->obtener((string) $payload['sid']) : null;
-                if (null !== $sesion && $sesion['usuario'] === $usuario->id) {
-                    $this->cierre->cerrar($sesion['id'], $usuario->id, 'logout');
-                }
-            }
-            if (null !== $usuario) {
-                $this->gobierno->registrarAuditoria('LOGOUT', 'INV_USUARIO',
-                    ['username' => $usuario->username, 'tokens_revocados' => \count($revocados)], $usuario->id, $ip, $ua);
-            }
-
-            return $revocados;
-        });
-        $this->cache->borrar(...array_map(static fn (string $j): string => "auth:jti:{$j}", $revocados));
+        $this->cierreDeSesion->actual($candidatos, $ip, $ua);
 
         $respuesta = new Response(null, 204);
         $this->inicio->borrarCookie($respuesta);
@@ -373,11 +339,7 @@ final readonly class LoginController
     public function logoutTodo(Request $request, UsuarioActual $actual): Response
     {
         $u = $actual->usuario();
-        $this->transaccion->ejecutar(function () use ($u, $request): void {
-            $this->gobierno->revocarTodo($u->id, Reloj::ahora()->modify('+'.($this->ajustes->refreshDias + 1).' days'));
-            $this->gobierno->registrarAuditoria('LOGOUT_ALL', 'INV_USUARIO', ['username' => $u->username], $u->id,
-                ClienteHttp::ip($request), ClienteHttp::userAgent($request));
-        });
+        $this->cierreDeSesion->todas($u, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
         $respuesta = new Response(null, 204);
         $this->inicio->borrarCookie($respuesta);
 
@@ -396,40 +358,10 @@ final readonly class LoginController
         $entrada = Entrada::json($request);
         $identificador = $entrada->texto('identifier', min: 1, max: 150);
         $entrada->validar();
-        $generica = new JsonResponse(['message' => self::MENSAJE_RESET], 202);
+        $this->contrasenas->solicitarRestablecimiento((string) $identificador, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
 
-        $usuario = $this->usuarios->porUsernameOCorreo(trim((string) $identificador));
-        $persona = null !== $usuario && $usuario->activo ? $this->usuarios->persona($usuario) : null;
-        if (null === $usuario || null === $persona || null === $persona->correo || '' === $persona->correo) {
-            return $generica;
-        }
-        // Una cuenta solo SSO no obtiene contraseña por correo: quien controle el buzón esquivaría el
-        // proveedor de identidad (fase 8). Misma respuesta genérica: no revela el tipo de cuenta.
-        if ($usuario->ssoHabilitado && null === $usuario->passwordHash) {
-            return $generica;
-        }
-        // Enfriamiento POR CUENTA: no se emite otro correo dentro de la ventana (anti-bombardeo).
-        if ($this->credenciales->solicitudResetReciente($usuario->id, $this->ajustes->resetEnfriamientoMinutos)) {
-            return $generica;
-        }
-        [$plano, $hash] = CodigosSeguridad::tokenRestablecimiento();
-        $this->transaccion->ejecutar(function () use ($usuario, $hash, $request): void {
-            $this->credenciales->invalidarResets($usuario->id);
-            $this->credenciales->crearReset($usuario->id, $hash, Reloj::ahora()->modify("+{$this->ajustes->resetExpiraMinutos} minutes"));
-            $this->gobierno->registrarAuditoria('PASSWORD_RESET_REQUEST', 'INV_USUARIO', ['username' => $usuario->username],
-                $usuario->id, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
-        });
-        // Solo al correo del titular, nunca en copia: el token es un secreto suyo.
-        $this->notificador->enviar('password_reset', [
-            'persona_nombre' => $persona->nombreCorto(),
-            'username' => $usuario->username,
-            'token' => $plano,
-            // En el fragmento (fase 8): el navegador no lo envía al servidor ni en el Referer.
-            'reset_url' => $this->ajustes->urlFrontend.'/reset-password#token='.rawurlencode($plano),
-            'minutos' => $this->ajustes->resetExpiraMinutos,
-        ], [$persona->correo], false);
-
-        return $generica;
+        // Siempre la misma respuesta: no revela si la cuenta existe ni de qué tipo es.
+        return new JsonResponse(['message' => self::MENSAJE_RESET], 202);
     }
 
     /**
@@ -444,26 +376,7 @@ final readonly class LoginController
         $token = $entrada->texto('token', min: 8, max: 200);
         $nueva = $entrada->texto('new_password', min: 1);
         $entrada->validar();
-
-        $invalido = new ErrorApi(400, 'INVALID_OR_EXPIRED_RESET_TOKEN');
-        $hash = CodigosSeguridad::hashRestablecimiento(trim((string) $token));
-        $usuarioId = $this->credenciales->resetVigente($hash) ?? throw $invalido;
-        $usuario = $this->usuarios->porId($usuarioId);
-        if (null === $usuario || !$usuario->activo) {
-            throw $invalido;
-        }
-        // Se valida antes de consumir: una contraseña rechazada no gasta el enlace.
-        $this->cambio->validar($usuario, (string) $nueva);
-        $this->transaccion->ejecutar(function () use ($usuario, $hash, $nueva, $request, $invalido): void {
-            if (null === $this->credenciales->consumirReset($hash)) {
-                throw $invalido; // otro uso simultáneo del mismo enlace
-            }
-            $this->cambio->aplicar($usuario, (string) $nueva, true);
-            $this->gobierno->registrarAuditoria('PASSWORD_RESET', 'INV_USUARIO',
-                ['username' => $usuario->username, 'via' => 'email_token'], $usuario->id,
-                ClienteHttp::ip($request), ClienteHttp::userAgent($request));
-        });
-        $this->avisarContrasena($usuario, 'Restablecimiento por email', ClienteHttp::ip($request));
+        $this->contrasenas->confirmarRestablecimiento((string) $token, (string) $nueva, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
 
         return new Response(null, 204);
     }
@@ -504,18 +417,7 @@ final readonly class LoginController
     #[Limite('20/minute')]
     public function cerrarMiSesion(string $sessionId, Request $request, UsuarioActual $actual): Response
     {
-        $u = $actual->usuario();
-        $sesion = $this->sesiones->obtener($sessionId);
-        if (null === $sesion || $sesion['usuario'] !== $u->id) {
-            throw new ErrorApi(404, 'SESSION_NOT_FOUND');
-        }
-        $this->transaccion->ejecutar(function () use ($sesion, $u, $sessionId, $request): void {
-            if ($this->cierre->cerrar($sesion['id'], $u->id, 'cerrada_por_titular')) {
-                $this->gobierno->registrarAuditoria('SESSION_CLOSED', 'SYS_SESION', [
-                    'username' => $u->username, 'sesion' => $sessionId, 'dispositivo' => $sesion['dispositivo'], 'por' => 'titular',
-                ], $u->id, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
-            }
-        });
+        $this->cierreDeSesion->propia($actual->usuario(), $sessionId, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
 
         return new Response(null, 204);
     }
@@ -530,68 +432,12 @@ final readonly class LoginController
     #[Limite('5/minute')]
     public function cambiarMiContrasena(Request $request, UsuarioActual $actual): Response
     {
-        $u = $actual->usuario();
-        [$ip, $ua] = [ClienteHttp::ip($request), ClienteHttp::userAgent($request)];
         $entrada = Entrada::json($request);
         $actualPassword = $entrada->texto('current_password', min: 1);
         $nueva = $entrada->texto('new_password', min: 1);
         $entrada->validar();
-
-        if (!Contrasenas::verificar((string) $actualPassword, $u->passwordHash)) {
-            $this->registrarFallo($u, Reloj::ahora(), null, 'cambio_password', $ip, $ua);
-            throw new ErrorApi(400, 'INCORRECT_CURRENT_PASSWORD');
-        }
-        $this->cambio->validar($u, (string) $nueva);
-        $this->transaccion->ejecutar(function () use ($u, $nueva, $ip, $ua): void {
-            $this->cambio->aplicar($u, (string) $nueva, false);
-            $this->gobierno->registrarAuditoria('PASSWORD_CHANGE', 'INV_USUARIO',
-                ['username' => $u->username, 'self_service' => true], $u->id, $ip, $ua);
-        });
-        $this->avisarContrasena($u, 'Autoservicio (cambio manual)', $ip);
+        $this->contrasenas->cambiar($actual->usuario(), (string) $actualPassword, (string) $nueva, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
 
         return new Response(null, 204);
-    }
-
-    /**
-     * Suma un intento fallido y, si con él se bloquea la cuenta, audita el
-     * bloqueo con su escalada. `$motivo` null = sin evento LOGIN_FAILED (cambio
-     * de contraseña). Devuelve true si la cuenta quedó bloqueada.
-     */
-    private function registrarFallo(Usuario $u, \DateTimeImmutable $ahora, ?string $motivo, string $origen, ?string $ip, ?string $ua): bool
-    {
-        return $this->transaccion->ejecutar(function () use ($u, $ahora, $motivo, $origen, $ip, $ua): bool {
-            $bloqueada = $this->bloqueo->registrarFallo($u, $ahora, $ip);
-            $this->usuarios->guardarEstadoAcceso($u);
-            if (null !== $motivo) {
-                $this->gobierno->registrarAuditoria('LOGIN_FAILED', 'INV_USUARIO', [
-                    'username' => $u->username, 'reason' => $bloqueada ? 'account_locked_now' : $motivo,
-                    'intentos' => $u->intentosFallidos,
-                ], $u->id, $ip, $ua);
-            }
-            if ($bloqueada) {
-                $this->gobierno->registrarAuditoria('ACCOUNT_LOCKED', 'INV_USUARIO', [
-                    'username' => $u->username, 'origen' => $origen, 'intentos' => $u->intentosFallidos,
-                    ...$this->bloqueo->detalle($u, $ip),
-                ], $u->id, $ip, $ua);
-            }
-
-            return $bloqueada;
-        });
-    }
-
-    /** Fallo de login que no suma intentos: persiste el estado y lo audita. */
-    private function falloSinIntento(Usuario $u, string $motivo, ?string $ip, ?string $ua): void
-    {
-        $this->transaccion->ejecutar(function () use ($u, $motivo, $ip, $ua): void {
-            $this->usuarios->guardarEstadoAcceso($u);
-            $this->gobierno->registrarAuditoria('LOGIN_FAILED', 'INV_USUARIO',
-                ['username' => $u->username, 'reason' => $motivo], $u->id, $ip, $ua);
-        });
-    }
-
-    private function avisarContrasena(Usuario $u, string $metodo, ?string $ip): void
-    {
-        $persona = $this->usuarios->persona($u);
-        $this->notificador->contrasenaCambiada($persona?->nombreCorto() ?? $u->username, $u->username, $persona?->correo, $metodo, $ip);
     }
 }
