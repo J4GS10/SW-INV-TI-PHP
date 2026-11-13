@@ -28,6 +28,8 @@ final readonly class SoftwareController
 {
     public function __construct(
         private Software $software,
+        private \App\Inventario\Licencias $licencias,
+        private \App\Inventario\InstalacionesDeSoftware $instalaciones,
         private Credenciales $credenciales,
         private UsuarioActual $actual,
     ) {
@@ -149,7 +151,7 @@ final readonly class SoftwareController
             throw ErrorValidacion::deModelo('LICENSE_COMMERCIAL_MODEL_REQUIRED', $request);
         }
 
-        return new JsonResponse($this->software->crearLicencia($d, $claves, $credenciales, $this->usuario(), ClienteHttp::ip($request)), 201);
+        return new JsonResponse($this->licencias->crearLicencia($d, $claves, $credenciales, $this->usuario(), ClienteHttp::ip($request)), 201);
     }
 
     #[Route('/licencias', methods: ['GET'])]
@@ -159,7 +161,7 @@ final readonly class SoftwareController
         [, $software] = $e->campo(Campo::entero('software_id', true), true);
         $e->validar();
 
-        return new JsonResponse($this->software->licencias((int) $software));
+        return new JsonResponse($this->licencias->licencias((int) $software));
     }
 
     #[Route('/licencias-disponibles', methods: ['GET'])]
@@ -170,27 +172,27 @@ final readonly class SoftwareController
         [, $todas] = $e->campo(Campo::logico('todas'), false);
         $e->validar();
 
-        return new JsonResponse($this->software->disponibles($forma, true === $todas));
+        return new JsonResponse($this->licencias->disponibles($forma, true === $todas));
     }
 
     #[Route('/licencias/{id}', methods: ['GET'])]
     public function licencia(int $id): JsonResponse
     {
-        return new JsonResponse($this->software->licencia($id));
+        return new JsonResponse($this->licencias->licencia($id));
     }
 
     #[Route('/licencias/{id}/historial', methods: ['GET'])]
     #[Autenticado(roles: Roles::LECTURA_PERSONAS)]
     public function historial(int $id): JsonResponse
     {
-        return new JsonResponse($this->software->historial($id));
+        return new JsonResponse($this->instalaciones->historial($id));
     }
 
     #[Route('/licencias/{id}/claves', methods: ['GET'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function claves(int $id, Request $request): JsonResponse
     {
-        return new JsonResponse($this->software->claves($id, $this->usuario(), ClienteHttp::ip($request)));
+        return new JsonResponse($this->licencias->claves($id, $this->usuario(), ClienteHttp::ip($request)));
     }
 
     #[Route('/licencias/{id}', methods: ['PATCH'])]
@@ -204,14 +206,14 @@ final readonly class SoftwareController
         }
         $e->validar();
 
-        return new JsonResponse($this->software->cambiarLicencia($id, $d, $this->usuario(), ClienteHttp::ip($request)));
+        return new JsonResponse($this->licencias->cambiarLicencia($id, $d, $this->usuario(), ClienteHttp::ip($request)));
     }
 
     #[Route('/licencias/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarLicencia(int $id, Request $request): Response
     {
-        $this->software->eliminarLicencia($id, $this->usuario(), ClienteHttp::ip($request));
+        $this->licencias->eliminarLicencia($id, $this->usuario(), ClienteHttp::ip($request));
 
         return new Response(status: 204);
     }
@@ -222,7 +224,7 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::LECTURA_PERSONAS)]
     public function instalacionesActivo(Request $request): JsonResponse
     {
-        return new JsonResponse($this->software->instalacionesDe('ACT_Activo', Entrada::uuidDeRuta($request, 'activo'), self::soloActivas($request)));
+        return new JsonResponse($this->instalaciones->instalacionesDe('ACT_Activo', Entrada::uuidDeRuta($request, 'activo'), self::soloActivas($request)));
     }
 
     #[Route('/personas/{persona}/instalaciones', methods: ['GET'])]
@@ -234,7 +236,7 @@ final readonly class SoftwareController
             throw new \App\Http\ErrorApi(404, 'PERSON_NOT_FOUND');
         }
 
-        return new JsonResponse($this->software->instalacionesDe('PER_Persona', $persona, self::soloActivas($request)));
+        return new JsonResponse($this->instalaciones->instalacionesDe('PER_Persona', $persona, self::soloActivas($request)));
     }
 
     #[Route('/instalaciones', methods: ['POST'])]
@@ -244,7 +246,7 @@ final readonly class SoftwareController
     {
         $i = self::instalacion($request);
 
-        return new JsonResponse($this->software->instalar($i['licencia'], $i['activo'], $i['persona'],
+        return new JsonResponse($this->instalaciones->instalar($i['licencia'], $i['activo'], $i['persona'],
             $i['clave'], $i['fecha'], $this->usuario(), ClienteHttp::ip($request)), 201);
     }
 
@@ -254,7 +256,7 @@ final readonly class SoftwareController
     {
         $i = self::instalacion($request);
 
-        return new JsonResponse($this->software->desinstalar($i['licencia'], $i['activo'], $i['persona'], $i['motivo'], $this->usuario(), ClienteHttp::ip($request)));
+        return new JsonResponse($this->instalaciones->desinstalar($i['licencia'], $i['activo'], $i['persona'], $i['motivo'], $this->usuario(), ClienteHttp::ip($request)));
     }
 
     // ---------------- Credenciales ----------------

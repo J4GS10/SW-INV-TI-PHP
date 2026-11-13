@@ -29,7 +29,7 @@ final readonly class OperacionesLote
         private DatosMovimientos $datos,
         private Activos $activos,
         private Movimientos $movimientos,
-        private Software $software,
+        private InstalacionesDeSoftware $software,
         private GobiernoRepositorio $gobierno,
         private Transaccion $transaccion,
     ) {

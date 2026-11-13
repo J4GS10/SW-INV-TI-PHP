@@ -44,7 +44,7 @@ final readonly class GoodsReceiptService
         private Secuencias $sequences,
         private EstadosActivo $states,
         private ReglasClase $classRules,
-        private Software $software,
+        private \App\Inventario\Licencias $licenses,
         private Solicitudes $approvals,
         private Activos $assets,
         private \App\Inventario\EspecificacionesDeActivo $specifications,
@@ -243,7 +243,7 @@ final readonly class GoodsReceiptService
                 throw ErrorDominio::conflicto('GOODS_RECEIPT_LINE_NOT_A_LICENSE');
             }
             $receipt = (int) $row['GRL_GRC_GOODS_RECEIPT'];
-            $this->software->addKeys((int) $row['GRL_LIC_LICENSE'], $keys, $user, $ip);
+            $this->licenses->addKeys((int) $row['GRL_LIC_LICENSE'], $keys, $user, $ip);
             $this->receipts->updateLine($line, ['GRL_KEYS_COMPLETED_AT' => Reloj::aBd(Reloj::ahora())]);
             $this->receipts->addEvent($receipt, 'LICENSE_KEYS_COMPLETED', $user, ['line' => $line, 'keys' => \count($keys)]);
             $this->closeIfDone($receipt, $user);
@@ -666,7 +666,7 @@ final readonly class GoodsReceiptService
      */
     private function createLicense(array $receipt, array $line, int $received, array $document, string $origin, string $user, ?string $ip): void
     {
-        $license = $this->software->crearLicenciaEnTransaccion(['SOF_Software' => $line['GRL_SOF_SOFTWARE'], 'TLI_Tipo_Licencia' => $line['GRL_TLI_LICENSE_TYPE'], 'LIC_Cantidad_Total' => $received,
+        $license = $this->licenses->crearLicenciaEnTransaccion(['SOF_Software' => $line['GRL_SOF_SOFTWARE'], 'TLI_Tipo_Licencia' => $line['GRL_TLI_LICENSE_TYPE'], 'LIC_Cantidad_Total' => $received,
             'LIC_Costo' => bcmul((string) $line['GRL_UNIT_COST'], (string) $received, 2), 'LIC_Moneda' => $receipt['GRC_CURRENCY'], 'LIC_Proveedor' => $receipt['GRC_PRV_SUPPLIER']],
             [], [], $user, $ip, $origin, $document, (int) $receipt['GRC_SED_SITE']);
         $this->receipts->updateLine((int) $line['GRL_GOODS_RECEIPT_LINE'], ['GRL_LIC_LICENSE' => $license]);
