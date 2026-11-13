@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
+use App\Validacion\Entrada;
 use App\Dominio\ErrorDominio;
 
 /**

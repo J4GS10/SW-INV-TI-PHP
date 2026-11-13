@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Autenticacion\InicioSesion;
 use App\Http\CookiesSesion;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
 use App\Http\ErrorApi;
 use App\Http\Limite;
 use App\Repositorio\GobiernoRepositorio;
@@ -53,7 +53,7 @@ final readonly class MfaAccessController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function grantExemption(Request $request): JsonResponse
     {
-        $input = Entrada::json($request);
+        $input = Peticion::json($request);
         $until = $input->patron('until', '^\d{4}-\d{2}-\d{2}$');
         $reason = $input->texto('reason', 5, 200);
         if (null === $until && !$input->conErrores()) {
@@ -61,7 +61,7 @@ final readonly class MfaAccessController
         }
         $input->validar();
 
-        $end = $this->exemption->grant(Entrada::uuidDeRuta($request), (string) $until, trim((string) $reason),
+        $end = $this->exemption->grant(Peticion::uuidDeRuta($request), (string) $until, trim((string) $reason),
             $this->current->usuario(), ClienteHttp::ip($request));
 
         return new JsonResponse(['mfa_exento_hasta' => Reloj::iso($end)]);
@@ -71,7 +71,7 @@ final readonly class MfaAccessController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function revokeExemption(Request $request): Response
     {
-        $this->exemption->revoke(Entrada::uuidDeRuta($request), $this->current->usuario(), ClienteHttp::ip($request));
+        $this->exemption->revoke(Peticion::uuidDeRuta($request), $this->current->usuario(), ClienteHttp::ip($request));
 
         return new Response(null, 204);
     }

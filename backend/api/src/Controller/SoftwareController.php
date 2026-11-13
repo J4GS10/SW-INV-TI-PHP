@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
-use App\Http\ErrorValidacion;
+use App\Validacion\Entrada;
+use App\Validacion\ErrorValidacion;
 use App\Http\Limite;
 use App\Inventario\Credenciales;
 use App\Inventario\Software;
@@ -46,7 +47,7 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crearTipo(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::campos($e, [Campo::texto('TLI_Nombre', true, 2, 50), Campo::texto('TLI_Descripcion', max: 200)], true);
         $e->validar();
 
@@ -69,7 +70,7 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::ADMIN)]
     public function cambiarTipo(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::campos($e, [Campo::texto('TLI_Nombre', min: 2, max: 50), Campo::texto('TLI_Descripcion', max: 200)], false);
         $e->validar();
 
@@ -91,7 +92,7 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crearSoftware(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::campos($e, [Campo::texto('SOF_Nombre', true, 2, 100), Campo::texto('SOF_Version', max: 50),
             Campo::texto('SOF_Fabricante', max: 100, defecto: ''), Campo::entero('MAR_Marca')], true);
         $e->validar();
@@ -115,7 +116,7 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::ADMIN)]
     public function cambiarSoftware(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::campos($e, [Campo::texto('SOF_Nombre', min: 2, max: 100), Campo::texto('SOF_Version', max: 50),
             Campo::texto('SOF_Fabricante', min: 2, max: 100), Campo::entero('MAR_Marca')], false);
         $e->validar();
@@ -138,17 +139,17 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crearLicencia(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::campos($e, self::camposLicencia(true), true);
         $d['LIC_Moneda'] = $e->moneda('LIC_Moneda');
         $claves = self::leerClaves($e, 'LIC_Claves');
         $credenciales = self::listaCredenciales($e, 'LIC_Credenciales', 0);
         $e->validar();
         if ([] !== $claves && (int) $d['LIC_Cantidad_Total'] !== \count($claves)) {
-            throw ErrorValidacion::deModelo('LICENSE_KEY_COUNT_MISMATCH', $request);
+            throw ErrorValidacion::deModelo('LICENSE_KEY_COUNT_MISMATCH', Peticion::cuerpo($request));
         }
         if (null === $d['TLI_Tipo_Licencia'] && null === $d['MCO_Modelo_Comercial']) {
-            throw ErrorValidacion::deModelo('LICENSE_COMMERCIAL_MODEL_REQUIRED', $request);
+            throw ErrorValidacion::deModelo('LICENSE_COMMERCIAL_MODEL_REQUIRED', Peticion::cuerpo($request));
         }
 
         return new JsonResponse($this->licencias->crearLicencia($d, $claves, $credenciales, $this->usuario(), ClienteHttp::ip($request)), 201);
@@ -157,7 +158,7 @@ final readonly class SoftwareController
     #[Route('/licencias', methods: ['GET'])]
     public function licencias(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $software] = $e->campo(Campo::entero('software_id', true), true);
         $e->validar();
 
@@ -167,7 +168,7 @@ final readonly class SoftwareController
     #[Route('/licencias-disponibles', methods: ['GET'])]
     public function disponibles(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $forma = $e->patron('forma', '^(EQUIPO|PERSONA|CONCURRENTE|SITIO)$');
         [, $todas] = $e->campo(Campo::logico('todas'), false);
         $e->validar();
@@ -199,7 +200,7 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::ADMIN)]
     public function cambiarLicencia(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::campos($e, self::camposLicencia(false), false);
         if ($e->presente('LIC_Moneda')) {
             $d['LIC_Moneda'] = $e->moneda('LIC_Moneda');
@@ -224,14 +225,14 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::LECTURA_PERSONAS)]
     public function instalacionesActivo(Request $request): JsonResponse
     {
-        return new JsonResponse($this->instalaciones->instalacionesDe('ACT_Activo', Entrada::uuidDeRuta($request, 'activo'), self::soloActivas($request)));
+        return new JsonResponse($this->instalaciones->instalacionesDe('ACT_Activo', Peticion::uuidDeRuta($request, 'activo'), self::soloActivas($request)));
     }
 
     #[Route('/personas/{persona}/instalaciones', methods: ['GET'])]
     #[Autenticado(roles: Roles::LECTURA_PERSONAS)]
     public function instalacionesPersona(Request $request, \App\Repositorio\ConsultasComunes $consultas): JsonResponse
     {
-        $persona = Entrada::uuidDeRuta($request, 'persona');
+        $persona = Peticion::uuidDeRuta($request, 'persona');
         if (!$consultas->existePersona($persona)) {
             throw new \App\Http\ErrorApi(404, 'PERSON_NOT_FOUND');
         }
@@ -272,7 +273,7 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crearCredenciales(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $lote = self::listaCredenciales($e, 'credenciales', 1);
         $e->validar();
         $this->credenciales->crear($id, $lote, $this->usuario(), ClienteHttp::ip($request));
@@ -284,7 +285,7 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::ADMIN)]
     public function editarCredencial(int $id, Request $request): Response
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::campos($e, [Campo::texto('usuario', max: 255), Campo::texto('serial', max: 255), Campo::texto('servidor', max: 255),
             Campo::texto('dispositivo', max: 120), Campo::texto('referencia', max: 120), new Campo('vence', Campo::FECHA)], false);
         $estado = $e->patron('estado', '^(DISPONIBLE|SUSPENDIDA|BAJA)$');
@@ -309,7 +310,7 @@ final readonly class SoftwareController
     #[Autenticado(roles: Roles::ADMIN)]
     public function rotar(int $id, Request $request): Response
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::campos($e, [Campo::texto('secreto', min: 1, max: 500), Campo::texto('clave', min: 1, max: 255)], false);
         $e->validar();
         $this->credenciales->rotar($id, array_filter($d, static fn (mixed $v): bool => null !== $v), $this->usuario(), ClienteHttp::ip($request));
@@ -395,7 +396,7 @@ final readonly class SoftwareController
 
     private static function soloActivas(Request $request): bool
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [$hay, $v] = $e->campo(Campo::logico('solo_activas'), false);
         $e->validar();
 
@@ -405,7 +406,7 @@ final readonly class SoftwareController
     /** @return array{licencia: int, activo: ?string, persona: ?string, clave: ?int, fecha: string, motivo: ?string} */
     private static function instalacion(Request $request): array
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $activo] = $e->campo(new Campo('ACT_Activo', Campo::UUID), true);
         [, $persona] = $e->campo(new Campo('PER_Persona', Campo::UUID), true);
         [, $licencia] = $e->campo(Campo::entero('LIC_Licencia', true), true);
@@ -414,7 +415,7 @@ final readonly class SoftwareController
         [, $motivo] = $e->campo(Campo::texto('motivo', max: 255), true);
         $e->validar();
         if ((null === $activo) === (null === $persona)) {
-            throw ErrorValidacion::deModelo('INSTALLATION_TARGET_XOR_REQUIRED', $request);
+            throw ErrorValidacion::deModelo('INSTALLATION_TARGET_XOR_REQUIRED', Peticion::cuerpo($request));
         }
 
         return ['licencia' => (int) $licencia, 'activo' => null === $activo ? null : Ident::aHex((string) $activo),

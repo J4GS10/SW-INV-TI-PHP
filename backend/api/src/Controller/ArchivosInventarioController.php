@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
+use App\Http\Descarga;
 use App\Crud\Campo;
 use App\Documentos\CierreExcel;
-use App\Documentos\Descarga;
 use App\Documentos\FormatoLocal;
 use App\Documentos\HojaDeVida;
 use App\Documentos\Idioma;
@@ -14,7 +15,6 @@ use App\Documentos\ReportesCsv;
 use App\Dominio\Ident;
 use App\Dominio\Roles;
 use App\Http\ConsultaKardex;
-use App\Http\Entrada;
 use App\Http\Limite;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
@@ -52,7 +52,7 @@ final readonly class ArchivosInventarioController
     #[Limite('10/minute')]
     public function kardex(Request $request): Response
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $filtros = ConsultaKardex::filtros($request, $e);
         $idioma = $e->idioma();
         $e->validar();
@@ -65,7 +65,7 @@ final readonly class ArchivosInventarioController
     #[Limite('10/minute')]
     public function custodia(Request $request): Response
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $fecha] = $e->campo(new Campo('fecha', Campo::FECHA), false);
         [, $persona] = $e->campo(new Campo('persona_id', Campo::UUID), false);
         [, $area] = $e->campo(Campo::entero('area_id'), false);
@@ -85,13 +85,13 @@ final readonly class ArchivosInventarioController
     #[Limite('20/minute')]
     public function hojaDeVida(Request $request): Response
     {
-        $activo = Entrada::uuidDeRuta($request, 'activo');
-        $e = Entrada::consulta($request);
+        $activo = Peticion::uuidDeRuta($request, 'activo');
+        $e = Peticion::consulta($request);
         $idioma = $e->idioma();
         $e->validar();
         [$contenido, $nombre] = $this->hojaDeVida->generar($activo, $idioma, !\in_array($this->actual->usuario()->rol, Roles::SIN_COSTOS, true));
 
-        return Descarga::archivo($contenido, Descarga::PDF, $nombre);
+        return Descarga::archivo($contenido, \App\Documentos\TiposMime::PDF, $nombre);
     }
 
     #[Route('/licencias.csv', methods: ['GET'])]
@@ -109,14 +109,14 @@ final readonly class ArchivosInventarioController
     #[Limite('10/minute')]
     public function cierreMensual(Request $request): Response
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $anio] = $e->campo(Campo::entero('anio', true, minimo: 2000, maximo: 2100), true);
         [, $mes] = $e->campo(Campo::entero('mes', true, minimo: 1, maximo: 12), true);
         [, $sede] = $e->campo(Campo::entero('sede_id'), false);
         $idioma = $e->idioma();
         $e->validar();
 
-        return Descarga::archivo($this->cierre->generar((int) $anio, (int) $mes, null === $sede ? null : (int) $sede, $idioma), Descarga::XLSX,
+        return Descarga::archivo($this->cierre->generar((int) $anio, (int) $mes, null === $sede ? null : (int) $sede, $idioma), \App\Documentos\TiposMime::XLSX,
             CierreExcel::nombreArchivo((int) $anio, (int) $mes, $idioma));
     }
 
@@ -132,7 +132,7 @@ final readonly class ArchivosInventarioController
 
     private static function soloIdioma(Request $request): Idioma
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $idioma = $e->idioma();
         $e->validar();
 

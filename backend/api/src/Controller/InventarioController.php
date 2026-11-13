@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
 use App\Http\ConsultaKardex;
-use App\Http\Entrada;
 use App\Http\Limite;
 use App\Inventario\CierreMensual;
 use App\Inventario\Esquemas;
@@ -50,7 +50,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::LECTURA_INVENTARIO)]
     public function kardex(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $f = ConsultaKardex::filtros($request, $e);
         [$hayL, $limite] = $e->campo(Campo::entero('limite', minimo: 1, maximo: 500), false);
         [$hayD, $desp] = $e->campo(Campo::entero('desplazamiento', minimo: 0), false);
@@ -71,7 +71,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::LECTURA_INVENTARIO)]
     public function custodia(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $fecha] = $e->campo(new Campo('fecha', Campo::FECHA), false);
         [, $persona] = $e->campo(new Campo('persona_id', Campo::UUID), false);
         [, $area] = $e->campo(Campo::entero('area_id'), false);
@@ -85,7 +85,7 @@ final readonly class InventarioController
     /** @return array{0: ?string, 1: ?string, 2: ?int} */
     private static function periodo(Request $request): array
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $desde] = $e->campo(new Campo('desde', Campo::FECHA), false);
         [, $hasta] = $e->campo(new Campo('hasta', Campo::FECHA), false);
         [, $sede] = $e->campo(Campo::entero('sede_id'), false);
@@ -119,7 +119,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::ADMIN)]
     public function cerrarMes(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $anio] = $e->campo(Campo::entero('anio', true, minimo: 2000, maximo: 2100), true);
         [, $mes] = $e->campo(Campo::entero('mes', true, minimo: 1, maximo: 12), true);
         [, $sede] = $e->campo(Campo::entero('sede_id'), false);
@@ -132,7 +132,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::EXPORTACION_FINANZAS)]
     public function cierreMensual(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $anio] = $e->campo(Campo::entero('anio', true, minimo: 2000, maximo: 2100), true);
         [, $mes] = $e->campo(Campo::entero('mes', true, minimo: 1, maximo: 12), true);
         [, $sede] = $e->campo(Campo::entero('sede_id'), false);
@@ -147,7 +147,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::LECTURA_INVENTARIO)]
     public function faltantes(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $estado = $e->patron('estado', '^(PENDIENTE|EN_INVESTIGACION|LOCALIZADO|BAJA_SOLICITADA|DADO_DE_BAJA)$');
         [, $abiertos] = $e->campo(Campo::logico('abiertos'), false);
         $e->validar();
@@ -159,7 +159,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function seguimiento(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $nota] = $e->campo(Campo::texto('nota', true, 3, 500), true);
         $e->validar();
 
@@ -170,7 +170,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function localizado(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $nota] = $e->campo(Campo::texto('nota', true, 3, 500), true);
         [, $area] = $e->campo(Campo::entero('ARE_Area'), true);
         $e->validar();
@@ -183,7 +183,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::ADMIN)]
     public function bajaFaltante(int $id, Request $request): JsonResponse
     {
-        return new JsonResponse($this->faltantes->solicitarBaja($id, Esquemas::baja(Entrada::json($request)), $this->usuario(), ClienteHttp::ip($request)), 202);
+        return new JsonResponse($this->faltantes->solicitarBaja($id, Esquemas::baja(Peticion::json($request)), $this->usuario(), ClienteHttp::ip($request)), 202);
     }
 
     // ---------------- Tomas ----------------
@@ -199,7 +199,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function crearToma(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $sede] = $e->campo(Campo::entero('SED_Sede', true), true);
         [, $area] = $e->campo(Campo::entero('ARE_Area'), true);
         [, $obs] = $e->campo(Campo::texto('TOM_Observacion', max: 500), true);
@@ -220,7 +220,7 @@ final readonly class InventarioController
     #[Limite('600/minute')]
     public function leer(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $codigo] = $e->campo(Campo::texto('codigo', true, 1, 100), true);
         [, $area] = $e->campo(Campo::entero('ARE_Area'), true);
         [, $obs] = $e->campo(Campo::texto('observacion', max: 255), true);
@@ -233,7 +233,7 @@ final readonly class InventarioController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function cerrarToma(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $actualizar] = $e->campo(Campo::logico('actualizar_ubicacion'), false);
         $e->validar();
 

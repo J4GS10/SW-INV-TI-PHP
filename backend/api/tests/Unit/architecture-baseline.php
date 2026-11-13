@@ -26,16 +26,6 @@ if (PHP_SAPI === 'cli' && in_array('--write', $argv ?? [], true) && realpath($ar
 return array (
   'negocio-sin-http' => 
   array (
-    0 => 'Adjuntos/Subida.php',
-    1 => 'Correo/Notificador.php',
-    2 => 'Crud/Esquema.php',
-    3 => 'Crud/Operaciones.php',
-    4 => 'Documentos/Descarga.php',
-    5 => 'GoodsReceipt/Application/GoodsReceiptService.php',
-    6 => 'Integracion/FormularioIntegracion.php',
-    7 => 'Inventario/Aprobaciones.php',
-    8 => 'Inventario/Esquemas.php',
-    9 => 'Realtime/PublishChangesListener.php',
   ),
   'negocio-sin-sql' => 
   array (
@@ -45,6 +35,5 @@ return array (
   ),
   'dominio-puro' => 
   array (
-    0 => 'Dominio/Ident.php',
   ),
 );

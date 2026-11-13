@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Documentos\Descarga;
+use App\Http\Peticion;
+use App\Http\Descarga;
 use App\Documentos\Etiquetas;
 use App\Dominio\Roles;
-use App\Http\Entrada;
-use App\Http\ErrorValidacion;
+use App\Validacion\ErrorValidacion;
 use App\Seguridad\Autenticado;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -27,21 +27,21 @@ final readonly class EtiquetasController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function generar(Request $request): Response
     {
-        $cuerpo = Entrada::json($request);
+        $cuerpo = Peticion::json($request);
         $activos = $cuerpo->uuids('activos_ids', \PHP_INT_MAX) ?? [];
         $codigos = $cuerpo->textos('codigos', \PHP_INT_MAX) ?? [];
         $cuerpo->validar();
         $total = \count($activos) + \count($codigos);
         if (0 === $total) {
-            throw ErrorValidacion::deModelo('LABEL_ASSETS_REQUIRED', $request);
+            throw ErrorValidacion::deModelo('LABEL_ASSETS_REQUIRED', Peticion::cuerpo($request));
         }
         if ($total > Etiquetas::MAXIMO) {
-            throw ErrorValidacion::deModelo('TOO_MANY_LABELS_REQUESTED', $request);
+            throw ErrorValidacion::deModelo('TOO_MANY_LABELS_REQUESTED', Peticion::cuerpo($request));
         }
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $idioma = $e->idioma();
         $e->validar();
 
-        return Descarga::archivo($this->etiquetas->generar($activos, $codigos, $idioma), Descarga::PDF, Etiquetas::nombreArchivo($idioma));
+        return Descarga::archivo($this->etiquetas->generar($activos, $codigos, $idioma), \App\Documentos\TiposMime::PDF, Etiquetas::nombreArchivo($idioma));
     }
 }

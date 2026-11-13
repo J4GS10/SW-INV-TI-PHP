@@ -2,18 +2,17 @@
 
 declare(strict_types=1);
 
-namespace App\Http;
+namespace App\Validacion;
 
 use App\Crud\Campo;
 use App\Dominio\Ident;
-use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Lectura y validación del cuerpo JSON de una petición. Acumula todos los
- * errores y responde 422 VALIDATION_ERROR con el mismo formato de errores que
- * el backend anterior (type, loc, msg, input y ctx).
+ * Lectura y validación de un conjunto de datos de entrada (el cuerpo de una petición, sus parámetros o una
+ * solicitud guardada). Acumula todos los errores y los lanza juntos como ErrorValidacion, con el formato
+ * type, loc, msg, input y ctx. No conoce HTTP: App\Http\Peticion la construye a partir de una petición.
  *
- *   $e = Entrada::json($request);
+ *   $e = Entrada::de($datos);
  *   $codigo = $e->texto('code', min: 4, max: 10);
  *   $e->validar();
  */
@@ -33,15 +32,6 @@ final class Entrada
 
     /** Caracteres de control (salvo tabulador y saltos de línea): nadie los escribe en un formulario. */
     private const string CONTROL = '/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/';
-
-    /** Parámetros de la URL (?a=1&b=2). Los valores llegan como texto. */
-    public static function consulta(Request $request): self
-    {
-        $datos = $request->query->all();
-        self::exigirTextoLimpio($datos, 'query');
-
-        return new self($datos, 'query');
-    }
 
     /**
      * 422 si algún texto (a cualquier profundidad) trae caracteres de control o no es UTF-8:
@@ -75,74 +65,13 @@ final class Entrada
         }
     }
 
-    /** Parámetros de la ruta (/recurso/{id}). */
-    public static function ruta(Request $request): self
-    {
-        return new self((array) $request->attributes->get('_route_params', []), 'path');
-    }
-
-    /** Parámetro de ruta entero (p. ej. {id}); 422 si no lo es. */
-    public static function enteroDeRuta(Request $request, string $nombre = 'id'): int
-    {
-        $e = self::ruta($request);
-        [, $valor] = $e->campo(\App\Crud\Campo::entero($nombre, requerido: true), true);
-        $e->validar();
-
-        return (int) $valor;
-    }
-
-    /** Parámetro de ruta UUID (hexadecimal para la base); 422 si no lo es. */
-    public static function uuidDeRuta(Request $request, string $nombre = 'id'): string
-    {
-        $e = self::ruta($request);
-        [, $valor] = $e->campo(new \App\Crud\Campo($nombre, \App\Crud\Campo::UUID, true), true);
-        $e->validar();
-
-        return Ident::aHex((string) $valor);
-    }
-
     /**
-     * Paginación skip/limit con cota superior fija (anti-abuso).
-     *
-     * @return array{0: int, 1: int} [saltar, límite]
+     * @param array<string, mixed> $datos
+     * @param string               $ubicacion 'body' | 'query' | 'path': de dónde vienen, para el `loc` de los errores
      */
-    public static function paginacion(Request $request, int $maximo = 200, int $defecto = 50): array
+    public static function de(array $datos, string $ubicacion = 'body'): self
     {
-        $e = self::consulta($request);
-        [$hay, $saltar] = $e->campo(\App\Crud\Campo::entero('skip', minimo: 0), false);
-        [$hayLimite, $limite] = $e->campo(\App\Crud\Campo::entero('limit', minimo: 1, maximo: $maximo), false);
-        $e->validar();
-
-        return [$hay && null !== $saltar ? (int) $saltar : 0, $hayLimite && null !== $limite ? (int) $limite : $defecto];
-    }
-
-    /** Cuerpo JSON (objeto). Sin cuerpo = objeto vacío; JSON inválido = 422. */
-    public static function json(Request $request): self
-    {
-        $contenido = trim($request->getContent());
-        if ('' === $contenido) {
-            return new self([]);
-        }
-        try {
-            $datos = json_decode($contenido, true, 64, \JSON_THROW_ON_ERROR);
-        } catch (\JsonException $e) {
-            throw new ErrorValidacion([['type' => 'json_invalid', 'loc' => ['body', 0], 'msg' => 'JSON decode error',
-                'input' => [], 'ctx' => ['error' => $e->getMessage()]]]);
-        }
-        // «[]» y «{}» se decodifican igual: la lista vacía se distingue por el texto.
-        if (!\is_array($datos) || array_is_list($datos) && ([] !== $datos || str_starts_with($contenido, '['))) {
-            throw new ErrorValidacion([['type' => 'model_attributes_type', 'loc' => ['body'],
-                'msg' => 'Input should be a valid dictionary or object to extract fields from', 'input' => $datos]]);
-        }
-        self::exigirTextoLimpio($datos);
-
-        return new self($datos);
-    }
-
-    /** @param array<string, mixed> $datos */
-    public static function de(array $datos): self
-    {
-        return new self($datos);
+        return new self($datos, $ubicacion);
     }
 
     public function tiene(string $campo): bool

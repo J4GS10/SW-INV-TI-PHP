@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Autenticacion\AccesoCuenta;
 use App\Autenticacion\AutoservicioContrasena;
 use App\Autenticacion\CierreDeSesion;
@@ -12,8 +13,7 @@ use App\Autenticacion\Domain\SesionAbierta;
 use App\Dominio\Ident;
 use App\Http\ClienteHttp;
 use App\Http\CookiesSesion;
-use App\Http\Entrada;
-use App\Http\ErrorValidacion;
+use App\Validacion\ErrorValidacion;
 use App\Http\Limite;
 use App\ProfilePhoto\Domain\ProfilePhoto;
 use App\ProfilePhoto\Infrastructure\ProfilePhotoRepository;
@@ -80,7 +80,7 @@ final readonly class LoginController
     #[Limite(ajuste: 'limiteLogin')]
     public function verificar2fa(Request $request): Response
     {
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $desafioToken = $entrada->texto('challenge_token', min: 10);
         $codigo = $entrada->texto('code', min: 4, max: 20);
         $recordar = true === $entrada->logico('remember_device');
@@ -99,7 +99,7 @@ final readonly class LoginController
     #[Limite(ajuste: 'limiteRefresh', clave: Limite::CLAVE_REFRESH)]
     public function refresh(Request $request): Response
     {
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $delCuerpo = $entrada->texto('refresh_token', opcional: true);
         $entrada->validar();
 
@@ -118,7 +118,7 @@ final readonly class LoginController
     public function logout(Request $request): Response
     {
         [$ip, $ua] = [ClienteHttp::ip($request), ClienteHttp::userAgent($request)];
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $delCuerpo = $entrada->texto('refresh_token', opcional: true);
         $entrada->validar();
 
@@ -162,7 +162,7 @@ final readonly class LoginController
     #[Limite(ajuste: 'limiteLogin')]
     public function solicitarRestablecimiento(Request $request): JsonResponse
     {
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $identificador = $entrada->texto('identifier', min: 1, max: 150);
         $entrada->validar();
         $this->contrasenas->solicitarRestablecimiento((string) $identificador, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
@@ -179,7 +179,7 @@ final readonly class LoginController
     #[Limite(ajuste: 'limiteLogin')]
     public function confirmarRestablecimiento(Request $request): Response
     {
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $token = $entrada->texto('token', min: 8, max: 200);
         $nueva = $entrada->texto('new_password', min: 1);
         $entrada->validar();
@@ -239,7 +239,7 @@ final readonly class LoginController
     #[Limite('5/minute')]
     public function cambiarMiContrasena(Request $request, UsuarioActual $actual): Response
     {
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $actualPassword = $entrada->texto('current_password', min: 1);
         $nueva = $entrada->texto('new_password', min: 1);
         $entrada->validar();

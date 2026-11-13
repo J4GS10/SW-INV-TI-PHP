@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Integracion;
 
 use App\Crud\Campo;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 
 /**
  * Formulario de la cuenta de servicio (`IntegracionUpdate` del backend anterior):

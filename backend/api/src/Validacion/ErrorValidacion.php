@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Http;
+namespace App\Validacion;
 
 /**
  * Entrada inválida: 422 `{"detail": "VALIDATION_ERROR", "errors": [...]}`, con
@@ -28,10 +28,8 @@ final class ErrorValidacion extends \RuntimeException
      * Regla del modelo completo (`model_validator` del backend anterior): 422 con
      * `loc: ["body"]` y "Value error, <CÓDIGO>".
      */
-    public static function deModelo(string $codigo, ?\Symfony\Component\HttpFoundation\Request $request = null): self
+    public static function deModelo(string $codigo, mixed $cuerpo = null): self
     {
-        $cuerpo = null === $request ? null : json_decode($request->getContent(), true);
-
         return new self([['type' => 'value_error', 'loc' => ['body'], 'msg' => "Value error, {$codigo}", 'input' => $cuerpo, 'ctx' => ['error' => $codigo]]]);
     }
 

@@ -2,16 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App\Http;
+namespace App\Tareas;
 
 use Psr\Log\LoggerInterface;
-use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
-use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Efectos que no deben retrasar ni revertir la respuesta (p. ej. correos con
- * secretos efímeros): se ejecutan en kernel.terminate, ya enviada la respuesta
+ * secretos efímeros): las ejecuta App\EventListener\TareasPosterioresListener, ya enviada la respuesta
  * al cliente. Un fallo se registra y no afecta a los demás.
  */
 final class TareasPosteriores implements ResetInterface
@@ -29,8 +27,6 @@ final class TareasPosteriores implements ResetInterface
         $this->pendientes[] = ['nombre' => $nombre, 'tarea' => $tarea];
     }
 
-    #[AsEventListener(event: KernelEvents::TERMINATE)]
-    #[AsEventListener(event: 'console.terminate')]
     public function ejecutar(): void
     {
         while ([] !== $this->pendientes) {

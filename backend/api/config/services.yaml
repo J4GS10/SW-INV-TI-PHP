@@ -8,9 +8,9 @@ parameters:
         - '../src/Correo/ConfigCorreo.php'
         - '../src/Correo/ErrorEnvioCorreo.php'
         - '../src/Http/ErrorApi.php'
-        - '../src/Http/ErrorValidacion.php'
+        - '../src/Validacion/'
         - '../src/Http/Limite.php'
-        - '../src/Http/Entrada.php'
+        - '../src/Http/{Descarga,Peticion}.php'
         - '../src/Seguridad/Autenticado.php'
         - '../src/Seguridad/Fernet.php'
         - '../src/Seguridad/TokenFernetInvalido.php'
@@ -18,7 +18,7 @@ parameters:
         - '../src/Crud/Entidad.php'
         # Valores, enums y excepciones de la fase 4; los almacenes los crea App\Adjuntos\Almacenes.
         - '../src/Adjuntos/{AlmacenLocal,AlmacenS3,AlmacenFlysystem,AlmacenNoDisponible,ObjetoGuardado,Dueno,TipoDueno,Subida,TiposArchivo}.php'
-        - '../src/Documentos/{Idioma,Logo,DiaCalendario,LibroExcel,ArchivoCsv,CeldaSegura,Descarga,Pdf,Traducciones,JsonLegible}.php'
+        - '../src/Documentos/{Idioma,Logo,DiaCalendario,LibroExcel,ArchivoCsv,CeldaSegura,TiposMime,Pdf,Traducciones,JsonLegible}.php'
         - '../src/Documentos/Actas/{DatosActa,TipoActa,FormatoActa,TextosComunes}.php'
         - '../src/Importacion/{FilaImportacion,Texto}.php'
         # Fase 5: valores, enums, excepciones y clientes que crean sus fábricas.

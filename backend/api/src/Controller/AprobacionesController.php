@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
 use App\Inventario\Aprobaciones;
 use App\Inventario\Solicitudes;
 use App\Seguridad\Autenticado;
@@ -33,7 +33,7 @@ final readonly class AprobacionesController
     #[Route('', methods: ['GET'])]
     public function listar(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $estado = $e->patron('estado', '^(PENDIENTE|APROBADA|RECHAZADA|ANULADA)$');
         [, $activo] = $e->campo(new Campo('activo_id', Campo::UUID), false);
         $e->validar();
@@ -54,7 +54,7 @@ final readonly class AprobacionesController
     #[Autenticado(roles: Roles::APROBADORES)]
     public function aprobar(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $comentario] = $e->campo(Campo::texto('comentario', max: 500), true);
         $e->validar();
 
@@ -65,7 +65,7 @@ final readonly class AprobacionesController
     #[Autenticado(roles: Roles::APROBADORES)]
     public function rechazar(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $comentario] = $e->campo(Campo::texto('comentario', true, 5, 500), true);
         $e->validar();
 

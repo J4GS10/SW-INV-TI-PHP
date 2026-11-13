@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Http\Entrada;
-use App\Http\ErrorValidacion;
+use App\Http\Peticion;
+use App\Validacion\ErrorValidacion;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
@@ -25,18 +25,18 @@ final class EntradaTextoLimpioTest extends TestCase
     public function testRechazaTextoSucioEnElCuerpoYLaConsulta(string $sucio): void
     {
         $cuerpo = (string) json_encode(['ok' => 'normal', 'lineas' => [['nota' => $sucio]]]);
-        $this->assertRechazado(static fn () => Entrada::json(Request::create('/x', 'POST', content: $cuerpo)), ['body', 'lineas', 0, 'nota']);
-        $this->assertRechazado(static fn () => Entrada::consulta(Request::create('/x?q='.rawurlencode($sucio))), ['query', 'q']);
+        $this->assertRechazado(static fn () => Peticion::json(Request::create('/x', 'POST', content: $cuerpo)), ['body', 'lineas', 0, 'nota']);
+        $this->assertRechazado(static fn () => Peticion::consulta(Request::create('/x?q='.rawurlencode($sucio))), ['query', 'q']);
     }
 
     public function testRechazaUtf8InvalidoEnLaConsulta(): void
     {
-        $this->assertRechazado(static fn () => Entrada::consulta(Request::create('/x?q='.rawurlencode("a\xC3\x28"))), ['query', 'q']);
+        $this->assertRechazado(static fn () => Peticion::consulta(Request::create('/x?q='.rawurlencode("a\xC3\x28"))), ['query', 'q']);
     }
 
     public function testAceptaTabuladorSaltosDeLineaYEmoji(): void
     {
-        $e = Entrada::json(Request::create('/x', 'POST', content: (string) json_encode(['nota' => "línea 1\nlínea 2\r\n\tfin 😀"])));
+        $e = Peticion::json(Request::create('/x', 'POST', content: (string) json_encode(['nota' => "línea 1\nlínea 2\r\n\tfin 😀"])));
 
         self::assertSame("línea 1\nlínea 2\r\n\tfin 😀", $e->texto('nota'));
     }

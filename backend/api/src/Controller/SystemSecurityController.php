@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
 use App\Http\ErrorApi;
 use App\Repositorio\GobiernoRepositorio;
 use App\Security\Mfa\ChangeMfaRequirement;
@@ -42,7 +42,7 @@ final readonly class SystemSecurityController
     #[Route('', methods: ['POST'])]
     public function change(Request $request): JsonResponse
     {
-        $input = Entrada::json($request);
+        $input = Peticion::json($request);
         $required = $input->logico('required');
         if (null === $required && !$input->conErrores()) {
             $input->errorDeValor('required', 'missing', null);

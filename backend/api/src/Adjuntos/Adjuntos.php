@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Adjuntos;
 
+use App\Adjuntos\Subida;
 use App\Config\Ajustes;
 use App\Db\Transaccion;
 use App\Dominio\Ident;

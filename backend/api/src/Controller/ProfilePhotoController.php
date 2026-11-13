@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Adjuntos\Subida;
+use App\Http\Peticion;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
 use App\Http\ErrorApi;
 use App\Http\Limite;
 use App\ProfilePhoto\Domain\ProfilePhoto;
@@ -42,7 +41,7 @@ final readonly class ProfilePhotoController
     #[Limite('10/minute')]
     public function upload(Request $request): JsonResponse
     {
-        $upload = Subida::deFormulario($request, 'file', ProfilePhoto::MAX_UPLOAD_BYTES);
+        $upload = Peticion::archivo($request, 'file', ProfilePhoto::MAX_UPLOAD_BYTES);
         if (\strlen($upload->contenido) > ProfilePhoto::MAX_UPLOAD_BYTES) {
             throw new ErrorApi(413, 'FILE_TOO_LARGE');
         }
@@ -83,7 +82,7 @@ final readonly class ProfilePhotoController
     #[Limite('600/minute')]
     public function ofUser(Request $request): Response
     {
-        return $this->serve(Entrada::uuidDeRuta($request));
+        return $this->serve(Peticion::uuidDeRuta($request));
     }
 
     /** The URL carries the version, so the copy in the browser never goes stale. */

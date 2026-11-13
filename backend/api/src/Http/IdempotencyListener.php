@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http;
 
+use App\Db\IdempotencyContext;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;

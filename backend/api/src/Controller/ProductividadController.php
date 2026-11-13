@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Roles;
-use App\Http\Entrada;
 use App\Http\Limite;
 use App\Inventario\Infrastructure\Productividad;
 use App\Seguridad\Autenticado;
@@ -27,7 +27,7 @@ final readonly class ProductividadController
     #[Limite('120/minute')]
     public function buscar(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $q] = $e->campo(Campo::texto('q', true, 2, 100), true);
         $e->validar();
 
@@ -39,7 +39,7 @@ final readonly class ProductividadController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function kitSugerido(Request $request): JsonResponse
     {
-        return new JsonResponse($this->productividad->kitSugerido(Entrada::uuidDeRuta($request, 'persona')));
+        return new JsonResponse($this->productividad->kitSugerido(Peticion::uuidDeRuta($request, 'persona')));
     }
 
     #[Route('/api/v1/productividad/personas/{persona}/ficha', methods: ['GET'])]
@@ -47,7 +47,7 @@ final readonly class ProductividadController
     #[Autenticado(roles: Roles::LECTURA_PERSONAS)]
     public function ficha(Request $request): JsonResponse
     {
-        return new JsonResponse($this->productividad->ficha(Entrada::uuidDeRuta($request, 'persona')));
+        return new JsonResponse($this->productividad->ficha(Peticion::uuidDeRuta($request, 'persona')));
     }
 
     #[Route('/api/v1/productividad/calidad-datos', methods: ['GET'])]

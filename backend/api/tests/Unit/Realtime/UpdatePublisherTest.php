@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Realtime;
 
 use App\Config\Ajustes;
-use App\Realtime\PublishChangesListener;
+use App\EventListener\PublishChangesListener;
 use App\Realtime\UpdatePublisher;
 use App\Seguridad\UsuarioActual;
 use Firebase\JWT\JWT;

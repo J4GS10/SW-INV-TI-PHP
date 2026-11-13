@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Autenticacion\DosFactores;
 use App\Dominio\Reloj;
 use App\Dominio\Usuario;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
 use App\Http\ErrorApi;
 use App\Http\Limite;
 use App\Repositorio\GobiernoRepositorio;
@@ -98,7 +98,7 @@ final readonly class DosFactoresController
     {
         $u = $actual->usuario();
         [$ip, $ua] = [ClienteHttp::ip($request), ClienteHttp::userAgent($request)];
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $password = $entrada->texto('password', min: 1);
         $entrada->validar();
 
@@ -124,7 +124,7 @@ final readonly class DosFactoresController
         $u = $actual->usuario();
         [$ip, $ua] = [ClienteHttp::ip($request), ClienteHttp::userAgent($request)];
         $soloSso = null === $u->passwordHash || '' === $u->passwordHash;
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $secreto = $soloSso ? $entrada->texto('code', min: 4, max: 20) : $entrada->texto('password', min: 1);
         $entrada->validar();
 
@@ -157,7 +157,7 @@ final readonly class DosFactoresController
 
     private function codigo(Request $request): string
     {
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $codigo = $entrada->texto('code', min: 4, max: 10);
         $entrada->validar();
 

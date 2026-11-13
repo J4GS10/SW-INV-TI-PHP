@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace App\Crud;
 
 use App\Crud\Infrastructure\RepositorioEntidad;
-use App\Http\ClienteHttp;
 use App\Dominio\ErrorDominio;
+use App\Dominio\Origen;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\UsuarioActual;
 use App\Db\Transaccion;
-use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Pasos comunes de los CRUD: obtener o 404, comprobar hijos, y escribir con
@@ -46,11 +45,11 @@ final readonly class Operaciones
      *
      * @return array<string, mixed> registro creado (formato API)
      */
-    public function crear(Entidad $e, array $datos, Request $request, array $snapshot, ?int $sede = null): array
+    public function crear(Entidad $e, array $datos, Origen $origen, array $snapshot, ?int $sede = null): array
     {
-        return $this->transaccion->ejecutar(function () use ($e, $datos, $request, $snapshot, $sede): array {
+        return $this->transaccion->ejecutar(function () use ($e, $datos, $origen, $snapshot, $sede): array {
             $id = $this->repositorio->insertar($e, $datos);
-            $this->auditar('CREATE', $e->tabla, $snapshot, $request, $sede);
+            $this->auditar('CREATE', $e->tabla, $snapshot, $origen, $sede);
 
             return (array) $this->repositorio->obtener($e, $id);
         });
@@ -64,29 +63,29 @@ final readonly class Operaciones
      *
      * @return array<string, mixed>
      */
-    public function actualizar(Entidad $e, int|string $id, array $cambios, Request $request, ?array $snapshot = null, ?int $sede = null): array
+    public function actualizar(Entidad $e, int|string $id, array $cambios, Origen $origen, ?array $snapshot = null, ?int $sede = null): array
     {
-        return $this->transaccion->ejecutar(function () use ($e, $id, $cambios, $request, $snapshot, $sede): array {
+        return $this->transaccion->ejecutar(function () use ($e, $id, $cambios, $origen, $snapshot, $sede): array {
             $this->repositorio->actualizar($e, $id, $cambios);
-            $this->auditar('UPDATE', $e->tabla, $snapshot ?? ['id' => $id, 'cambios' => (object) $cambios], $request, $sede);
+            $this->auditar('UPDATE', $e->tabla, $snapshot ?? ['id' => $id, 'cambios' => (object) $cambios], $origen, $sede);
 
             return (array) $this->repositorio->obtener($e, $id);
         });
     }
 
     /** @param array<string, mixed> $snapshot */
-    public function eliminar(Entidad $e, int|string $id, Request $request, array $snapshot, ?int $sede = null): void
+    public function eliminar(Entidad $e, int|string $id, Origen $origen, array $snapshot, ?int $sede = null): void
     {
-        $this->transaccion->ejecutar(function () use ($e, $id, $request, $snapshot, $sede): void {
+        $this->transaccion->ejecutar(function () use ($e, $id, $origen, $snapshot, $sede): void {
             $this->repositorio->eliminar($e, $id);
-            $this->auditar('DELETE', $e->tabla, $snapshot, $request, $sede);
+            $this->auditar('DELETE', $e->tabla, $snapshot, $origen, $sede);
         });
     }
 
     /** @param array<string, mixed> $snapshot */
-    public function auditar(string $accion, string $entidad, array $snapshot, Request $request, ?int $sede = null): void
+    public function auditar(string $accion, string $entidad, array $snapshot, Origen $origen, ?int $sede = null): void
     {
         $this->gobierno->registrarAuditoria($accion, $entidad, $snapshot, $this->actual->usuario()->id,
-            ClienteHttp::ip($request), ClienteHttp::userAgent($request), $sede);
+            $origen->ip, $origen->agente, $sede);
     }
 }

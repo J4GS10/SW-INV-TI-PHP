@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Documentos\Idioma;
 use App\Dominio\Ident;
@@ -11,7 +12,7 @@ use App\Dominio\Roles;
 use App\GoodsReceipt\Application\GoodsReceiptAct;
 use App\GoodsReceipt\Application\GoodsReceiptService;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Http\ErrorApi;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
@@ -113,7 +114,7 @@ final readonly class GoodsReceiptController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function completeUnit(Request $request): JsonResponse
     {
-        return new JsonResponse($this->service->completeUnit(Entrada::uuidDeRuta($request, 'asset'), self::body($request), $this->user(), ClienteHttp::ip($request)));
+        return new JsonResponse($this->service->completeUnit(Peticion::uuidDeRuta($request, 'asset'), self::body($request), $this->user(), ClienteHttp::ip($request)));
     }
 
     #[Route('/lines/{line}/license-keys', methods: ['POST'])]

@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Http\Limite;
 use App\Repositorio\BitacoraRepositorio;
 use App\Seguridad\Alcance;
@@ -58,7 +59,7 @@ final readonly class GobiernoController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function subirLogo(Request $request): JsonResponse
     {
-        $subida = \App\Adjuntos\Subida::deFormulario($request, 'file', self::LOGO_MAX_BYTES);
+        $subida = Peticion::archivo($request, 'file', self::LOGO_MAX_BYTES);
         if (\strlen($subida->contenido) > self::LOGO_MAX_BYTES) {
             throw new \App\Http\ErrorApi(413, 'FILE_TOO_LARGE');
         }
@@ -83,7 +84,7 @@ final readonly class GobiernoController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function cambiarConfig(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $valores = [
             'SYS_Nombre_Empresa' => $e->texto('SYS_Nombre_Empresa', 2, 100, opcional: true),
             'SYS_Logo_URL' => $e->texto('SYS_Logo_URL', max: 500, opcional: true),
@@ -147,7 +148,7 @@ final readonly class GobiernoController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function reintentar(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $id] = $e->campo(new Campo('outbox_id', Campo::UUID), false);
         $e->validar();
 
@@ -161,8 +162,8 @@ final readonly class GobiernoController
     #[Autenticado(roles: Roles::LECTORES_AUDITORIA)]
     public function auditoria(Request $request): JsonResponse
     {
-        [$saltar, $limite] = Entrada::paginacion($request);
-        $e = Entrada::consulta($request);
+        [$saltar, $limite] = Peticion::paginacion($request);
+        $e = Peticion::consulta($request);
         $accion = $e->texto('accion', opcional: true);
         $entidad = $e->texto('entidad', opcional: true);
         [, $usuario] = $e->campo(new Campo('usuario_id', Campo::UUID), false);
@@ -189,7 +190,7 @@ final readonly class GobiernoController
     #[Limite('10/minute')]
     public function resumenAuditoria(Request $request): JsonResponse
     {
-        [$desde, $hasta] = self::rangoAuditoria(Entrada::consulta($request));
+        [$desde, $hasta] = self::rangoAuditoria(Peticion::consulta($request));
         $filtro = $this->bitacora->filtro($desde, $hasta);
         $porAccion = $this->bitacora->contarPor(BitacoraRepositorio::POR_ACCION, $filtro);
 

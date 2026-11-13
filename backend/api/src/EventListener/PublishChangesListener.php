@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Realtime;
+namespace App\EventListener;
 
+use App\Realtime\UpdatePublisher;
 use App\Config\Ajustes;
 use App\Dominio\Ident;
 use App\Seguridad\UsuarioActual;

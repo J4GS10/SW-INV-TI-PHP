@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace App\Dominio;
 
-use Symfony\Component\Uid\Uuid;
-
 /**
  * Identificadores UUID del esquema: se guardan como CHAR(32) hexadecimal en
  * minúsculas y la API los expone en texto con guiones (formato RFC 4122).
  */
 final class Ident
 {
+    /** Un UUID versión 4 (RFC 4122): 122 bits del generador criptográfico del sistema. */
     public static function nuevo(): string
     {
-        return self::aHex(Uuid::v4()->toRfc4122());
+        $bytes = random_bytes(16);
+        $bytes[6] = \chr((\ord($bytes[6]) & 0x0F) | 0x40); // versión 4
+        $bytes[8] = \chr((\ord($bytes[8]) & 0x3F) | 0x80); // variante RFC 4122
+
+        return bin2hex($bytes);
     }
 
     /** Hexadecimal de 32 caracteres; acepta el UUID con o sin guiones. */

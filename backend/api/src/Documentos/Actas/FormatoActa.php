@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Documentos\Actas;
 
-use App\Documentos\Descarga;
+use App\Documentos\TiposMime;
 
 /** Formato del archivo del acta: Word (por defecto) o PDF. */
 enum FormatoActa: string
@@ -16,6 +16,6 @@ enum FormatoActa: string
 
     public function tipoMime(): string
     {
-        return self::Pdf === $this ? Descarga::PDF : Descarga::DOCX;
+        return self::Pdf === $this ? TiposMime::PDF : TiposMime::DOCX;
     }
 }

@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Roles;
 use App\EventListener\OcultarCostosListener;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Http\Limite;
 use App\Inventario\Aprobaciones;
 use App\Inventario\Consumibles;
@@ -40,7 +41,7 @@ final readonly class ConsumiblesController
     #[Autenticado(roles: self::CATALOGO)]
     public function listar(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $bajo] = $e->campo(Campo::logico('bajo_stock'), false);
         $e->validar();
 
@@ -58,7 +59,7 @@ final readonly class ConsumiblesController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crear(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = $this->campos($e, true);
         [, $stock] = $e->campo(Campo::entero('CON_Stock_Actual', minimo: 0), true);
         [, $costo] = $e->campo(new Campo('CON_Costo_Unitario', Campo::DECIMAL, max: 14, escala: 4, minimo: 0), true);
@@ -75,7 +76,7 @@ final readonly class ConsumiblesController
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizar(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $cambios = $this->campos($e, false);
         [$hay, $activo] = $e->campo(Campo::logico('CON_Activo'), false);
         $e->validar();
@@ -127,7 +128,7 @@ final readonly class ConsumiblesController
     #[Limite('30/minute')]
     public function ajuste(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $real] = $e->campo(Campo::entero('CON_Stock_Real', true, minimo: 0), true);
         [, $motivo] = $e->campo(Campo::texto('MOC_Motivo', true, 5, 255), true);
         $e->validar();
@@ -147,7 +148,7 @@ final readonly class ConsumiblesController
     #[Autenticado(roles: Roles::ADMIN)]
     public function fijarCompatibles(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $modelos = $e->enteros('modelos', 200) ?? [];
         $e->validar();
 
@@ -192,7 +193,7 @@ final readonly class ConsumiblesController
     /** @return array{MOC_Cantidad: int, MOC_Motivo: ?string, PER_Persona: ?string, ACT_Activo: ?string, precio_unitario?: ?string, moneda?: ?string} */
     private function movimiento(Request $request): array
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $cantidad] = $e->campo(Campo::entero('MOC_Cantidad', true, minimo: 1), true);
         [, $motivo] = $e->campo(Campo::texto('MOC_Motivo', max: 255), true);
         [, $persona] = $e->campo(new Campo('PER_Persona', Campo::UUID), true);

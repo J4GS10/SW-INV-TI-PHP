@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Adjuntos\Subida;
+use App\Http\Peticion;
+use App\Http\Descarga;
 use App\Crud\Campo;
-use App\Documentos\Descarga;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
 use App\Http\ErrorApi;
 use App\Http\Limite;
 use App\Importacion\ImportacionActivos;
@@ -41,7 +40,7 @@ final readonly class ImportacionController
     #[Route('/plantilla', methods: ['GET'])]
     public function plantilla(): Response
     {
-        return Descarga::archivo($this->importacion->plantilla(), Descarga::XLSX, 'plantilla_activos.xlsx');
+        return Descarga::archivo($this->importacion->plantilla(), \App\Documentos\TiposMime::XLSX, 'plantilla_activos.xlsx');
     }
 
     /** Valida el archivo sin guardar nada y devuelve el resultado fila por fila. */
@@ -57,7 +56,7 @@ final readonly class ImportacionController
     #[Limite('10/minute')]
     public function confirmar(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $omitir] = $e->campo(Campo::logico('omitir_errores'), false);
         $e->validar();
         $contenido = self::archivo($request);
@@ -68,7 +67,7 @@ final readonly class ImportacionController
     /** Contenido del campo `archivo` (hasta 5 MB; si pasa, 413). */
     private static function archivo(Request $request): string
     {
-        $contenido = Subida::deFormulario($request, 'archivo', LectorExcel::MAX_BYTES)->contenido;
+        $contenido = Peticion::archivo($request, 'archivo', LectorExcel::MAX_BYTES)->contenido;
         if (\strlen($contenido) > LectorExcel::MAX_BYTES) {
             throw new ErrorApi(413, 'FILE_TOO_LARGE');
         }

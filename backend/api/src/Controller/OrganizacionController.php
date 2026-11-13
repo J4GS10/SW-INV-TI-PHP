@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Crud\Esquema;
 use App\Crud\Operaciones;
@@ -11,7 +12,7 @@ use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Http\ErrorApi;
 use App\Http\Limite;
 use App\Organizacion\Entidades as E;
@@ -87,7 +88,7 @@ final readonly class OrganizacionController
     #[Limite('10/minute')]
     public function detalleDepartamento(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $dep = $this->datos->departamento($id) ?: throw new ErrorApi(404, 'DEPARTMENT_NOT_FOUND');
         $personas = $this->datos->personasActivasDe($id);
         $porPersona = [];
@@ -127,7 +128,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: self::PERSONAS)]
     public function obtenerDepartamento(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(E::departamento(), Entrada::enteroDeRuta($r), 'DEPARTMENT_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(E::departamento(), Peticion::enteroDeRuta($r), 'DEPARTMENT_NOT_FOUND'));
     }
 
     #[Route('/departamentos', methods: ['POST'])]
@@ -139,28 +140,28 @@ final readonly class OrganizacionController
             throw new ErrorApi(400, 'DEPARTMENT_ALREADY_EXISTS');
         }
 
-        return new JsonResponse($this->crud->crear(E::departamento(), [...$d, 'DEP_Activo' => 1], $r, ['nombre' => $d['DEP_Nombre']]), 201);
+        return new JsonResponse($this->crud->crear(E::departamento(), [...$d, 'DEP_Activo' => 1], ClienteHttp::origen($r), ['nombre' => $d['DEP_Nombre']]), 201);
     }
 
     #[Route('/departamentos/{id}', methods: ['PATCH'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarDepartamento(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $cambios = $this->cambios(E::departamento(), $r);
         $this->crud->obtenerO404(E::departamento(), $id, 'DEPARTMENT_NOT_FOUND');
 
-        return new JsonResponse($this->crud->actualizar(E::departamento(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(E::departamento(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/departamentos/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarDepartamento(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $dep = $this->crud->obtenerO404(E::departamento(), $id, 'DEPARTMENT_NOT_FOUND');
         $this->crud->sinHijos('INV_PERSONA', 'DEP_Departamento', $id, 'CANNOT_DELETE_DEPARTMENT_HAS_PERSONS');
-        $this->crud->eliminar(E::departamento(), $id, $r, ['id' => $id, 'nombre' => $dep['DEP_Nombre']]);
+        $this->crud->eliminar(E::departamento(), $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $dep['DEP_Nombre']]);
 
         return new Response(null, 204);
     }
@@ -170,7 +171,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: Roles::LECTURA_PERSONAS)]
     public function contextoDepartamento(Request $r): JsonResponse
     {
-        return new JsonResponse($this->sugerencias->departamento(Entrada::enteroDeRuta($r)));
+        return new JsonResponse($this->sugerencias->departamento(Peticion::enteroDeRuta($r)));
     }
 
     // ================= CARGOS =================
@@ -186,7 +187,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: self::PERSONAS)]
     public function obtenerCargo(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(E::cargo(), Entrada::enteroDeRuta($r), 'POSITION_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(E::cargo(), Peticion::enteroDeRuta($r), 'POSITION_NOT_FOUND'));
     }
 
     #[Route('/cargos', methods: ['POST'])]
@@ -195,28 +196,28 @@ final readonly class OrganizacionController
     {
         $d = $this->creacion(E::cargo(), $r);
 
-        return new JsonResponse($this->crud->crear(E::cargo(), $d, $r, ['nombre' => $d['CAR_Nombre']]), 201);
+        return new JsonResponse($this->crud->crear(E::cargo(), $d, ClienteHttp::origen($r), ['nombre' => $d['CAR_Nombre']]), 201);
     }
 
     #[Route('/cargos/{id}', methods: ['PATCH'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarCargo(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $cambios = $this->cambios(E::cargo(), $r);
         $this->crud->obtenerO404(E::cargo(), $id, 'POSITION_NOT_FOUND');
 
-        return new JsonResponse($this->crud->actualizar(E::cargo(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(E::cargo(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/cargos/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarCargo(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $cargo = $this->crud->obtenerO404(E::cargo(), $id, 'POSITION_NOT_FOUND');
         $this->crud->sinHijos('INV_PERSONA', 'CAR_Cargo', $id, 'CANNOT_DELETE_POSITION_HAS_PERSONS');
-        $this->crud->eliminar(E::cargo(), $id, $r, ['id' => $id, 'nombre' => $cargo['CAR_Nombre']]);
+        $this->crud->eliminar(E::cargo(), $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $cargo['CAR_Nombre']]);
 
         return new Response(null, 204);
     }
@@ -245,7 +246,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: self::PERSONAS)]
     public function obtenerPersona(Request $r): JsonResponse
     {
-        return new JsonResponse($this->personaVisible(Entrada::uuidDeRuta($r)));
+        return new JsonResponse($this->personaVisible(Peticion::uuidDeRuta($r)));
     }
 
     #[Route('/personas', methods: ['POST'])]
@@ -260,7 +261,7 @@ final readonly class OrganizacionController
         if ($this->alcance->elevado(fn (): bool => $this->datos->existeCorreo($d['PER_Email_Corporativo']))) {
             throw new ErrorApi(400, 'EMAIL_ALREADY_EXISTS');
         }
-        $persona = $this->crud->crear(E::persona(), [...$d, 'PER_Estado' => 1], $r, [
+        $persona = $this->crud->crear(E::persona(), [...$d, 'PER_Estado' => 1], ClienteHttp::origen($r), [
             'email' => $d['PER_Email_Corporativo'], 'nombre' => "{$d['PER_Primer_Nombre']} {$d['PER_Primer_Apellido']}", 'sede' => $d['SED_Sede'],
         ], $d['SED_Sede']);
 
@@ -271,7 +272,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarPersona(Request $r): JsonResponse
     {
-        $id = Entrada::uuidDeRuta($r);
+        $id = Peticion::uuidDeRuta($r);
         $cambios = $this->cambios(E::persona(), $r);
         $persona = $this->personaVisible($id);
         // Solo personas de las sedes del alcance (no las visibles solo por historial).
@@ -288,7 +289,7 @@ final readonly class OrganizacionController
         $this->validarJefe($cambios['PER_Jefe'] ?? null);
         $sede = \array_key_exists('SED_Sede', $cambios) ? $cambios['SED_Sede'] : $persona['SED_Sede'];
 
-        return new JsonResponse($this->crud->actualizar(E::persona(), $id, $cambios, $r,
+        return new JsonResponse($this->crud->actualizar(E::persona(), $id, $cambios, ClienteHttp::origen($r),
             ['id' => Ident::aTexto($id), 'cambios' => (object) $cambios], $sede));
     }
 
@@ -297,7 +298,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarPersona(Request $r): Response
     {
-        $id = Entrada::uuidDeRuta($r);
+        $id = Peticion::uuidDeRuta($r);
         $persona = $this->personaVisible($id);
         $this->alcance->exigirPropio($persona['SED_Sede']);
         if ($this->cuentas->personaTieneCuenta($id)) {
@@ -305,7 +306,7 @@ final readonly class OrganizacionController
         }
         $this->transaccion->ejecutar(function () use ($id, $persona, $r): void {
             $this->crud->repositorio->actualizar(E::persona(), $id, ['PER_Estado' => 0]);
-            $this->crud->auditar('DELETE_LOGIC', 'INV_PERSONA', ['id' => Ident::aTexto($id), 'email' => $persona['PER_Email_Corporativo']], $r, $persona['SED_Sede']);
+            $this->crud->auditar('DELETE_LOGIC', 'INV_PERSONA', ['id' => Ident::aTexto($id), 'email' => $persona['PER_Email_Corporativo']], ClienteHttp::origen($r), $persona['SED_Sede']);
         });
 
         return new Response(null, 204);
@@ -316,7 +317,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: self::PERSONAS)]
     public function contextoPersona(Request $r): JsonResponse
     {
-        return new JsonResponse($this->sugerencias->persona(Entrada::uuidDeRuta($r)));
+        return new JsonResponse($this->sugerencias->persona(Peticion::uuidDeRuta($r)));
     }
 
     // ================= USUARIOS (identidades y accesos) =================
@@ -347,14 +348,14 @@ final readonly class OrganizacionController
     #[Autenticado(roles: Roles::IAM)]
     public function obtenerUsuario(Request $r): JsonResponse
     {
-        return new JsonResponse($this->identidades->respuesta(Entrada::uuidDeRuta($r)) ?? throw new ErrorApi(404, 'USER_NOT_FOUND'));
+        return new JsonResponse($this->identidades->respuesta(Peticion::uuidDeRuta($r)) ?? throw new ErrorApi(404, 'USER_NOT_FOUND'));
     }
 
     #[Route('/usuarios', methods: ['POST'])]
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function crearUsuario(Request $r): JsonResponse
     {
-        $e = Entrada::json($r);
+        $e = Peticion::json($r);
         [, $username] = $e->campo(new Campo('USU_Username', requerido: true, min: 4, max: 50), true);
         [, $password] = $e->campo(new Campo('USU_Password', min: 8, max: 128), true);
         [, $rol] = $e->campo(new Campo('USU_Rol', requerido: true, opciones: Roles::TODOS), true);
@@ -383,7 +384,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function actualizarUsuario(Request $r): JsonResponse
     {
-        $id = Entrada::uuidDeRuta($r);
+        $id = Peticion::uuidDeRuta($r);
 
         return new JsonResponse($this->identidades->actualizar($id, $this->cambiosUsuario($r), $this->actual->usuario(), $this->auditor($r), ClienteHttp::ip($r)));
     }
@@ -393,7 +394,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function desactivarUsuario(Request $r): Response
     {
-        $this->identidades->actualizar(Entrada::uuidDeRuta($r), ['USU_Estado' => false], $this->actual->usuario(), $this->auditor($r), ClienteHttp::ip($r));
+        $this->identidades->actualizar(Peticion::uuidDeRuta($r), ['USU_Estado' => false], $this->actual->usuario(), $this->auditor($r), ClienteHttp::ip($r));
 
         return new Response(null, 204);
     }
@@ -404,7 +405,7 @@ final readonly class OrganizacionController
     #[Limite('10/minute')]
     public function restablecerContrasena(Request $r): JsonResponse
     {
-        $temporal = $this->identidades->restablecerContrasena(Entrada::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r), ClienteHttp::ip($r));
+        $temporal = $this->identidades->restablecerContrasena(Peticion::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r), ClienteHttp::ip($r));
         $respuesta = new JsonResponse(['temporary_password' => $temporal]);
         $respuesta->headers->set('Cache-Control', 'no-store');
 
@@ -415,7 +416,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function restablecer2fa(Request $r): JsonResponse
     {
-        $this->identidades->restablecer2fa(Entrada::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r));
+        $this->identidades->restablecer2fa(Peticion::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r));
 
         return new JsonResponse(['status' => 'success', 'message' => '2FA_RESET']);
     }
@@ -424,7 +425,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function desbloquear(Request $r): JsonResponse
     {
-        $this->identidades->desbloquear(Entrada::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r));
+        $this->identidades->desbloquear(Peticion::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r));
 
         return new JsonResponse(['status' => 'success']);
     }
@@ -434,7 +435,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function bloquear(Request $r): JsonResponse
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         $motivo = $entrada->texto('reason', 5, 500);
         $hasta = $entrada->patron('until', '^\d{4}-\d{2}-\d{2}$');
         $entrada->validar();
@@ -443,7 +444,7 @@ final readonly class OrganizacionController
         if (mb_strlen($motivo) < 5) {
             throw new ErrorApi(422, 'LOCK_REASON_REQUIRED');
         }
-        $this->identidades->bloquear(Entrada::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r), $motivo, $hasta);
+        $this->identidades->bloquear(Peticion::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r), $motivo, $hasta);
 
         return new JsonResponse(['status' => 'success']);
     }
@@ -452,7 +453,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: Roles::IAM)]
     public function revocarSesiones(Request $r): JsonResponse
     {
-        $this->identidades->revocarSesiones(Entrada::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r));
+        $this->identidades->revocarSesiones(Peticion::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r));
 
         return new JsonResponse(['status' => 'success']);
     }
@@ -461,14 +462,14 @@ final readonly class OrganizacionController
     #[Autenticado(roles: Roles::IAM)]
     public function sesionesDeUsuario(Request $r): JsonResponse
     {
-        return new JsonResponse($this->identidades->sesionesDe(Entrada::uuidDeRuta($r), $this->actual->usuario()));
+        return new JsonResponse($this->identidades->sesionesDe(Peticion::uuidDeRuta($r), $this->actual->usuario()));
     }
 
     #[Route('/usuarios/{id}/sessions/{sesion}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::IAM)]
     public function cerrarSesion(Request $r, string $sesion): Response
     {
-        $this->identidades->cerrarSesion(Entrada::uuidDeRuta($r), $sesion, $this->actual->usuario(), $this->auditor($r));
+        $this->identidades->cerrarSesion(Peticion::uuidDeRuta($r), $sesion, $this->actual->usuario(), $this->auditor($r));
 
         return new Response(null, 204);
     }
@@ -515,7 +516,7 @@ final readonly class OrganizacionController
     /** @return array<string, mixed> */
     private function cambiosUsuario(Request $r): array
     {
-        $e = Entrada::json($r);
+        $e = Peticion::json($r);
         $cambios = [];
         foreach ([new Campo('USU_Password', min: 8, max: 128), new Campo('USU_Rol', opciones: Roles::TODOS), Campo::logico('USU_Estado'),
             Campo::logico('USU_SSO_Habilitado'), new Campo('USU_SSO_Provider', opciones: ['microsoft', 'google']), Campo::logico('USU_Alcance_Global')] as $campo) {
@@ -550,7 +551,7 @@ final readonly class OrganizacionController
 
     private function auditor(Request $r): \Closure
     {
-        return fn (string $accion, string $entidad, array $snapshot) => $this->crud->auditar($accion, $entidad, $snapshot, $r);
+        return fn (string $accion, string $entidad, array $snapshot) => $this->crud->auditar($accion, $entidad, $snapshot, ClienteHttp::origen($r));
     }
 
     /**
@@ -560,7 +561,7 @@ final readonly class OrganizacionController
      */
     private function creacion(\App\Crud\Entidad $e, Request $r, ?array $soloCampos = null): array
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         $datos = Esquema::creacion($e, $entrada, $soloCampos);
         $entrada->validar();
 
@@ -570,7 +571,7 @@ final readonly class OrganizacionController
     /** @return array<string, mixed> */
     private function cambios(\App\Crud\Entidad $e, Request $r): array
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         $datos = Esquema::actualizacion($e, $entrada);
         $entrada->validar();
 

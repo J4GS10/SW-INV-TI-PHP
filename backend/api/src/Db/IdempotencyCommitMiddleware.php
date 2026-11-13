@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Db;
 
-use App\Http\IdempotencyContext;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsMiddleware;
 use Doctrine\DBAL\Driver;
 use Doctrine\DBAL\Driver\Connection;

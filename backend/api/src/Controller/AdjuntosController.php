@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
+use App\Http\Descarga;
 use App\Adjuntos\Adjuntos;
 use App\Adjuntos\Dueno;
-use App\Adjuntos\Subida;
 use App\Adjuntos\TiposArchivo;
 use App\Crud\Campo;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Http\Limite;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
@@ -36,7 +37,7 @@ final readonly class AdjuntosController
     #[Autenticado(roles: Roles::LECTURA_INVENTARIO)]
     public function deActivo(Request $request): JsonResponse
     {
-        return new JsonResponse($this->adjuntos->listar(Dueno::activo(Entrada::uuidDeRuta($request, 'activo'))));
+        return new JsonResponse($this->adjuntos->listar(Dueno::activo(Peticion::uuidDeRuta($request, 'activo'))));
     }
 
     #[Route('/activos/{activo}', methods: ['POST'])]
@@ -44,7 +45,7 @@ final readonly class AdjuntosController
     #[Limite('30/minute')]
     public function subirAActivo(Request $request): JsonResponse
     {
-        return $this->subir($request, Dueno::activo(Entrada::uuidDeRuta($request, 'activo')), true);
+        return $this->subir($request, Dueno::activo(Peticion::uuidDeRuta($request, 'activo')), true);
     }
 
     #[Route('/ingresos/{id}', methods: ['GET'])]
@@ -82,7 +83,7 @@ final readonly class AdjuntosController
     #[Route('/{adjunto}/download', methods: ['GET'])]
     public function descargar(Request $request): Response
     {
-        [$fila, $contenido] = $this->adjuntos->descargar(Entrada::uuidDeRuta($request, 'adjunto'), $this->actual->usuario()->rol);
+        [$fila, $contenido] = $this->adjuntos->descargar(Peticion::uuidDeRuta($request, 'adjunto'), $this->actual->usuario()->rol);
         $nombre = TiposArchivo::sanearNombre($fila['ADJ_Nombre_Original']);
         $ascii = str_replace(['"', '\\'], '', (string) iconv('UTF-8', 'ASCII//IGNORE', $nombre)) ?: 'archivo';
 
@@ -98,7 +99,7 @@ final readonly class AdjuntosController
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminar(Request $request): Response
     {
-        $this->adjuntos->eliminar(Entrada::uuidDeRuta($request, 'adjunto'), $this->actual->usuario()->id, ClienteHttp::ip($request));
+        $this->adjuntos->eliminar(Peticion::uuidDeRuta($request, 'adjunto'), $this->actual->usuario()->id, ClienteHttp::ip($request));
 
         return new Response(null, 204);
     }
@@ -109,7 +110,7 @@ final readonly class AdjuntosController
         $formulario = Entrada::de($request->request->all());
         [, $descripcion] = $formulario->campo(Campo::texto('descripcion', max: 255), true);
         $formulario->validar();
-        $subida = Subida::deFormulario($request, 'file');
+        $subida = Peticion::archivo($request, 'file');
         $categoria = $conCategoria ? $request->request->getString('categoria') : null;
 
         return new JsonResponse($this->adjuntos->subir($dueno, $subida, '' === $categoria ? null : $categoria, $descripcion,

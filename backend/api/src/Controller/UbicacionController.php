@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\ClienteHttp;
+use App\Http\Peticion;
 use App\Catalogo\CatalogoGenerico;
 use App\Crud\Entidad;
 use App\Crud\Esquema;
 use App\Crud\Operaciones;
 use App\Dominio\Roles;
-use App\Http\Entrada;
 use App\Http\ErrorApi;
 use App\Seguridad\Alcance;
 use App\Seguridad\Autenticado;
@@ -46,7 +47,7 @@ final readonly class UbicacionController
         $this->alcance->exigirGlobal();
         $d = $this->validarCreacion(E::pais(), $r);
 
-        return new JsonResponse($this->crud->crear(E::pais(), $d, $r, ['nombre' => $d['PAI_Nombre'], 'iso' => $d['PAI_Codigo_ISO']]), 201);
+        return new JsonResponse($this->crud->crear(E::pais(), $d, ClienteHttp::origen($r), ['nombre' => $d['PAI_Nombre'], 'iso' => $d['PAI_Codigo_ISO']]), 201);
     }
 
     #[Route('/paises', methods: ['GET'])]
@@ -58,30 +59,30 @@ final readonly class UbicacionController
     #[Route('/paises/{id}', methods: ['GET'])]
     public function obtenerPais(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(E::pais(), Entrada::enteroDeRuta($r), 'COUNTRY_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(E::pais(), Peticion::enteroDeRuta($r), 'COUNTRY_NOT_FOUND'));
     }
 
     #[Route('/paises/{id}', methods: ['PATCH'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarPais(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $this->alcance->exigirGlobal();
         $cambios = $this->validarCambios(E::pais(), $r);
         $this->crud->obtenerO404(E::pais(), $id, 'COUNTRY_NOT_FOUND');
 
-        return new JsonResponse($this->crud->actualizar(E::pais(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(E::pais(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/paises/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarPais(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $this->alcance->exigirGlobal();
         $pais = $this->crud->obtenerO404(E::pais(), $id, 'COUNTRY_NOT_FOUND');
         $this->crud->sinHijos('INV_ESTADO', 'PAI_Pais', $id, 'CANNOT_DELETE_COUNTRY_HAS_STATES');
-        $this->crud->eliminar(E::pais(), $id, $r, ['id' => $id, 'nombre' => $pais['PAI_Nombre']]);
+        $this->crud->eliminar(E::pais(), $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $pais['PAI_Nombre']]);
 
         return new Response(null, 204);
     }
@@ -95,7 +96,7 @@ final readonly class UbicacionController
         $this->alcance->exigirGlobal();
         $d = $this->validarCreacion(E::estado(), $r);
 
-        return new JsonResponse($this->crud->crear(E::estado(), $d, $r, ['nombre' => $d['EST_Nombre'], 'pais_id' => $d['PAI_Pais']]), 201);
+        return new JsonResponse($this->crud->crear(E::estado(), $d, ClienteHttp::origen($r), ['nombre' => $d['EST_Nombre'], 'pais_id' => $d['PAI_Pais']]), 201);
     }
 
     #[Route('/estados', methods: ['GET'])]
@@ -109,30 +110,30 @@ final readonly class UbicacionController
     #[Route('/estados/{id}', methods: ['GET'])]
     public function obtenerEstado(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(E::estado(), Entrada::enteroDeRuta($r), 'STATE_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(E::estado(), Peticion::enteroDeRuta($r), 'STATE_NOT_FOUND'));
     }
 
     #[Route('/estados/{id}', methods: ['PATCH'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarEstado(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $this->alcance->exigirGlobal();
         $cambios = $this->validarCambios(E::estado(), $r);
         $this->crud->obtenerO404(E::estado(), $id, 'STATE_NOT_FOUND');
 
-        return new JsonResponse($this->crud->actualizar(E::estado(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(E::estado(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/estados/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarEstado(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $this->alcance->exigirGlobal();
         $estado = $this->crud->obtenerO404(E::estado(), $id, 'STATE_NOT_FOUND');
         $this->crud->sinHijos('INV_MUNICIPIO', 'EST_Estado', $id, 'CANNOT_DELETE_STATE_HAS_MUNICIPALITIES');
-        $this->crud->eliminar(E::estado(), $id, $r, ['id' => $id, 'nombre' => $estado['EST_Nombre']]);
+        $this->crud->eliminar(E::estado(), $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $estado['EST_Nombre']]);
 
         return new Response(null, 204);
     }
@@ -146,7 +147,7 @@ final readonly class UbicacionController
         $this->alcance->exigirGlobal();
         $d = $this->validarCreacion(E::municipio(), $r);
 
-        return new JsonResponse($this->crud->crear(E::municipio(), $d, $r, ['nombre' => $d['MUN_Nombre'], 'estado_id' => $d['EST_Estado']]), 201);
+        return new JsonResponse($this->crud->crear(E::municipio(), $d, ClienteHttp::origen($r), ['nombre' => $d['MUN_Nombre'], 'estado_id' => $d['EST_Estado']]), 201);
     }
 
     #[Route('/municipios', methods: ['GET'])]
@@ -160,30 +161,30 @@ final readonly class UbicacionController
     #[Route('/municipios/{id}', methods: ['GET'])]
     public function obtenerMunicipio(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(E::municipio(), Entrada::enteroDeRuta($r), 'MUNICIPALITY_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(E::municipio(), Peticion::enteroDeRuta($r), 'MUNICIPALITY_NOT_FOUND'));
     }
 
     #[Route('/municipios/{id}', methods: ['PATCH'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarMunicipio(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $this->alcance->exigirGlobal();
         $cambios = $this->validarCambios(E::municipio(), $r);
         $this->crud->obtenerO404(E::municipio(), $id, 'MUNICIPALITY_NOT_FOUND');
 
-        return new JsonResponse($this->crud->actualizar(E::municipio(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(E::municipio(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/municipios/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarMunicipio(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $this->alcance->exigirGlobal();
         $municipio = $this->crud->obtenerO404(E::municipio(), $id, 'MUNICIPALITY_NOT_FOUND');
         $this->crud->sinHijos('INV_SEDE', 'MUN_Municipio', $id, 'CANNOT_DELETE_MUNICIPALITY_HAS_SITES');
-        $this->crud->eliminar(E::municipio(), $id, $r, ['id' => $id, 'nombre' => $municipio['MUN_Nombre']]);
+        $this->crud->eliminar(E::municipio(), $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $municipio['MUN_Nombre']]);
 
         return new Response(null, 204);
     }
@@ -197,7 +198,7 @@ final readonly class UbicacionController
         $this->alcance->exigirGlobal();
         $d = $this->validarCreacion(E::sede(), $r);
 
-        return new JsonResponse($this->crud->crear(E::sede(), $d, $r, ['nombre' => $d['SED_Nombre']]), 201);
+        return new JsonResponse($this->crud->crear(E::sede(), $d, ClienteHttp::origen($r), ['nombre' => $d['SED_Nombre']]), 201);
     }
 
     /** Sedes de un municipio, solo las del alcance del usuario. */
@@ -213,7 +214,7 @@ final readonly class UbicacionController
     #[Route('/sedes/{id}', methods: ['GET'])]
     public function obtenerSede(Request $r): JsonResponse
     {
-        $sede = $this->crud->obtenerO404(E::sede(), Entrada::enteroDeRuta($r), 'SITE_NOT_FOUND');
+        $sede = $this->crud->obtenerO404(E::sede(), Peticion::enteroDeRuta($r), 'SITE_NOT_FOUND');
         if (!$this->alcance->permite($sede['SED_Sede'])) {
             throw new ErrorApi(404, 'SITE_NOT_FOUND');
         }
@@ -225,23 +226,23 @@ final readonly class UbicacionController
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarSede(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $this->alcance->exigirGlobal();
         $cambios = $this->validarCambios(E::sede(), $r);
         $this->crud->obtenerO404(E::sede(), $id, 'SITE_NOT_FOUND');
 
-        return new JsonResponse($this->crud->actualizar(E::sede(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(E::sede(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/sedes/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarSede(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $this->alcance->exigirGlobal();
         $sede = $this->crud->obtenerO404(E::sede(), $id, 'SITE_NOT_FOUND');
         $this->crud->sinHijos('INV_EDIFICIO', 'SED_Sede', $id, 'CANNOT_DELETE_SITE_HAS_BUILDINGS');
-        $this->crud->eliminar(E::sede(), $id, $r, ['id' => $id, 'nombre' => $sede['SED_Nombre']]);
+        $this->crud->eliminar(E::sede(), $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $sede['SED_Nombre']]);
 
         return new Response(null, 204);
     }
@@ -255,7 +256,7 @@ final readonly class UbicacionController
         $d = $this->validarCreacion(E::edificio(), $r);
         $this->alcance->exigirSede($d['SED_Sede']);
 
-        return new JsonResponse($this->crud->crear(E::edificio(), $d, $r,
+        return new JsonResponse($this->crud->crear(E::edificio(), $d, ClienteHttp::origen($r),
             ['nombre' => $d['EDI_Nombre'], 'sede_id' => $d['SED_Sede']], $d['SED_Sede']), 201);
     }
 
@@ -273,7 +274,7 @@ final readonly class UbicacionController
     #[Route('/edificios/{id}', methods: ['GET'])]
     public function obtenerEdificio(Request $r): JsonResponse
     {
-        $edificio = $this->crud->obtenerO404(E::edificio(), Entrada::enteroDeRuta($r), 'BUILDING_NOT_FOUND');
+        $edificio = $this->crud->obtenerO404(E::edificio(), Peticion::enteroDeRuta($r), 'BUILDING_NOT_FOUND');
         if (!$this->alcance->permite($edificio['SED_Sede'])) {
             throw new ErrorApi(404, 'BUILDING_NOT_FOUND');
         }
@@ -285,22 +286,22 @@ final readonly class UbicacionController
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarEdificio(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $cambios = $this->validarCambios(E::edificio(), $r);
         $this->alcance->exigirPropio($this->sedeDeEdificio($id));
 
-        return new JsonResponse($this->crud->actualizar(E::edificio(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(E::edificio(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/edificios/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarEdificio(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $edificio = $this->crud->obtenerO404(E::edificio(), $id, 'BUILDING_NOT_FOUND');
         $this->alcance->exigirPropio($edificio['SED_Sede']);
         $this->crud->sinHijos('INV_NIVEL', 'EDI_Edificio', $id, 'CANNOT_DELETE_BUILDING_HAS_LEVELS');
-        $this->crud->eliminar(E::edificio(), $id, $r, ['id' => $id, 'nombre' => $edificio['EDI_Nombre']]);
+        $this->crud->eliminar(E::edificio(), $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $edificio['EDI_Nombre']]);
 
         return new Response(null, 204);
     }
@@ -314,7 +315,7 @@ final readonly class UbicacionController
         $d = $this->validarCreacion(E::nivel(), $r);
         $this->alcance->exigirPropio($this->sedeDeEdificio($d['EDI_Edificio']));
 
-        return new JsonResponse($this->crud->crear(E::nivel(), $d, $r,
+        return new JsonResponse($this->crud->crear(E::nivel(), $d, ClienteHttp::origen($r),
             ['piso' => $d['NIV_Numero_Piso'], 'edificio_id' => $d['EDI_Edificio']]), 201);
     }
 
@@ -332,7 +333,7 @@ final readonly class UbicacionController
     #[Route('/niveles/{id}', methods: ['GET'])]
     public function obtenerNivel(Request $r): JsonResponse
     {
-        $nivel = $this->crud->obtenerO404(E::nivel(), Entrada::enteroDeRuta($r), 'LEVEL_NOT_FOUND');
+        $nivel = $this->crud->obtenerO404(E::nivel(), Peticion::enteroDeRuta($r), 'LEVEL_NOT_FOUND');
         if (!$this->alcance->permite($this->sedeDeEdificio($nivel['EDI_Edificio']))) {
             throw new ErrorApi(404, 'LEVEL_NOT_FOUND');
         }
@@ -344,22 +345,22 @@ final readonly class UbicacionController
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarNivel(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $cambios = $this->validarCambios(E::nivel(), $r);
         $this->alcance->exigirPropio($this->sedeDeNivel($id));
 
-        return new JsonResponse($this->crud->actualizar(E::nivel(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(E::nivel(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/niveles/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarNivel(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $nivel = $this->crud->obtenerO404(E::nivel(), $id, 'LEVEL_NOT_FOUND');
         $this->alcance->exigirPropio($this->sedeDeEdificio($nivel['EDI_Edificio']));
         $this->crud->sinHijos('INV_AREA', 'NIV_Nivel', $id, 'CANNOT_DELETE_LEVEL_HAS_AREAS');
-        $this->crud->eliminar(E::nivel(), $id, $r, ['id' => $id, 'piso' => $nivel['NIV_Numero_Piso']]);
+        $this->crud->eliminar(E::nivel(), $id, ClienteHttp::origen($r), ['id' => $id, 'piso' => $nivel['NIV_Numero_Piso']]);
 
         return new Response(null, 204);
     }
@@ -392,7 +393,7 @@ final readonly class UbicacionController
         $this->alcance->exigirPropio($this->sedeDeNivel($d['NIV_Nivel']));
         $this->validarTipoArea($d['TAR_Tipo_Area'] ?? null);
 
-        return new JsonResponse($this->crud->crear(E::area(), $d, $r,
+        return new JsonResponse($this->crud->crear(E::area(), $d, ClienteHttp::origen($r),
             ['nombre' => $d['ARE_Nombre'], 'nivel_id' => $d['NIV_Nivel']]), 201);
     }
 
@@ -410,7 +411,7 @@ final readonly class UbicacionController
     #[Route('/areas/{id}', methods: ['GET'])]
     public function obtenerArea(Request $r): JsonResponse
     {
-        $area = $this->crud->obtenerO404(E::area(), Entrada::enteroDeRuta($r), 'AREA_NOT_FOUND');
+        $area = $this->crud->obtenerO404(E::area(), Peticion::enteroDeRuta($r), 'AREA_NOT_FOUND');
         if (!$this->alcance->permite($this->sedeDeNivel($area['NIV_Nivel']))) {
             throw new ErrorApi(404, 'AREA_NOT_FOUND');
         }
@@ -422,24 +423,24 @@ final readonly class UbicacionController
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarArea(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $cambios = $this->validarCambios(E::area(), $r);
         $area = $this->crud->obtenerO404(E::area(), $id, 'AREA_NOT_FOUND');
         $this->alcance->exigirPropio($this->sedeDeNivel($area['NIV_Nivel']));
         $this->validarTipoArea($cambios['TAR_Tipo_Area'] ?? null);
 
-        return new JsonResponse($this->crud->actualizar(E::area(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(E::area(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/areas/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarArea(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $area = $this->crud->obtenerO404(E::area(), $id, 'AREA_NOT_FOUND');
         $this->alcance->exigirPropio($this->sedeDeNivel($area['NIV_Nivel']));
         try {
-            $this->crud->eliminar(E::area(), $id, $r, ['id' => $id, 'nombre' => $area['ARE_Nombre']]);
+            $this->crud->eliminar(E::area(), $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $area['ARE_Nombre']]);
         } catch (\App\Db\RecordInUse) {
             throw new ErrorApi(409, 'CANNOT_DELETE_AREA_IN_USE');
         }
@@ -452,7 +453,7 @@ final readonly class UbicacionController
     /** @return array<string, mixed> */
     private function validarCreacion(Entidad $e, Request $r): array
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         $datos = Esquema::creacion($e, $entrada);
         $entrada->validar();
 
@@ -462,7 +463,7 @@ final readonly class UbicacionController
     /** @return array<string, mixed> */
     private function validarCambios(Entidad $e, Request $r): array
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         $datos = Esquema::actualizacion($e, $entrada);
         $entrada->validar();
 
@@ -471,7 +472,7 @@ final readonly class UbicacionController
 
     private function consultaEntera(Request $r, string $nombre): int
     {
-        $entrada = Entrada::consulta($r);
+        $entrada = Peticion::consulta($r);
         [, $valor] = $entrada->campo(\App\Crud\Campo::entero($nombre, true), true);
         $entrada->validar();
 

@@ -13,7 +13,7 @@ use App\GoodsReceipt\Domain\GoodsReceiptStatus;
 use App\GoodsReceipt\Domain\SpecificationValue;
 use App\GoodsReceipt\Infrastructure\GoodsReceiptRepository;
 use App\Dominio\ErrorDominio;
-use App\Http\ErrorValidacion;
+use App\Validacion\ErrorValidacion;
 use App\Inventario\Activos;
 use App\Inventario\EstadosActivo;
 use App\Inventario\Infrastructure\Kardex;

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
-use App\Controller\SoftwareController;
 use App\Crud\Campo;
 use App\Dominio\Ident;
-use App\Http\Entrada;
-use App\Http\ErrorValidacion;
+use App\Validacion\Entrada;
+use App\Validacion\ErrorValidacion;
 
 /**
  * Esquemas de entrada de las operaciones que pasan por aprobación: los usan los

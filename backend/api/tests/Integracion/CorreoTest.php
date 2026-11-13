@@ -11,7 +11,7 @@ use App\Correo\ErrorEnvioCorreo;
 use App\Correo\MetricasCorreo;
 use App\Correo\Notificador;
 use App\Correo\Plantillas;
-use App\Http\TareasPosteriores;
+use App\Tareas\TareasPosteriores;
 use App\Seguridad\CacheAuth;
 use App\Seguridad\CifradoCampos;
 use App\Tests\Soporte\DatosPrueba as D;

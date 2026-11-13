@@ -6,7 +6,7 @@ namespace App\Crud;
 
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 
 /**
  * Validación de la entrada y conversión de la salida según la definición de

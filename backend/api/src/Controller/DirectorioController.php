@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Directorio\ErrorDirectorio;
 use App\Directorio\FabricaDirectorio;
@@ -12,7 +13,7 @@ use App\Directorio\SincronizacionDirectorio;
 use App\Dominio\Ident;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Http\ErrorApi;
 use App\Http\Limite;
 use App\Integracion\FormularioIntegracion;
@@ -96,7 +97,7 @@ final readonly class DirectorioController
     #[Limite('6/minute')]
     public function sincronizar(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $simulacion = $e->campo(Campo::logico('dry_run'), false)[1];
         $forzar = $e->campo(Campo::logico('forzar_bajas'), false)[1];
         $e->validar();
@@ -110,7 +111,7 @@ final readonly class DirectorioController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function grupos(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $texto = $e->texto('q', max: 100, opcional: true) ?? '';
         $e->validar();
         $directorio = $this->directorios->activo();
@@ -138,7 +139,7 @@ final readonly class DirectorioController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function guardarIntegracion(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $datos = FormularioIntegracion::leerYComprobar($e);
         $e->validar();
 
@@ -151,7 +152,7 @@ final readonly class DirectorioController
     #[Limite('5/minute')]
     public function probarCorreo(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $config = self::configuracion($e);
         [, $destinatario] = $e->campo(new Campo('destinatario', Campo::CORREO, requerido: true), true);
         $e->validar();
@@ -165,7 +166,7 @@ final readonly class DirectorioController
     #[Limite('5/minute')]
     public function probarAd(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $config = self::configuracion($e);
         $e->validar();
 
@@ -195,7 +196,7 @@ final readonly class DirectorioController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function guardarRegla(Request $request, string $evento): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $datos = [];
         foreach (['activa' => true, 'notificar_afectado' => true, 'notificar_jefe' => false, 'copiar_admins' => true] as $campo => $defecto) {
             $datos[$campo] = self::logico($e, $campo, $defecto);
@@ -228,7 +229,7 @@ final readonly class DirectorioController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function vistaPrevia(Request $request, string $evento): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $personaId] = $e->campo(new Campo('persona_id', Campo::UUID), false);
         $e->validar();
         $tipo = ReglasNotificacion::evento($evento);

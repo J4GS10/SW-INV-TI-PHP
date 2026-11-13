@@ -34,4 +34,10 @@ final class ClienteHttp
 
         return null === $ua || '' === $ua ? null : mb_substr($ua, 0, 255);
     }
+
+    /** Desde dónde llega la petición, para la bitácora. */
+    public static function origen(Request $request): \App\Dominio\Origen
+    {
+        return new \App\Dominio\Origen(self::ip($request), self::userAgent($request));
+    }
 }

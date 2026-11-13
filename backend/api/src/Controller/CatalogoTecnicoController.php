@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\ClienteHttp;
+use App\Http\Peticion;
 use App\Catalogo\ClasesActivo;
 use App\Catalogo\EntidadesTecnicas as T;
 use App\Catalogo\PlantillaEspecificaciones;
@@ -12,7 +14,6 @@ use App\Crud\Entidad;
 use App\Crud\Esquema;
 use App\Crud\Operaciones;
 use App\Dominio\Roles;
-use App\Http\Entrada;
 use App\Http\ErrorApi;
 use App\Seguridad\Autenticado;
 use App\Catalogo\Infrastructure\CatalogoTecnicoStore;
@@ -56,7 +57,7 @@ final readonly class CatalogoTecnicoController
         $tipo = $this->transaccion->ejecutar(function () use ($d, $r): array {
             $id = $this->crud->repositorio->insertar(T::tipoActivo(), $d);
             $this->plantilla->aplicar((int) $id);
-            $this->crud->auditar('CREATE', 'INV_TIPO_ACTIVO', ['nombre' => $d['TAC_Nombre']], $r);
+            $this->crud->auditar('CREATE', 'INV_TIPO_ACTIVO', ['nombre' => $d['TAC_Nombre']], ClienteHttp::origen($r));
 
             return (array) $this->crud->repositorio->obtener(T::tipoActivo(), $id);
         });
@@ -80,7 +81,7 @@ final readonly class CatalogoTecnicoController
     #[Route('/tipos-activo/{id}/componentes', methods: ['GET'])]
     public function componentes(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $this->crud->obtenerO404(T::tipoActivo(), $id, 'ASSET_TYPE_NOT_FOUND');
 
         return new JsonResponse($this->componentesDe($id));
@@ -91,8 +92,8 @@ final readonly class CatalogoTecnicoController
     #[Autenticado(roles: Roles::ADMIN)]
     public function fijarComponentes(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
-        $entrada = Entrada::json($r);
+        $id = Peticion::enteroDeRuta($r);
+        $entrada = Peticion::json($r);
         $lista = $entrada->lista('componentes', 50) ?? [];
         foreach ($lista as $i => $c) {
             if (!\is_int($c) && !(\is_string($c) && 1 === preg_match('/^\d+$/', $c))) {
@@ -114,7 +115,7 @@ final readonly class CatalogoTecnicoController
         $this->transaccion->ejecutar(function () use ($id, $tipo, $componentes, $r): void {
             $antes = $this->datos->componentesDe($id);
             $this->datos->reemplazarComponentes($id, $componentes);
-            $this->crud->auditar('UPDATE', 'INV_TIPO_COMPONENTE', ['tipo' => $tipo['TAC_Nombre'], 'antes' => $antes, 'despues' => $componentes], $r);
+            $this->crud->auditar('UPDATE', 'INV_TIPO_COMPONENTE', ['tipo' => $tipo['TAC_Nombre'], 'antes' => $antes, 'despues' => $componentes], ClienteHttp::origen($r));
         });
 
         return new JsonResponse($componentes);
@@ -123,14 +124,14 @@ final readonly class CatalogoTecnicoController
     #[Route('/tipos-activo/{id}', methods: ['GET'])]
     public function obtenerTipo(Request $r): JsonResponse
     {
-        return new JsonResponse(self::conReglas($this->crud->obtenerO404(T::tipoActivo(), Entrada::enteroDeRuta($r), 'ASSET_TYPE_NOT_FOUND')));
+        return new JsonResponse(self::conReglas($this->crud->obtenerO404(T::tipoActivo(), Peticion::enteroDeRuta($r), 'ASSET_TYPE_NOT_FOUND')));
     }
 
     #[Route('/tipos-activo/{id}', methods: ['PATCH'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarTipo(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $cambios = $this->cambios(T::tipoActivo(), $r);
         $this->crud->obtenerO404(T::tipoActivo(), $id, 'ASSET_TYPE_NOT_FOUND');
         $tipo = $this->transaccion->ejecutar(function () use ($id, $cambios, $r): array {
@@ -138,7 +139,7 @@ final readonly class CatalogoTecnicoController
             if (!empty($cambios['TAC_Clase'])) {
                 $this->plantilla->aplicar($id);
             }
-            $this->crud->auditar('UPDATE', 'INV_TIPO_ACTIVO', ['id' => $id, 'cambios' => (object) $cambios], $r);
+            $this->crud->auditar('UPDATE', 'INV_TIPO_ACTIVO', ['id' => $id, 'cambios' => (object) $cambios], ClienteHttp::origen($r));
 
             return (array) $this->crud->repositorio->obtener(T::tipoActivo(), $id);
         });
@@ -164,7 +165,7 @@ final readonly class CatalogoTecnicoController
             throw new ErrorApi(400, 'BRAND_ALREADY_EXISTS');
         }
 
-        return new JsonResponse($this->crud->crear(T::marca(), $d, $r, ['nombre' => $d['MAR_Nombre']]), 201);
+        return new JsonResponse($this->crud->crear(T::marca(), $d, ClienteHttp::origen($r), ['nombre' => $d['MAR_Nombre']]), 201);
     }
 
     #[Route('/marcas', methods: ['GET'])]
@@ -176,7 +177,7 @@ final readonly class CatalogoTecnicoController
     #[Route('/marcas/{id}', methods: ['GET'])]
     public function obtenerMarca(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(T::marca(), Entrada::enteroDeRuta($r), 'BRAND_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(T::marca(), Peticion::enteroDeRuta($r), 'BRAND_NOT_FOUND'));
     }
 
     #[Route('/marcas/{id}', methods: ['PATCH'])]
@@ -201,7 +202,7 @@ final readonly class CatalogoTecnicoController
     {
         $d = $this->creacion(T::tipoConexion(), $r);
 
-        return new JsonResponse($this->crud->crear(T::tipoConexion(), $d, $r, ['nombre' => $d['TCN_Nombre']]), 201);
+        return new JsonResponse($this->crud->crear(T::tipoConexion(), $d, ClienteHttp::origen($r), ['nombre' => $d['TCN_Nombre']]), 201);
     }
 
     #[Route('/tipos-conexion', methods: ['GET'])]
@@ -213,7 +214,7 @@ final readonly class CatalogoTecnicoController
     #[Route('/tipos-conexion/{id}', methods: ['GET'])]
     public function obtenerConexion(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(T::tipoConexion(), Entrada::enteroDeRuta($r), 'CONNECTION_TYPE_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(T::tipoConexion(), Peticion::enteroDeRuta($r), 'CONNECTION_TYPE_NOT_FOUND'));
     }
 
     #[Route('/tipos-conexion/{id}', methods: ['PATCH'])]
@@ -238,14 +239,14 @@ final readonly class CatalogoTecnicoController
     {
         $d = $this->creacion(T::modelo(), $r);
 
-        return new JsonResponse($this->crud->crear(T::modelo(), $d, $r, ['nombre' => $d['MOD_Nombre'], 'marca_id' => $d['MAR_Marca']]), 201);
+        return new JsonResponse($this->crud->crear(T::modelo(), $d, ClienteHttp::origen($r), ['nombre' => $d['MOD_Nombre'], 'marca_id' => $d['MAR_Marca']]), 201);
     }
 
     /** Modelos de una marca; con `tipo_id`, solo los de ese tipo (y los sin tipo, legados). */
     #[Route('/modelos', methods: ['GET'])]
     public function listarModelos(Request $r): JsonResponse
     {
-        $q = Entrada::consulta($r);
+        $q = Peticion::consulta($r);
         [, $marca] = $q->campo(Campo::entero('marca_id', true), true);
         [, $tipo] = $q->campo(Campo::entero('tipo_id'), false);
         $q->validar();
@@ -263,7 +264,7 @@ final readonly class CatalogoTecnicoController
     #[Route('/modelos-flat', methods: ['GET'])]
     public function modelosPlanos(Request $r): JsonResponse
     {
-        $q = Entrada::consulta($r);
+        $q = Peticion::consulta($r);
         [, $texto] = $q->campo(Campo::texto('q', max: 64), false);
         [$hayLimite, $limite] = $q->campo(Campo::entero('limit', minimo: 1, maximo: 1000), false);
         [, $tipo] = $q->campo(Campo::entero('tipo_id'), false);
@@ -281,7 +282,7 @@ final readonly class CatalogoTecnicoController
     #[Route('/modelos/{id}', methods: ['GET'])]
     public function obtenerModelo(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(T::modelo(), Entrada::enteroDeRuta($r), 'MODEL_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(T::modelo(), Peticion::enteroDeRuta($r), 'MODEL_NOT_FOUND'));
     }
 
     #[Route('/modelos/{id}', methods: ['PATCH'])]
@@ -302,7 +303,7 @@ final readonly class CatalogoTecnicoController
     #[Route('/modelos/{id}/contexto', methods: ['GET'])]
     public function contextoModelo(Request $r): JsonResponse
     {
-        $modelo = $this->crud->obtenerO404(T::modelo(), Entrada::enteroDeRuta($r), 'MODEL_NOT_FOUND');
+        $modelo = $this->crud->obtenerO404(T::modelo(), Peticion::enteroDeRuta($r), 'MODEL_NOT_FOUND');
         $marca = $this->crud->repositorio->obtener(T::marca(), $modelo['MAR_Marca']);
         $tipoId = $this->datos->tipoMasUsadoDeModelo($modelo['MOD_Modelo']);
         $tipo = null === $tipoId ? null : $this->crud->repositorio->obtener(T::tipoActivo(), $tipoId);
@@ -322,7 +323,7 @@ final readonly class CatalogoTecnicoController
     {
         $d = $this->creacion(T::estadoOperativo(), $r);
 
-        return new JsonResponse($this->crud->crear(T::estadoOperativo(), $d, $r, ['nombre' => $d['EOP_Nombre']]), 201);
+        return new JsonResponse($this->crud->crear(T::estadoOperativo(), $d, ClienteHttp::origen($r), ['nombre' => $d['EOP_Nombre']]), 201);
     }
 
     #[Route('/estados-operativos', methods: ['GET'])]
@@ -334,14 +335,14 @@ final readonly class CatalogoTecnicoController
     #[Route('/estados-operativos/{id}', methods: ['GET'])]
     public function obtenerEstado(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(T::estadoOperativo(), Entrada::enteroDeRuta($r), 'OPERATIONAL_STATUS_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(T::estadoOperativo(), Peticion::enteroDeRuta($r), 'OPERATIONAL_STATUS_NOT_FOUND'));
     }
 
     #[Route('/estados-operativos/{id}', methods: ['PATCH'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarEstado(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $cambios = $this->cambios(T::estadoOperativo(), $r);
         $estado = $this->crud->obtenerO404(T::estadoOperativo(), $id, 'OPERATIONAL_STATUS_NOT_FOUND');
         // Las transiciones de estado dependen de estos nombres canónicos.
@@ -349,14 +350,14 @@ final readonly class CatalogoTecnicoController
             throw new ErrorApi(409, 'CANNOT_MODIFY_SYSTEM_OPERATIONAL_STATUS');
         }
 
-        return new JsonResponse($this->crud->actualizar(T::estadoOperativo(), $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar(T::estadoOperativo(), $id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/estados-operativos/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarEstado(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $estado = $this->crud->obtenerO404(T::estadoOperativo(), $id, 'OPERATIONAL_STATUS_NOT_FOUND');
         if (self::delSistema($estado['EOP_Nombre'])) {
             throw new ErrorApi(409, 'CANNOT_DELETE_SYSTEM_OPERATIONAL_STATUS');
@@ -373,7 +374,7 @@ final readonly class CatalogoTecnicoController
     {
         $d = $this->creacion(T::tipoEspecificacion(), $r);
 
-        return new JsonResponse($this->crud->crear(T::tipoEspecificacion(), $d, $r, ['nombre' => $d['TES_Nombre']]), 201);
+        return new JsonResponse($this->crud->crear(T::tipoEspecificacion(), $d, ClienteHttp::origen($r), ['nombre' => $d['TES_Nombre']]), 201);
     }
 
     #[Route('/tipos-especificacion', methods: ['GET'])]
@@ -385,7 +386,7 @@ final readonly class CatalogoTecnicoController
     #[Route('/tipos-especificacion/{id}', methods: ['GET'])]
     public function obtenerEspecificacion(Request $r): JsonResponse
     {
-        return new JsonResponse($this->crud->obtenerO404(T::tipoEspecificacion(), Entrada::enteroDeRuta($r), 'SPECIFICATION_TYPE_NOT_FOUND'));
+        return new JsonResponse($this->crud->obtenerO404(T::tipoEspecificacion(), Peticion::enteroDeRuta($r), 'SPECIFICATION_TYPE_NOT_FOUND'));
     }
 
     #[Route('/tipos-especificacion/{id}', methods: ['PATCH'])]
@@ -427,20 +428,20 @@ final readonly class CatalogoTecnicoController
 
     private function actualizarSimple(Entidad $e, Request $r, string $noEncontrado): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $cambios = $this->cambios($e, $r);
         $this->crud->obtenerO404($e, $id, $noEncontrado);
 
-        return new JsonResponse($this->crud->actualizar($e, $id, $cambios, $r));
+        return new JsonResponse($this->crud->actualizar($e, $id, $cambios, ClienteHttp::origen($r)));
     }
 
     /** Borrado lógico, o 409 `$enUso` si otro registro todavía lo referencia. */
     private function eliminarEnUso(Entidad $e, Request $r, string $noEncontrado, string $columnaNombre, string $enUso): Response
     {
-        $id = Entrada::enteroDeRuta($r);
+        $id = Peticion::enteroDeRuta($r);
         $registro = $this->crud->obtenerO404($e, $id, $noEncontrado);
         try {
-            $this->crud->eliminar($e, $id, $r, ['id' => $id, 'nombre' => $registro[$columnaNombre]]);
+            $this->crud->eliminar($e, $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $registro[$columnaNombre]]);
         } catch (RecordInUse) {
             throw new ErrorApi(409, $enUso);
         }
@@ -451,7 +452,7 @@ final readonly class CatalogoTecnicoController
     /** @return array<string, mixed> */
     private function creacion(Entidad $e, Request $r): array
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         $datos = Esquema::creacion($e, $entrada);
         $entrada->validar();
 
@@ -461,7 +462,7 @@ final readonly class CatalogoTecnicoController
     /** @return array<string, mixed> */
     private function cambios(Entidad $e, Request $r): array
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         $datos = Esquema::actualizacion($e, $entrada);
         $entrada->validar();
 

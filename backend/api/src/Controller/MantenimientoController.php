@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Inventario\Mantenimientos;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
@@ -47,7 +48,7 @@ final readonly class MantenimientoController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crearTipo(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $n] = $e->campo(Campo::texto('TMA_Nombre', true, 3, 50), true);
         $e->validar();
 
@@ -58,7 +59,7 @@ final readonly class MantenimientoController
     #[Autenticado(roles: Roles::ADMIN)]
     public function cambiarTipo(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [$hay, $n] = $e->campo(Campo::texto('TMA_Nombre', min: 3, max: 50), false);
         $e->validar();
 
@@ -84,7 +85,7 @@ final readonly class MantenimientoController
     #[Route('/{ticket}', methods: ['GET'], requirements: ['ticket' => '[0-9a-fA-F-]{32,36}'])]
     public function uno(Request $request): JsonResponse
     {
-        return new JsonResponse($this->mantenimientos->uno(Entrada::uuidDeRuta($request, 'ticket')));
+        return new JsonResponse($this->mantenimientos->uno(Peticion::uuidDeRuta($request, 'ticket')));
     }
 
     #[Route('/', methods: ['POST'])]
@@ -92,7 +93,7 @@ final readonly class MantenimientoController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function abrir(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = [];
         foreach (['ACT_Activo', 'PER_Persona_Solicita'] as $c) {
             [, $v] = $e->campo(new Campo($c, Campo::UUID, requerido: true), true);
@@ -120,8 +121,8 @@ final readonly class MantenimientoController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function cerrar(Request $request): JsonResponse
     {
-        $id = Entrada::uuidDeRuta($request, 'ticket');
-        $e = Entrada::json($request);
+        $id = Peticion::uuidDeRuta($request, 'ticket');
+        $e = Peticion::json($request);
         [, $costo] = $e->campo(new Campo('MAN_Costo_Total', Campo::DECIMAL, requerido: true, escala: 10, minimo: 0), true);
         $moneda = $e->moneda('MAN_Moneda');
         [, $fecha] = $e->campo(new Campo('MAN_Fecha_Cierre', Campo::FECHAHORA), true);
@@ -134,7 +135,7 @@ final readonly class MantenimientoController
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminar(Request $request): Response
     {
-        $this->mantenimientos->eliminar(Entrada::uuidDeRuta($request, 'ticket'), $this->usuario(), ClienteHttp::ip($request));
+        $this->mantenimientos->eliminar(Peticion::uuidDeRuta($request, 'ticket'), $this->usuario(), ClienteHttp::ip($request));
 
         return new Response(status: 204);
     }
@@ -142,15 +143,15 @@ final readonly class MantenimientoController
     #[Route('/{ticket}/detalles', methods: ['GET'])]
     public function detalles(Request $request): JsonResponse
     {
-        return new JsonResponse($this->mantenimientos->detalles(Entrada::uuidDeRuta($request, 'ticket')));
+        return new JsonResponse($this->mantenimientos->detalles(Peticion::uuidDeRuta($request, 'ticket')));
     }
 
     #[Route('/{ticket}/detalles', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function agregarDetalle(Request $request): JsonResponse
     {
-        $ticket = Entrada::uuidDeRuta($request, 'ticket');
-        $e = Entrada::json($request);
+        $ticket = Peticion::uuidDeRuta($request, 'ticket');
+        $e = Peticion::json($request);
         $d = self::detalle($e);
         $e->validar();
 
@@ -161,7 +162,7 @@ final readonly class MantenimientoController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function cambiarDetalle(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::detalle($e);
         $e->validar();
 

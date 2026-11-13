@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
-use App\Http\ErrorValidacion;
+use App\Validacion\Entrada;
 use App\Http\Limite;
 use App\Inventario\Movimientos;
 use App\Inventario\OperacionesLote;
@@ -59,7 +59,7 @@ final readonly class TrazabilidadController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crearTipo(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $nombre] = $e->campo(Campo::texto('TMO_Nombre', true, 3, 50), true);
         $e->validar();
 
@@ -70,7 +70,7 @@ final readonly class TrazabilidadController
     #[Autenticado(roles: Roles::ADMIN)]
     public function cambiarTipo(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [$hay, $nombre] = $e->campo(Campo::texto('TMO_Nombre', min: 3, max: 50), false);
         $e->validar();
 
@@ -91,7 +91,7 @@ final readonly class TrazabilidadController
     #[Route('/movimientos', methods: ['GET'])]
     public function listar(Request $request): JsonResponse
     {
-        [$saltar, $limite] = Entrada::paginacion($request);
+        [$saltar, $limite] = Peticion::paginacion($request);
 
         return new JsonResponse($this->movimientos->listar($saltar, $limite));
     }
@@ -102,7 +102,7 @@ final readonly class TrazabilidadController
     #[Limite('60/minute')]
     public function asignar(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::uuids($e, ['ACT_Activo', 'PER_Persona'], true);
         foreach ([Campo::entero('ARE_Area', true), Campo::entero('TMO_Tipo_Movimiento', true), Campo::texto('MOV_Observacion', max: 1000),
             Campo::texto('ACT_Hostname', max: 100), new Campo('MOV_Fecha_Prevista_Devolucion', Campo::FECHA), ...self::camposMotivo()] as $c) {
@@ -121,7 +121,7 @@ final readonly class TrazabilidadController
     #[Limite('60/minute')]
     public function devolver(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::uuids($e, ['ACT_Activo'], true);
         foreach ([...self::camposMotivo(), Campo::entero('ARE_Area_Destino')] as $c) {
             [, $d[$c->nombre]] = $e->campo($c, true);
@@ -137,7 +137,7 @@ final readonly class TrazabilidadController
     #[Limite('30/minute')]
     public function transferir(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::uuids($e, ['ACT_Activo', 'PER_Persona_Destino'], true);
         foreach ([Campo::entero('ARE_Area_Destino', true), Campo::texto('MOV_Observacion', max: 1000), ...self::camposMotivo()] as $c) {
             [, $d[$c->nombre]] = $e->campo($c, true);
@@ -150,14 +150,14 @@ final readonly class TrazabilidadController
     #[Route('/activo/{activo}/historial', methods: ['GET'])]
     public function historial(Request $request): JsonResponse
     {
-        return new JsonResponse($this->movimientos->historial(Entrada::uuidDeRuta($request, 'activo')));
+        return new JsonResponse($this->movimientos->historial(Peticion::uuidDeRuta($request, 'activo')));
     }
 
     #[Route('/persona/{persona}/asignaciones', methods: ['GET'])]
     #[Autenticado(roles: Roles::LECTURA_PERSONAS)]
     public function asignaciones(Request $request): JsonResponse
     {
-        return new JsonResponse($this->movimientos->asignacionesDe(Entrada::uuidDeRuta($request, 'persona')));
+        return new JsonResponse($this->movimientos->asignacionesDe(Peticion::uuidDeRuta($request, 'persona')));
     }
 
     /** Salida de una persona: cierra sus custodias, libera licencias y desactiva su cuenta, en una transacción. */
@@ -166,8 +166,8 @@ final readonly class TrazabilidadController
     #[Limite('10/minute')]
     public function offboarding(Request $request): JsonResponse
     {
-        $persona = Entrada::uuidDeRuta($request, 'persona');
-        $e = Entrada::consulta($request);
+        $persona = Peticion::uuidDeRuta($request, 'persona');
+        $e = Peticion::consulta($request);
         [$hay, $desactivar] = $e->campo(Campo::logico('desactivar_usuario'), false);
         $e->validar();
         $u = $this->actual->usuario();
@@ -180,14 +180,14 @@ final readonly class TrazabilidadController
     #[Route('/instalacion/{activo}', methods: ['GET'])]
     public function estadoInstalacion(Request $request): JsonResponse
     {
-        return new JsonResponse($this->instalacionEnArea->estadoInstalacion(Entrada::uuidDeRuta($request, 'activo')));
+        return new JsonResponse($this->instalacionEnArea->estadoInstalacion(Peticion::uuidDeRuta($request, 'activo')));
     }
 
     #[Route('/instalar-area', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function instalarEnArea(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::uuids($e, ['ACT_Activo'], true) + self::uuids($e, ['PER_Responsable'], false);
         foreach ([Campo::entero('ARE_Area', true), ...self::camposMotivo()] as $c) {
             [, $d[$c->nombre]] = $e->campo($c, true);
@@ -201,7 +201,7 @@ final readonly class TrazabilidadController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function retirarDeArea(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::uuids($e, ['ACT_Activo'], true);
         foreach ([Campo::entero('ARE_Area_Destino'), ...self::camposMotivo()] as $c) {
             [, $d[$c->nombre]] = $e->campo($c, true);
@@ -218,7 +218,7 @@ final readonly class TrazabilidadController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function revertir(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $movimientos = $e->uuids('movimientos', 50, 1) ?? [];
         $instalaciones = $e->enteros('instalaciones', 20) ?? [];
         $e->validar();
@@ -232,7 +232,7 @@ final readonly class TrazabilidadController
     #[Limite('20/minute')]
     public function entregaLote(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::uuids($e, ['PER_Persona'], true);
         $d['activos'] = self::sinRepetidos($e, $e->uuids('activos', 50, 1) ?? [], $request);
         foreach ([Campo::entero('ARE_Area', true), Campo::texto('MOV_Observacion', max: 900), Campo::texto('ticket', max: 50), ...self::camposMotivo()] as $c) {
@@ -249,7 +249,7 @@ final readonly class TrazabilidadController
     #[Limite('20/minute')]
     public function devolucionLote(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = ['activos' => self::sinRepetidos($e, $e->uuids('activos', 100, 1) ?? [], $request)];
         foreach ([...self::camposMotivo(), Campo::entero('ARE_Area_Destino')] as $c) {
             [, $d[$c->nombre]] = $e->campo($c, true);

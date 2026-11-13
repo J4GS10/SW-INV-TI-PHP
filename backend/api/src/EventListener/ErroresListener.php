@@ -10,7 +10,7 @@ use App\Db\TipoFalloBd;
 use App\Dominio\ErrorDominio;
 use App\Dominio\MotivoError;
 use App\Http\ErrorApi;
-use App\Http\ErrorValidacion;
+use App\Validacion\ErrorValidacion;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;

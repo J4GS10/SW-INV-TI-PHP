@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
 use App\Dominio\Roles;
 use App\EventListener\OcultarCostosListener;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Http\ErrorApi;
 use App\Http\Limite;
 use App\Inventario\Activos;
@@ -55,15 +56,15 @@ final readonly class CoreController
     #[Route('/activos/{activo}/especificaciones', methods: ['GET'])]
     public function especificaciones(Request $request): JsonResponse
     {
-        return new JsonResponse($this->especificaciones->especificaciones(Entrada::uuidDeRuta($request, 'activo')));
+        return new JsonResponse($this->especificaciones->especificaciones(Peticion::uuidDeRuta($request, 'activo')));
     }
 
     #[Route('/activos/{activo}/especificaciones', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function agregarEspecificacion(Request $request): JsonResponse
     {
-        $activo = Entrada::uuidDeRuta($request, 'activo');
-        $e = Entrada::json($request);
+        $activo = Peticion::uuidDeRuta($request, 'activo');
+        $e = Peticion::json($request);
         [, $tipo] = $e->campo(Campo::entero('TES_Tipo_Especificacion', true), true);
         [, $valor] = $e->campo(Campo::texto('ESP_Valor', true, 1, 255), true);
         [, $motivo] = $e->campo(Campo::texto('motivo', max: 255), true);
@@ -76,7 +77,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function cambiarEspecificacion(int $id, Request $request): Response
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         [, $valor] = $e->campo(Campo::texto('ESP_Valor', true, 1, 255), true);
         [, $motivo] = $e->campo(Campo::texto('motivo', max: 255), true);
         $e->validar();
@@ -100,7 +101,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::ADMIN)]
     public function crear(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = $this->camposActivo($e, true);
         $especificaciones = [];
         foreach ($e->lista('especificaciones', 500) ?? [] as $item) {
@@ -123,7 +124,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::ADMIN)]
     public function editarLote(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $activos = $e->uuids('activos', 500, 1) ?? [];
         $sub = $e->objeto('cambios', true);
         $cambios = null === $sub ? [] : self::cambiosLote($sub);
@@ -140,7 +141,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::ADMIN)]
     public function restaurarLote(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $items = [];
         $lista = $e->lista('items', 500);
         if (null === $lista || [] === $lista) {
@@ -168,8 +169,8 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function actualizar(Request $request): JsonResponse
     {
-        $id = Entrada::uuidDeRuta($request, 'activo');
-        $e = Entrada::json($request);
+        $id = Peticion::uuidDeRuta($request, 'activo');
+        $e = Peticion::json($request);
         $cambios = $this->camposActivo($e, false);
         $e->validar();
         $cambios = OcultarCostosListener::descartarCostos($cambios, $this->actual->usuario()->rol, 'ACT_Costo', 'ACT_Moneda');
@@ -180,7 +181,7 @@ final readonly class CoreController
     #[Route('/activos', methods: ['GET'])]
     public function listar(Request $request): JsonResponse
     {
-        [$saltar, $limite] = Entrada::paginacion($request, $this->ajustes->paginacionMaxima);
+        [$saltar, $limite] = Peticion::paginacion($request, $this->ajustes->paginacionMaxima);
 
         return new JsonResponse($this->activos->listar($saltar, $limite));
     }
@@ -194,7 +195,7 @@ final readonly class CoreController
     #[Route('/activos/{activo}', methods: ['GET'])]
     public function detalle(Request $request): JsonResponse
     {
-        return new JsonResponse($this->activos->conRelaciones($this->activos->filaO404(Entrada::uuidDeRuta($request, 'activo'))));
+        return new JsonResponse($this->activos->conRelaciones($this->activos->filaO404(Peticion::uuidDeRuta($request, 'activo'))));
     }
 
     /** Ya no da de baja: toda salida exige motivo, destino y la aprobación del Jefe de TI. */
@@ -202,7 +203,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminar(Request $request): Response
     {
-        Entrada::uuidDeRuta($request, 'activo');
+        Peticion::uuidDeRuta($request, 'activo');
 
         throw new ErrorApi(409, 'USE_DECOMMISSION_REQUEST');
     }
@@ -211,7 +212,7 @@ final readonly class CoreController
     #[Limite('120/minute')]
     public function buscar(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $f = [];
         [, $f['q']] = $e->campo(Campo::texto('q', max: 64), true);
         foreach (['modelo_id', 'tipo_activo_id', 'estado_operativo_id', 'sede_id'] as $c) {
@@ -236,8 +237,8 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::ADMIN)]
     public function solicitarBaja(Request $request): JsonResponse
     {
-        $id = Entrada::uuidDeRuta($request, 'activo');
-        $baja = Esquemas::baja(Entrada::json($request));
+        $id = Peticion::uuidDeRuta($request, 'activo');
+        $baja = Esquemas::baja(Peticion::json($request));
 
         return new JsonResponse($this->solicitudes->solicitarBaja($id, $baja, $this->usuario(), ClienteHttp::ip($request)), 202);
     }
@@ -247,15 +248,15 @@ final readonly class CoreController
     #[Route('/activos/{activo}/componentes', methods: ['GET'])]
     public function componentes(Request $request): JsonResponse
     {
-        return new JsonResponse($this->componentes->componentes(Entrada::uuidDeRuta($request, 'activo')));
+        return new JsonResponse($this->componentes->componentes(Peticion::uuidDeRuta($request, 'activo')));
     }
 
     #[Route('/activos/{activo}/componentes', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function instalarComponente(Request $request): JsonResponse
     {
-        $equipo = Entrada::uuidDeRuta($request, 'activo');
-        $e = Entrada::json($request);
+        $equipo = Peticion::uuidDeRuta($request, 'activo');
+        $e = Peticion::json($request);
         [, $comp] = $e->campo(new Campo('ACT_Componente', Campo::UUID, requerido: true), true);
         [, $motivo] = $e->campo(Campo::texto('motivo', max: 255), true);
         $e->validar();
@@ -267,9 +268,9 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function retirarComponente(Request $request): JsonResponse
     {
-        $equipo = Entrada::uuidDeRuta($request, 'activo');
-        $comp = Entrada::uuidDeRuta($request, 'componente');
-        $e = Entrada::json($request);
+        $equipo = Peticion::uuidDeRuta($request, 'activo');
+        $comp = Peticion::uuidDeRuta($request, 'componente');
+        $e = Peticion::json($request);
         [, $motivo] = $e->campo(Campo::texto('motivo', max: 255), true);
         $e->validar();
 
@@ -281,7 +282,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::LECTURA_INVENTARIO)]
     public function consumibles(Request $request): JsonResponse
     {
-        return new JsonResponse($this->consumibles->consumoDeEquipo(Entrada::uuidDeRuta($request, 'activo')));
+        return new JsonResponse($this->consumibles->consumoDeEquipo(Peticion::uuidDeRuta($request, 'activo')));
     }
 
     // ---------------- Reclasificación de insumos ----------------
@@ -290,7 +291,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::ADMIN)]
     public function vistaReclasificacion(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $sede] = $e->campo(Campo::entero('sede'), false);
         $e->validar();
 
@@ -301,7 +302,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::ADMIN)]
     public function solicitarReclasificacion(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = [];
         foreach ([Campo::entero('SED_Sede', true), Campo::texto('nombre', true, 2, 100), Campo::texto('CON_Unidad', min: 1, max: 20, defecto: 'unidad'),
             Campo::entero('UME_Unidad'), Campo::entero('CCO_Categoria'), Campo::entero('CON_Stock_Minimo', minimo: 0, defecto: 0),
@@ -318,7 +319,7 @@ final readonly class CoreController
     #[Autenticado(roles: Roles::LECTURA_PERSONAS)]
     public function contexto(Request $request): JsonResponse
     {
-        return new JsonResponse($this->sugerencias->activo(Entrada::uuidDeRuta($request, 'activo')));
+        return new JsonResponse($this->sugerencias->activo(Peticion::uuidDeRuta($request, 'activo')));
     }
 
     // ---------------- Validación ----------------

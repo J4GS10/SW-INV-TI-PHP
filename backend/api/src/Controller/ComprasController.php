@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Http\Limite;
 use App\Inventario\Compras;
 use App\Seguridad\Autenticado;
@@ -41,7 +42,7 @@ final readonly class ComprasController
     #[Route('/proveedores', methods: ['GET'])]
     public function proveedores(Request $request): JsonResponse
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $solo] = $e->campo(Campo::logico('solo_activos'), false);
         $e->validar();
 
@@ -58,7 +59,7 @@ final readonly class ComprasController
     #[Autenticado(roles: Roles::ESCRITURA_COMPRAS)]
     public function crearProveedor(Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::proveedor_($e, true);
         $e->validar();
 
@@ -69,7 +70,7 @@ final readonly class ComprasController
     #[Autenticado(roles: Roles::ESCRITURA_COMPRAS)]
     public function cambiarProveedor(int $id, Request $request): JsonResponse
     {
-        $e = Entrada::json($request);
+        $e = Peticion::json($request);
         $d = self::proveedor_($e, false);
         [$hay, $activo] = $e->campo(Campo::logico('PRV_Activo'), false);
         $e->validar();
@@ -114,7 +115,7 @@ final readonly class ComprasController
     /** @return array{0: int, 1: bool} */
     private static function ventana(Request $request): array
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [$hay, $dias] = $e->campo(Campo::entero('dias', minimo: 1, maximo: 3650), false);
         [, $solo] = $e->campo(Campo::logico('solo_alertas'), false);
         $e->validar();

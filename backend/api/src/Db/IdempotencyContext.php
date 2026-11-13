@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Http;
+namespace App\Db;
 
 use Symfony\Contracts\Service\ResetInterface;
 

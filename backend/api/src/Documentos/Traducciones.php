@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Documentos;
 
+use App\Validacion\Entrada;
 /**
  * Traducción de valores canónicos de los catálogos para documentos y reportes.
  *

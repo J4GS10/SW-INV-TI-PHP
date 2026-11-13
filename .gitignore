@@ -21,3 +21,6 @@ frontend/vite.config.d.ts
 .vscode/
 .idea/
 *.log
+
+# Grafo de conocimiento del código (graphify): se regenera con `graphify update .`
+graphify-out/

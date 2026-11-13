@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Http\Entrada;
+use App\Http\Peticion;
+use App\Validacion\Entrada;
 use App\Http\Limite;
 use App\Repositorio\UsuarioRepositorio;
 use App\Seguridad\Autenticado;
@@ -41,7 +42,7 @@ final readonly class PreferenciasController
     #[Limite('60/minute')]
     public function cambiar(Request $request, UsuarioActual $actual): JsonResponse
     {
-        $entrada = Entrada::json($request);
+        $entrada = Peticion::json($request);
         $tema = $entrada->opcion('tema', self::TEMAS);
         $desactivadas = $entrada->logico('guias_desactivadas');
         $guias = $entrada->lista('guias_vistas', self::MAX_GUIAS);

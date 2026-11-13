@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http;
 
+use App\Validacion\Entrada;
 use App\Crud\Campo;
 use App\Dominio\Ident;
 use Symfony\Component\HttpFoundation\Request;

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
+use App\Http\Descarga;
 use App\Crud\Campo;
-use App\Documentos\Descarga;
 use App\Documentos\Infrastructure\Exportaciones;
 use App\Documentos\Idioma;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
-use App\Http\Entrada;
 use App\Http\Limite;
 use App\Repositorio\BitacoraRepositorio;
 use App\Repositorio\GobiernoRepositorio;
@@ -40,7 +40,7 @@ final readonly class ExportController
 
     private static function idiomaDe(Request $request): Idioma
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         $idioma = $e->idioma();
         $e->validar();
 
@@ -60,7 +60,7 @@ final readonly class ExportController
     {
         $idioma = self::idiomaDe($request);
 
-        $e = \App\Http\Entrada::consulta($request);
+        $e = \App\Http\Peticion::consulta($request);
         $filtros = [];
         [, $filtros['q']] = $e->campo(\App\Crud\Campo::texto('q'), false);
         foreach (['modelo_id', 'tipo_activo_id', 'estado_operativo_id', 'sede_id'] as $campo) {
@@ -78,7 +78,7 @@ final readonly class ExportController
     #[Limite('10/minute')]
     public function movimientos(Request $request): Response
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $limite] = $e->campo(Campo::entero('limit', minimo: 1, maximo: 10000), false);
         [, $tipo] = $e->campo(Campo::texto('tipo', max: 100), false);
         [, $estado] = $e->campo(Campo::texto('estado', max: 10), false);
@@ -94,7 +94,7 @@ final readonly class ExportController
     #[Limite('10/minute')]
     public function consumibles(Request $request): Response
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $busqueda] = $e->campo(Campo::texto('q', max: 100), false);
         [, $soloBajo] = $e->campo(Campo::logico('solo_bajo'), false);
         $idioma = $e->idioma();
@@ -153,7 +153,7 @@ final readonly class ExportController
     #[Limite('5/minute')]
     public function auditoria(Request $request): Response
     {
-        $e = Entrada::consulta($request);
+        $e = Peticion::consulta($request);
         [, $limite] = $e->campo(Campo::entero('limit', minimo: 1, maximo: 50000), false);
         $accion = $e->texto('accion', max: 50, opcional: true);
         $entidad = $e->texto('entidad', max: 50, opcional: true);

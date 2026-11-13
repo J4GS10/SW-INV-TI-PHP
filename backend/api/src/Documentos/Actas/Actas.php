@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Documentos\Actas;
 
+use App\Documentos\TiposMime;
 use App\Documentos\DescargaLogo;
 use App\Documentos\FormatoLocal;
 use App\Documentos\Idioma;

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Roles;
-use App\Http\Entrada;
 use App\Reporting\Infrastructure\PurchasingReports;
 use App\Seguridad\Autenticado;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -31,13 +31,13 @@ final readonly class ReportsController
     public function export(string $report, Request $request): \Symfony\Component\HttpFoundation\Response
     {
         [$from, $to, $site] = self::period($request);
-        $input = Entrada::consulta($request);
+        $input = Peticion::consulta($request);
         $language = $input->idioma();
         $input->validar();
         $content = $this->files->build($report, $from, $to, $site, $language);
         $this->audit->registrarAuditoria('REPORT_EXPORT', 'REPORT', ['reporte' => $report, 'desde' => $from, 'hasta' => $to], $this->currentUser->usuario()->id, \App\Http\ClienteHttp::ip($request));
 
-        return \App\Documentos\Descarga::csv($content, "{$report}_".\App\Dominio\Reloj::ahora()->format('Ymd_His').'.csv');
+        return \App\Http\Descarga::csv($content, "{$report}_".\App\Dominio\Reloj::ahora()->format('Ymd_His').'.csv');
     }
 
     #[Route('/stock', methods: ['GET'])]
@@ -61,7 +61,7 @@ final readonly class ReportsController
     /** @return array{0: ?string, 1: ?string, 2: ?int} */
     private static function period(Request $request): array
     {
-        $input = Entrada::consulta($request);
+        $input = Peticion::consulta($request);
         [, $from] = $input->campo(new Campo('desde', Campo::FECHA), false);
         [, $to] = $input->campo(new Campo('hasta', Campo::FECHA), false);
         [, $site] = $input->campo(Campo::entero('sede_id'), false);

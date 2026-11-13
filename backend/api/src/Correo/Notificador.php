@@ -7,7 +7,7 @@ namespace App\Correo;
 use App\Config\Ajustes;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
-use App\Http\TareasPosteriores;
+use App\Tareas\TareasPosteriores;
 use App\Integracion\FuenteIntegracion;
 use App\Correo\Infrastructure\ColaCorreos;
 use Psr\Log\LoggerInterface;

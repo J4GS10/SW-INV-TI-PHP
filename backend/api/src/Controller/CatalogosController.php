@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\ClienteHttp;
+use App\Http\Peticion;
 use App\Catalogo\CatalogoGenerico;
 use App\Catalogo\RegistroCatalogos;
 use App\Crud\Campo;
 use App\Crud\Operaciones;
 use App\Dominio\Roles;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Http\ErrorApi;
 use App\Seguridad\Autenticado;
 use App\Catalogo\Infrastructure\CatalogoTecnicoStore;
@@ -62,7 +64,7 @@ final readonly class CatalogosController
     #[Route('/especificaciones-tipo/{tipo}', methods: ['GET'], priority: 10)]
     public function especificacionesDeTipo(Request $r): JsonResponse
     {
-        return new JsonResponse(array_map($this->especificacion(...), $this->filasEspecificaciones(Entrada::enteroDeRuta($r, 'tipo'))));
+        return new JsonResponse(array_map($this->especificacion(...), $this->filasEspecificaciones(Peticion::enteroDeRuta($r, 'tipo'))));
     }
 
     /** Reemplaza la lista de especificaciones que pide el tipo (en el orden recibido). */
@@ -70,8 +72,8 @@ final readonly class CatalogosController
     #[Autenticado(roles: Roles::ADMIN)]
     public function fijarEspecificaciones(Request $r): JsonResponse
     {
-        $tipo = Entrada::enteroDeRuta($r, 'tipo');
-        $entrada = Entrada::json($r);
+        $tipo = Peticion::enteroDeRuta($r, 'tipo');
+        $entrada = Peticion::json($r);
         $items = [];
         foreach ($entrada->lista('items', 40) ?? [] as $i => $item) {
             $sub = Entrada::de(\is_array($item) ? $item : []);
@@ -86,8 +88,8 @@ final readonly class CatalogosController
             }
             try {
                 $sub->validar();
-            } catch (\App\Http\ErrorValidacion $e) {
-                throw new \App\Http\ErrorValidacion(array_map(static fn (array $x): array => [...$x, 'loc' => ['body', 'items', $i, ...\array_slice($x['loc'], 1)]], $e->errores));
+            } catch (\App\Validacion\ErrorValidacion $e) {
+                throw new \App\Validacion\ErrorValidacion(array_map(static fn (array $x): array => [...$x, 'loc' => ['body', 'items', $i, ...\array_slice($x['loc'], 1)]], $e->errores));
             }
             $items[] = ['TES_Tipo_Especificacion' => (int) $tes, 'obligatoria' => (bool) $obligatoria,
                 'valores' => array_values(array_filter(array_map(trim(...), $valores), static fn (string $v): bool => '' !== $v))];
@@ -112,7 +114,7 @@ final readonly class CatalogosController
                 $this->datos->agregarEspecificacionATipo($tipo, $item['TES_Tipo_Especificacion'], $item['obligatoria'], ($orden + 1) * 10);
                 $this->specificationRules->replaceOptions($tipo, $item['TES_Tipo_Especificacion'], $item['valores']);
             }
-            $this->crud->auditar('UPDATE', 'INV_ESPECIFICACION_TIPO_ACTIVO', ['tipo' => $tipo, 'especificaciones' => $items], $r);
+            $this->crud->auditar('UPDATE', 'INV_ESPECIFICACION_TIPO_ACTIVO', ['tipo' => $tipo, 'especificaciones' => $items], ClienteHttp::origen($r));
         });
 
         return new JsonResponse(array_map($this->especificacion(...), $this->filasEspecificaciones($tipo)));
@@ -137,7 +139,7 @@ final readonly class CatalogosController
         $id = $this->transaccion->ejecutar(function () use ($datos, $r): int {
             $id = $this->datos->crearKit($datos['KIT_Nombre'], $datos['CAR_Cargo'], $datos['DEP_Departamento'], (bool) $datos['KIT_Activo']);
             $this->datos->reemplazarItemsDeKit($id, $datos['items']);
-            $this->crud->auditar('CREATE', 'INV_KIT_ESTANDAR', ['id' => $id, ...$datos], $r);
+            $this->crud->auditar('CREATE', 'INV_KIT_ESTANDAR', ['id' => $id, ...$datos], ClienteHttp::origen($r));
 
             return $id;
         });
@@ -149,14 +151,14 @@ final readonly class CatalogosController
     #[Autenticado(roles: Roles::ADMIN)]
     public function editarKit(Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r, 'kit');
+        $id = Peticion::enteroDeRuta($r, 'kit');
         $datos = $this->datosKit($r);
         $this->kit($id) ?? throw new ErrorApi(404, 'STANDARD_KIT_NOT_FOUND');
         $this->validarKit($datos, $id);
         $this->transaccion->ejecutar(function () use ($id, $datos, $r): void {
             $this->datos->actualizarKit($id, $datos['KIT_Nombre'], $datos['CAR_Cargo'], $datos['DEP_Departamento'], (bool) $datos['KIT_Activo']);
             $this->datos->reemplazarItemsDeKit($id, $datos['items']);
-            $this->crud->auditar('UPDATE', 'INV_KIT_ESTANDAR', ['id' => $id, ...$datos], $r);
+            $this->crud->auditar('UPDATE', 'INV_KIT_ESTANDAR', ['id' => $id, ...$datos], ClienteHttp::origen($r));
         });
 
         return new JsonResponse($this->kit($id));
@@ -166,12 +168,12 @@ final readonly class CatalogosController
     #[Autenticado(roles: Roles::ADMIN)]
     public function borrarKit(Request $r): Response
     {
-        $id = Entrada::enteroDeRuta($r, 'kit');
+        $id = Peticion::enteroDeRuta($r, 'kit');
         $kit = $this->kit($id) ?? throw new ErrorApi(404, 'STANDARD_KIT_NOT_FOUND');
         $this->transaccion->ejecutar(function () use ($id, $kit, $r): void {
             // El kit se archiva; su composición queda en la auditoría (los renglones son vínculos y se quitan con él).
             $this->borrado->archive('INV_KIT_ESTANDAR', 'KIT_Kit', $id);
-            $this->crud->auditar('DELETE', 'INV_KIT_ESTANDAR', ['id' => $id, 'nombre' => $kit['KIT_Nombre'], 'items' => $kit['items'] ?? []], $r);
+            $this->crud->auditar('DELETE', 'INV_KIT_ESTANDAR', ['id' => $id, 'nombre' => $kit['KIT_Nombre'], 'items' => $kit['items'] ?? []], ClienteHttp::origen($r));
         });
 
         return new Response(null, 204);
@@ -182,7 +184,7 @@ final readonly class CatalogosController
     #[Route('/{clave}', methods: ['GET'])]
     public function listarItems(string $clave, Request $r): JsonResponse
     {
-        $q = Entrada::consulta($r);
+        $q = Peticion::consulta($r);
         [, $inactivos] = $q->campo(Campo::logico('inactivos'), false);
         $q->validar();
 
@@ -202,7 +204,7 @@ final readonly class CatalogosController
     #[Autenticado(roles: Roles::ADMIN)]
     public function editarItem(string $clave, Request $r): JsonResponse
     {
-        $id = Entrada::enteroDeRuta($r, 'item');
+        $id = Peticion::enteroDeRuta($r, 'item');
         $datos = $this->datosItem($r, false);
 
         return new JsonResponse($this->catalogos->editar($clave, $id, $datos, $this->auditor($r)));
@@ -212,7 +214,7 @@ final readonly class CatalogosController
     #[Autenticado(roles: Roles::ADMIN)]
     public function reordenar(string $clave, Request $r): Response
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         $ids = $entrada->lista('ids', 500);
         if (null === $ids) {
             $entrada->campo(new Campo('ids', requerido: true), true);
@@ -235,14 +237,14 @@ final readonly class CatalogosController
     #[Autenticado(roles: Roles::ADMIN)]
     public function previaFusion(string $clave, Request $r): JsonResponse
     {
-        return new JsonResponse($this->catalogos->previaFusion($clave, Entrada::enteroDeRuta($r, 'origen'), Entrada::enteroDeRuta($r, 'destino')));
+        return new JsonResponse($this->catalogos->previaFusion($clave, Peticion::enteroDeRuta($r, 'origen'), Peticion::enteroDeRuta($r, 'destino')));
     }
 
     #[Route('/{clave}/{origen}/fusionar/{destino}', methods: ['POST'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function fusionar(string $clave, Request $r): JsonResponse
     {
-        return new JsonResponse($this->catalogos->fusionar($clave, Entrada::enteroDeRuta($r, 'origen'), Entrada::enteroDeRuta($r, 'destino'), $this->auditor($r)));
+        return new JsonResponse($this->catalogos->fusionar($clave, Peticion::enteroDeRuta($r, 'origen'), Peticion::enteroDeRuta($r, 'destino'), $this->auditor($r)));
     }
 
     // ── apoyo ───────────────────────────────────────────────────────────────
@@ -250,7 +252,7 @@ final readonly class CatalogosController
     /** @return array<string, mixed> */
     private function datosItem(Request $r, bool $creacion): array
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         $datos = [];
         foreach ([Campo::texto('nombre', $creacion, 1, 150), Campo::texto('descripcion', max: 255),
             Campo::entero('orden', minimo: 0, maximo: 100000), Campo::logico('activo')] as $campo) {
@@ -274,7 +276,7 @@ final readonly class CatalogosController
 
     private function auditor(Request $r): \Closure
     {
-        return fn (string $accion, string $entidad, array $snapshot) => $this->crud->auditar($accion, $entidad, $snapshot, $r);
+        return fn (string $accion, string $entidad, array $snapshot) => $this->crud->auditar($accion, $entidad, $snapshot, ClienteHttp::origen($r));
     }
 
     /** @return list<array<string, mixed>> */
@@ -323,7 +325,7 @@ final readonly class CatalogosController
     /** @return array{KIT_Nombre: string, CAR_Cargo: ?int, DEP_Departamento: ?int, KIT_Activo: bool, items: list<array<string, mixed>>} */
     private function datosKit(Request $r): array
     {
-        $entrada = Entrada::json($r);
+        $entrada = Peticion::json($r);
         [, $nombre] = $entrada->campo(Campo::texto('KIT_Nombre', true, 2, 100), true);
         [, $cargo] = $entrada->campo(Campo::entero('CAR_Cargo'), false);
         [, $departamento] = $entrada->campo(Campo::entero('DEP_Departamento'), false);

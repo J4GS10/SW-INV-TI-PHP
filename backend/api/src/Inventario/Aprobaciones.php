@@ -7,7 +7,7 @@ namespace App\Inventario;
 use App\Db\Transaccion;
 use App\Dominio\ErrorDominio;
 use App\Dominio\Ident;
-use App\Http\Entrada;
+use App\Validacion\Entrada;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 
