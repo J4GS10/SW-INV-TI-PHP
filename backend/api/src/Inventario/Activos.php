@@ -6,7 +6,10 @@ namespace App\Inventario;
 
 use App\Inventario\Infrastructure\Kardex;
 use App\Inventario\Infrastructure\Operador;
+use App\Inventario\Infrastructure\ActivosStore;
+use App\Inventario\Infrastructure\DatosActivos;
 use App\Inventario\Infrastructure\Instalaciones;
+use App\Inventario\Infrastructure\MantenimientosStore;
 use App\Inventario\Infrastructure\Secuencias;
 use App\Catalogo\CatalogoGenerico;
 use App\Correo\Notificador;
@@ -17,7 +20,6 @@ use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
 
 /**
  * Activos (INV_ACTIVO): alta con código correlativo, edición con reglas de
@@ -47,7 +49,9 @@ final readonly class Activos
     private const array MOTIVOS_SIN_DEVOLUCION = ['PERDIDA', 'ROBO'];
 
     public function __construct(
-        private Connection $conexion,
+        private ActivosStore $datos,
+        private DatosActivos $datosComunes,
+        private MantenimientosStore $mantenimientos,
         private Alcance $alcance,
         private Kardex $kardex,
         private EstadosActivo $estados,
@@ -79,9 +83,7 @@ final readonly class Activos
      */
     public function fila(string $hex): ?array
     {
-        [$alcance, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
-        $f = $this->conexion->fetchAssociative('SELECT '.self::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id AND '.$alcance,
-            [...$p, 'id' => $hex]);
+        $f = $this->datos->visible($hex);
 
         return false === $f ? null : $f;
     }
@@ -97,7 +99,7 @@ final readonly class Activos
         $ordenados = array_values(array_unique($ids));
         sort($ordenados, \SORT_STRING);
         foreach ($ordenados as $id) {
-            $this->conexion->fetchOne('SELECT 1 FROM "INV_ACTIVO" WHERE "ACT_Activo" = :id FOR UPDATE', ['id' => $id]);
+            $this->datos->bloquear($id);
         }
     }
 
@@ -161,12 +163,7 @@ final readonly class Activos
     {
         $porActivo = array_fill_keys($ids, []);
         foreach (array_chunk($ids, 500) as $lote) {
-            $p = [];
-            foreach ($lote as $i => $id) {
-                $p["a{$i}"] = $id;
-            }
-            foreach ($this->conexion->fetchAllAssociative('SELECT "ESP_Especificacion", "TES_Tipo_Especificacion", "ESP_Valor", "ACT_Activo" '
-                .'FROM "INV_ESPECIFICACION" WHERE "ACT_Activo" IN (:'.implode(', :', array_keys($p)).') ORDER BY "ESP_Especificacion"', $p) as $e) {
+            foreach ($this->datos->especificacionesDe($lote) as $e) {
                 $porActivo[(string) $e['ACT_Activo']][] = ['TES_Tipo_Especificacion' => (int) $e['TES_Tipo_Especificacion'],
                     'ESP_Valor' => $e['ESP_Valor'], 'ESP_Especificacion' => (int) $e['ESP_Especificacion']];
             }
@@ -200,12 +197,7 @@ final readonly class Activos
      */
     public function conRelaciones(array $f, ?array $especificaciones = null): array
     {
-        $r = $this->conexion->fetchAssociative(
-            'SELECT m."MOD_Nombre", ma."MAR_Marca", ma."MAR_Nombre", t."TAC_Nombre", e."EOP_Nombre" FROM "INV_ACTIVO" a '
-            .'LEFT JOIN "INV_MODELO" m ON m."MOD_Modelo" = a."MOD_Modelo" LEFT JOIN "INV_MARCA" ma ON ma."MAR_Marca" = m."MAR_Marca" '
-            .'LEFT JOIN "INV_TIPO_ACTIVO" t ON t."TAC_Tipo_Activo" = a."TAC_Tipo_Activo" '
-            .'LEFT JOIN "INV_ESTADO_OPERATIVO" e ON e."EOP_Estado_Operativo" = a."EOP_Estado_Operativo" WHERE a."ACT_Activo" = :id',
-            ['id' => (string) $f['ACT_Activo']]) ?: [];
+        $r = $this->datos->relaciones((string) $f['ACT_Activo']) ?: [];
 
         return [...$this->aApi($f, $especificaciones),
             'modelo' => null === ($r['MOD_Nombre'] ?? null) ? null : ['MOD_Modelo' => (int) $f['MOD_Modelo'], 'MOD_Nombre' => $r['MOD_Nombre'],
@@ -219,10 +211,7 @@ final readonly class Activos
     /** @return list<array<string, mixed>> */
     public function listar(int $saltar, int $limite): array
     {
-        [$alcance, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
-
-        return $this->variosAApi($this->conexion->fetchAllAssociative('SELECT '.self::select().' FROM "INV_ACTIVO" a WHERE '.$alcance
-            .' ORDER BY a."ACT_Codigo_Interno" OFFSET :saltar ROWS FETCH NEXT :limite ROWS ONLY', [...$p, 'saltar' => $saltar, 'limite' => $limite]));
+        return $this->variosAApi($this->datos->pagina($saltar, $limite));
     }
 
     /**
@@ -232,9 +221,7 @@ final readonly class Activos
      */
     public function porCodigo(string $codigo): array
     {
-        [$alcance, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
-        $f = $this->conexion->fetchAssociative('SELECT '.self::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Codigo_Interno" = :c AND '.$alcance,
-            [...$p, 'c' => trim($codigo)]);
+        $f = $this->datos->visiblePorCodigo(trim($codigo));
 
         return false === $f ? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND') : $this->conRelaciones($f);
     }
@@ -249,32 +236,7 @@ final readonly class Activos
      */
     public function buscar(array $f): array
     {
-        [$sql, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
-        if (null !== $f['q'] && '' !== $f['q']) {
-            // Los comodines del usuario son literales (ESCAPE explícito: Oracle no tiene uno por defecto).
-            $p['q'] = '%'.addcslashes(mb_strtolower($f['q']), '\\%_').'%';
-            $sql .= " AND (LOWER(a.\"ACT_Codigo_Interno\") LIKE :q ESCAPE '\\' OR LOWER(a.\"ACT_Hostname\") LIKE :q ESCAPE '\\' "
-                ."OR LOWER(a.\"ACT_Serie_Fabricante\") LIKE :q ESCAPE '\\')";
-        }
-        foreach (['modelo_id' => 'MOD_Modelo', 'tipo_activo_id' => 'TAC_Tipo_Activo', 'estado_operativo_id' => 'EOP_Estado_Operativo',
-            'sede_id' => 'SED_Sede'] as $filtro => $columna) {
-            if (null !== $f[$filtro] && 0 !== $f[$filtro]) {
-                $sql .= " AND a.\"{$columna}\" = :{$filtro}";
-                $p[$filtro] = $f[$filtro];
-            }
-        }
-        if (null !== $f['fecha_compra_start']) {
-            $sql .= " AND a.\"ACT_Fecha_Compra\" >= TO_DATE(:desde, 'YYYY-MM-DD')";
-            $p['desde'] = $f['fecha_compra_start'];
-        }
-        if (null !== $f['fecha_compra_end']) {
-            $sql .= " AND a.\"ACT_Fecha_Compra\" <= TO_DATE(:hasta, 'YYYY-MM-DD')";
-            $p['hasta'] = $f['fecha_compra_end'];
-        }
-        $total = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_ACTIVO" a WHERE '.$sql, $p);
-        $filas = $this->conexion->fetchAllAssociative('SELECT '.self::select().' FROM "INV_ACTIVO" a WHERE '.$sql
-            .' ORDER BY '.self::ordenBusqueda($f['sort'] ?? null, $f['sort_dir'] ?? null).' OFFSET :saltar ROWS FETCH NEXT :limite ROWS ONLY',
-            [...$p, 'saltar' => ($f['page'] - 1) * $f['per_page'], 'limite' => $f['per_page']]);
+        [$total, $filas] = $this->datos->buscar($f);
 
         return ['items' => $this->conCustodio($this->variosAApi($filas, true)), 'total' => $total, 'page' => $f['page'], 'per_page' => $f['per_page']];
     }
@@ -292,13 +254,8 @@ final readonly class Activos
         if ([] === $activos || !\in_array($rol, \App\Dominio\Roles::LECTURA_PERSONAS, true)) {
             return $activos;
         }
-        $p = [];
-        foreach ($activos as $i => $a) {
-            $p["a{$i}"] = Ident::aHex((string) $a['ACT_Activo']);
-        }
         $nombres = [];
-        foreach ($this->conexion->fetchAllAssociative('SELECT m."ACT_Activo", per."PER_Primer_Nombre", per."PER_Primer_Apellido" FROM "INV_MOVIMIENTO" m '
-            .'JOIN "INV_PERSONA" per ON per."PER_Persona" = m."PER_Persona" WHERE m."MOV_Fecha_Devolucion" IS NULL AND m."ACT_Activo" IN (:'.implode(', :', array_keys($p)).')', $p) as $f) {
+        foreach ($this->datos->custodiosDe(array_map(static fn (array $a): string => Ident::aHex((string) $a['ACT_Activo']), $activos)) as $f) {
             $nombres[(string) $f['ACT_Activo']] = trim($f['PER_Primer_Nombre'].' '.$f['PER_Primer_Apellido']);
         }
 
@@ -312,16 +269,14 @@ final readonly class Activos
      */
     public function movimientoVigente(string $hex): ?array
     {
-        $m = $this->conexion->fetchAssociative('SELECT "MOV_Movimiento", "PER_Persona", "ARE_Area", "TMO_Tipo_Movimiento" FROM "INV_MOVIMIENTO" '
-            .'WHERE "ACT_Activo" = :a AND "MOV_Fecha_Devolucion" IS NULL ORDER BY "MOV_Fecha_Asignacion" DESC FETCH FIRST 1 ROWS ONLY', ['a' => $hex]);
+        $m = $this->datos->movimientoVigente($hex);
 
         return false === $m ? null : $m;
     }
 
     public function mantenimientoAbierto(string $hex): bool
     {
-        return false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_MANTENIMIENTO" WHERE "ACT_Activo" = :a AND "MAN_Fecha_Cierre" IS NULL '
-            .'FETCH FIRST 1 ROWS ONLY', ['a' => $hex]);
+        return $this->mantenimientos->tieneTicketAbierto($hex);
     }
 
     // =================================================================
@@ -337,11 +292,10 @@ final readonly class Activos
     public function crear(array $d, array $especificaciones, string $usuario): array
     {
         return $this->transaccion->ejecutar(function () use ($d, $especificaciones, $usuario): array {
-            $tipo = $this->conexion->fetchAssociative('SELECT "TAC_Prefijo" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $d['TAC_Tipo_Activo']])
-                ?: throw ErrorDominio::noEncontrado('ASSET_TYPE_NOT_FOUND');
+            $tipo = $this->datos->tipo($d['TAC_Tipo_Activo']) ?: throw ErrorDominio::noEncontrado('ASSET_TYPE_NOT_FOUND');
             // Los insumos se registran como consumibles (por cantidad), no como activos.
             $this->reglas->exigirNoInsumo((int) $d['TAC_Tipo_Activo']);
-            if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_MODELO" WHERE "MOD_Modelo" = :m', ['m' => $d['MOD_Modelo']])) {
+            if (!$this->datos->existeModelo($d['MOD_Modelo'])) {
                 throw ErrorDominio::noEncontrado('MODEL_NOT_FOUND');
             }
             $estado = $this->estados->nombre((int) $d['EOP_Estado_Operativo']) ?? throw ErrorDominio::noEncontrado('OPERATIONAL_STATUS_NOT_FOUND');
@@ -365,8 +319,8 @@ final readonly class Activos
             }
             // Unicidad en toda la empresa, no solo en el alcance.
             [$codigo, $serie] = $this->alcance->elevado(fn (): array => [
-                $this->existe('ACT_Codigo_Interno', (string) $d['ACT_Codigo_Interno']),
-                $this->existe('ACT_Serie_Fabricante', (string) $d['ACT_Serie_Fabricante']),
+                $this->datos->existeValor('ACT_Codigo_Interno', (string) $d['ACT_Codigo_Interno']),
+                $this->datos->existeValor('ACT_Serie_Fabricante', (string) $d['ACT_Serie_Fabricante']),
             ]);
             if ($codigo) {
                 throw ErrorDominio::invalido('ASSET_CODE_ALREADY_EXISTS');
@@ -381,10 +335,10 @@ final readonly class Activos
             $id = Ident::nuevo();
             $this->insertar($id, $d);
             foreach ($especificaciones as $e) {
-                $this->conexion->executeStatement('INSERT INTO "INV_ESPECIFICACION" ("ESP_Valor", "ACT_Activo", "TES_Tipo_Especificacion") VALUES (:v, :a, :t)',
-                    ['v' => $this->specificationRules->normalize((int) $d['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], (string) $e['ESP_Valor']), 'a' => $id, 't' => $e['TES_Tipo_Especificacion']]);
+                $this->datosComunes->agregarEspecificacion($id, $e['TES_Tipo_Especificacion'],
+                    $this->specificationRules->normalize((int) $d['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], (string) $e['ESP_Valor']));
             }
-            $activo = $this->conexion->fetchAssociative('SELECT '.self::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id', ['id' => $id]);
+            $activo = $this->datos->porId($id);
             $this->kardex->registrar('ALTA', activo: $activo, usuario: $usuario, destino: ['sede' => $d['SED_Sede']],
                 costo: $d['ACT_Costo'], moneda: $d['ACT_Moneda'], motivo: 'Alta manual en el inventario');
             if (null !== $d['ACT_Activo_Padre']) {
@@ -406,17 +360,7 @@ final readonly class Activos
             'MOD_Modelo', 'TAC_Tipo_Activo', 'EOP_Estado_Operativo', 'ACT_Activo_Padre', 'SED_Sede'] as $c) {
             $columnas[$c] = $d[$c];
         }
-        $nombres = array_keys($columnas);
-        $this->conexion->executeStatement('INSERT INTO "INV_ACTIVO" ("'.implode('", "', $nombres).'", "ACT_Fecha_Compra", "ACT_Fin_Garantia") VALUES (:'
-            .implode(', :', $nombres).", TO_DATE(:compra, 'YYYY-MM-DD'), TO_DATE(:garantia, 'YYYY-MM-DD'))",
-            [...$columnas, 'compra' => $d['ACT_Fecha_Compra'], 'garantia' => $d['ACT_Fin_Garantia']]);
-    }
-
-    private function existe(string $columna, string $valor, ?string $excepto = null): bool
-    {
-        return false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_ACTIVO" WHERE "'.$columna.'" = :v'
-            .(null === $excepto ? '' : ' AND "ACT_Activo" <> :e').' FETCH FIRST 1 ROWS ONLY',
-            null === $excepto ? ['v' => $valor] : ['v' => $valor, 'e' => $excepto]);
+        $this->datos->insertar($columnas, $d['ACT_Fecha_Compra'], $d['ACT_Fin_Garantia']);
     }
 
     /**
@@ -434,11 +378,11 @@ final readonly class Activos
             $actual = $this->filaO404($id);
             $hay = static fn (string $c): bool => \array_key_exists($c, $cambios);
             if (null !== ($cambios['MOD_Modelo'] ?? null)
-                && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_MODELO" WHERE "MOD_Modelo" = :m', ['m' => $cambios['MOD_Modelo']])) {
+                && !$this->datos->existeModelo($cambios['MOD_Modelo'])) {
                 throw ErrorDominio::noEncontrado('MODEL_NOT_FOUND');
             }
             if (null !== ($cambios['TAC_Tipo_Activo'] ?? null)
-                && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $cambios['TAC_Tipo_Activo']])) {
+                && false === $this->datos->tipo($cambios['TAC_Tipo_Activo'])) {
                 throw ErrorDominio::noEncontrado('ASSET_TYPE_NOT_FOUND');
             }
             // Un activo con otro estado solo cambia con su operación (asignar, reparar, dar de baja…).
@@ -474,7 +418,7 @@ final readonly class Activos
             }
             foreach (['ACT_Codigo_Interno' => 'NEW_ASSET_CODE_ALREADY_EXISTS', 'ACT_Serie_Fabricante' => 'NEW_SERIAL_NUMBER_ALREADY_EXISTS'] as $c => $error) {
                 if (null !== ($cambios[$c] ?? null) && '' !== $cambios[$c] && $cambios[$c] !== $actual[$c]
-                    && $this->alcance->elevado(fn (): bool => $this->existe($c, (string) $cambios[$c]))) {
+                    && $this->alcance->elevado(fn (): bool => $this->datos->existeValor($c, (string) $cambios[$c]))) {
                     throw ErrorDominio::invalido($error);
                 }
             }
@@ -483,7 +427,7 @@ final readonly class Activos
                 $this->exigirHostnameLibre((string) $cambios['ACT_Hostname'], $id);
             }
             $this->escribirCambios($id, $cambios);
-            $activo = $this->conexion->fetchAssociative('SELECT '.self::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id', ['id' => $id]);
+            $activo = $this->datos->porId($id);
             if (null !== $estadoNuevo && (int) $estadoNuevo !== (int) $actual['EOP_Estado_Operativo']) {
                 $this->kardex->registrar('CAMBIO_ESTADO', activo: $activo, usuario: $usuario, motivo: 'Cambio de estado de almacén',
                     detalle: ['estado_antes' => (int) $actual['EOP_Estado_Operativo'], 'estado_despues' => (int) $estadoNuevo]);
@@ -527,9 +471,7 @@ final readonly class Activos
     /** Un nombre de host no se repite entre activos vigentes, en ninguna sede. */
     private function exigirHostnameLibre(string $hostname, ?string $excepto): void
     {
-        $existe = $this->alcance->elevado(fn (): bool => false !== $this->conexion->fetchOne(
-            'SELECT 1 FROM "INV_ACTIVO" WHERE LOWER(TRIM("ACT_Hostname")) = LOWER(TRIM(:h)) AND "ACT_Baja_Fecha" IS NULL'.(null === $excepto ? '' : ' AND "ACT_Activo" <> :a').' FETCH FIRST 1 ROWS ONLY',
-            ['h' => $hostname, ...(null === $excepto ? [] : ['a' => $excepto])]));
+        $existe = $this->alcance->elevado(fn (): bool => $this->datos->hostnameEnUso($hostname, $excepto));
         if ($existe) {
             throw ErrorDominio::conflicto('HOSTNAME_ALREADY_EXISTS');
         }
@@ -542,17 +484,7 @@ final readonly class Activos
      */
     public function escribirCambios(string $id, array $cambios): void
     {
-        if ([] === $cambios) {
-            return;
-        }
-        $sets = [];
-        $p = ['id' => $id];
-        foreach ($cambios as $c => $v) {
-            $sets[] = \in_array($c, ['ACT_Fecha_Compra', 'ACT_Fin_Garantia', 'ACT_Baja_Fecha'], true)
-                ? "\"{$c}\" = TO_DATE(:{$c}, 'YYYY-MM-DD')" : "\"{$c}\" = :{$c}";
-            $p[$c] = \is_bool($v) ? (int) $v : $v;
-        }
-        $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET '.implode(', ', $sets).' WHERE "ACT_Activo" = :id', $p);
+        $this->datos->actualizar($id, $cambios);
     }
 
     // =================================================================
@@ -613,12 +545,11 @@ final readonly class Activos
     public function darDeBaja(string $id, array $baja, string $usuario, array $aprobacion): void
     {
         // Cerrojo único: primero el activo, después sus movimientos.
-        $this->conexion->fetchOne('SELECT 1 FROM "INV_ACTIVO" WHERE "ACT_Activo" = :id FOR UPDATE', ['id' => $id]);
+        $this->datos->bloquear($id);
         [$activo, $estadoBaja, $componentes] = $this->validarBaja($id, $baja, alAprobar: true);
-        $custodia = $this->conexion->fetchOne('SELECT "PER_Persona" FROM "INV_MOVIMIENTO" WHERE "ACT_Activo" = :a AND "MOV_Fecha_Devolucion" IS NULL FOR UPDATE', ['a' => $id]);
+        $custodia = $this->datos->custodioBloqueado($id);
         if (false !== $custodia) {
-            $this->conexion->executeStatement('UPDATE "INV_MOVIMIENTO" SET "MOV_Fecha_Devolucion" = :f WHERE "ACT_Activo" = :a AND "MOV_Fecha_Devolucion" IS NULL',
-                ['f' => Reloj::aBd(Reloj::ahora()), 'a' => $id]);
+            $this->datos->cerrarCustodia($id, Reloj::ahora());
         }
         foreach ($componentes as $c) {
             $this->retirar($activo, $c, 'Retiro por baja del equipo', EstadosActivo::BODEGA, $usuario);
@@ -656,8 +587,7 @@ final readonly class Activos
     /** @return list<array<string, mixed>> */
     public function componentesDe(string $equipo): array
     {
-        return $this->conexion->fetchAllAssociative('SELECT '.self::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo_Padre" = :e ORDER BY a."ACT_Codigo_Interno"',
-            ['e' => $equipo]);
+        return $this->datos->componentesDe($equipo);
     }
 
     /** @return array<string, mixed> instalados hoy e historial de instalaciones y retiros */
@@ -701,7 +631,7 @@ final readonly class Activos
                 if ((string) $padre === $componenteId) {
                     throw ErrorDominio::invalido('COMPONENT_CYCLE');
                 }
-                $padre = $this->conexion->fetchOne('SELECT "ACT_Activo_Padre" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => $padre]);
+                $padre = $this->datos->padreDe($padre);
             }
             foreach ([$comp, $equipo] as $a) {
                 if (EstadosActivo::BAJA === $this->estados->canonicoDeId((int) $a['EOP_Estado_Operativo'])) {
@@ -782,9 +712,7 @@ final readonly class Activos
         return array_map(static fn (array $f): array => ['ESP_Especificacion' => (int) $f['ESP_Especificacion'],
             'TES_Tipo_Especificacion' => (int) $f['TES_Tipo_Especificacion'], 'TES_Nombre' => $f['TES_Nombre'],
             'TES_Unidad_Medida' => $f['TES_Unidad_Medida'], 'ESP_Valor' => $f['ESP_Valor']],
-            $this->conexion->fetchAllAssociative('SELECT e."ESP_Especificacion", e."TES_Tipo_Especificacion", t."TES_Nombre", t."TES_Unidad_Medida", e."ESP_Valor" '
-                .'FROM "INV_ESPECIFICACION" e JOIN "INV_TIPO_ESPECIFICACION" t ON t."TES_Tipo_Especificacion" = e."TES_Tipo_Especificacion" '
-                .'WHERE e."ACT_Activo" = :a ORDER BY t."TES_Nombre", e."ESP_Especificacion"', ['a' => $activo]));
+            $this->datos->especificacionesConTipo($activo));
     }
 
     /** @return array<string, mixed> la especificación creada (enriquecida) */
@@ -793,12 +721,11 @@ final readonly class Activos
         $this->transaccion->ejecutar(function () use ($activoId, $tipo, $valor, $motivo, $usuario, $ip): void {
             $this->bloquearEnOrden([$activoId]);
             $activo = $this->filaO404($activoId);
-            if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ESPECIFICACION" WHERE "TES_Tipo_Especificacion" = :t', ['t' => $tipo])) {
+            if (!$this->datosComunes->existeTipoEspecificacion($tipo)) {
                 throw ErrorDominio::noEncontrado('SPECIFICATION_TYPE_NOT_FOUND');
             }
             $valor = $this->specificationRules->normalize((int) $activo['TAC_Tipo_Activo'], $tipo, $valor);
-            $this->conexion->executeStatement('INSERT INTO "INV_ESPECIFICACION" ("ESP_Valor", "ACT_Activo", "TES_Tipo_Especificacion") VALUES (:v, :a, :t)',
-                ['v' => $valor, 'a' => $activoId, 't' => $tipo]);
+            $this->datosComunes->agregarEspecificacion($activoId, $tipo, $valor);
             $this->kardex->registrar('ESPECIFICACION', activo: $activo, usuario: $usuario, motivo: $motivo,
                 detalle: ['tipo' => $tipo, 'antes' => null, 'despues' => mb_substr($valor, 0, 120)]);
             $this->gobierno->registrarAuditoria('CREATE', 'INV_ESPECIFICACION', ['activo' => Ident::aTexto($activoId), 'tipo' => $tipo,
@@ -817,8 +744,7 @@ final readonly class Activos
     /** @return array<string, mixed>|null */
     private function especificacion(int $id): ?array
     {
-        $e = $this->conexion->fetchAssociative('SELECT "ESP_Especificacion", "ESP_Valor", "ACT_Activo", "TES_Tipo_Especificacion" FROM "INV_ESPECIFICACION" '
-            .'WHERE "ESP_Especificacion" = :id', ['id' => $id]);
+        $e = $this->datos->especificacion($id);
         if (false === $e || null === $this->fila((string) $e['ACT_Activo'])) {
             return null;
         }
@@ -831,7 +757,7 @@ final readonly class Activos
         $this->transaccion->ejecutar(function () use ($id, $valor, $motivo, $usuario, $ip): void {
             $e = $this->especificacionBloqueada($id);
             $valor = $this->specificationRules->normalize((int) $this->fila((string) $e['ACT_Activo'])['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], $valor);
-            $this->conexion->executeStatement('UPDATE "INV_ESPECIFICACION" SET "ESP_Valor" = :v WHERE "ESP_Especificacion" = :id', ['v' => $valor, 'id' => $id]);
+            $this->datosComunes->cambiarEspecificacion($id, $valor);
             if ($e['ESP_Valor'] !== $valor) {
                 $this->kardex->registrar('ESPECIFICACION', activo: $this->fila((string) $e['ACT_Activo']), usuario: $usuario, motivo: $motivo,
                     detalle: ['tipo' => (int) $e['TES_Tipo_Especificacion'], 'antes' => mb_substr((string) $e['ESP_Valor'], 0, 120), 'despues' => mb_substr($valor, 0, 120)]);
@@ -845,7 +771,7 @@ final readonly class Activos
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $e = $this->especificacionBloqueada($id);
             $activo = $this->fila((string) $e['ACT_Activo']);
-            $this->conexion->executeStatement('DELETE FROM "INV_ESPECIFICACION" WHERE "ESP_Especificacion" = :id', ['id' => $id]);
+            $this->datosComunes->quitarEspecificacion($id);
             $this->kardex->registrar('ESPECIFICACION', activo: $activo, usuario: $usuario,
                 detalle: ['tipo' => (int) $e['TES_Tipo_Especificacion'], 'antes' => mb_substr((string) $e['ESP_Valor'], 0, 120), 'despues' => null]);
             $this->gobierno->registrarAuditoria('DELETE', 'INV_ESPECIFICACION', ['id' => $id, 'tipo' => (int) $e['TES_Tipo_Especificacion'],

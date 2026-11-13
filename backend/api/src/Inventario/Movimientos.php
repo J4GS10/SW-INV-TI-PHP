@@ -6,21 +6,22 @@ namespace App\Inventario;
 
 use App\Inventario\Infrastructure\Kardex;
 use App\Inventario\Infrastructure\Operador;
+use App\Inventario\Infrastructure\ActivosStore;
+use App\Inventario\Infrastructure\DatosActivos;
 use App\Inventario\Infrastructure\Instalaciones;
+use App\Inventario\Infrastructure\MantenimientosStore;
+use App\Inventario\Infrastructure\MovimientosStore;
 use App\Catalogo\ClasesActivo;
 use App\Correo\Notificador;
-use App\Db\InsercionOracle;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Dominio\ErrorDominio;
 use App\Organizacion\Identidades;
+use App\Organizacion\Infrastructure\CuentasStore;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
-use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
-use Doctrine\DBAL\ParameterType;
 
 /**
  * Trazabilidad de la custodia (INV_MOVIMIENTO): asignación y préstamo,
@@ -39,15 +40,12 @@ final readonly class Movimientos
     public const string BAJA = 'Baja por Retiro';
     private const array TIPOS = [self::INGRESO, self::ASIGNACION, self::DEVOLUCION, self::TRANSFERENCIA, self::PRESTAMO, self::BAJA];
 
-    private const string COLUMNAS = 'm."MOV_Movimiento", m."MOV_Fecha_Asignacion", m."MOV_Fecha_Devolucion", m."MOV_Observacion", m."MOV_Usuario_Registra", '
-        .'m."MOV_Motivo", m."MMO_Motivo", m."MOV_Motivo_Detalle", m."MOV_Fecha_Prevista_Devolucion", m."ACT_Activo", m."PER_Persona", m."ARE_Area", '
-        .'m."TMO_Tipo_Movimiento", a."ACT_Codigo_Interno", a."ACT_Hostname", p."PER_Primer_Nombre", p."PER_Primer_Apellido", p."PER_Email_Corporativo", '
-        .'t."TMO_Nombre", ar."ARE_Nombre"';
-    private const string JOINS = 'LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = m."PER_Persona" '
-        .'LEFT JOIN "INV_TIPO_MOVIMIENTO" t ON t."TMO_Tipo_Movimiento" = m."TMO_Tipo_Movimiento" LEFT JOIN "INV_AREA" ar ON ar."ARE_Area" = m."ARE_Area"';
-
     public function __construct(
-        private Connection $conexion,
+        private MovimientosStore $datos,
+        private ActivosStore $activos,
+        private DatosActivos $datosDeActivos,
+        private MantenimientosStore $mantenimientos,
+        private CuentasStore $cuentas,
         private Alcance $alcance,
         private Kardex $kardex,
         private EstadosActivo $estados,
@@ -71,13 +69,13 @@ final readonly class Movimientos
     public function tipos(): array
     {
         return array_map(static fn (array $t): array => ['TMO_Nombre' => $t['TMO_Nombre'], 'TMO_Tipo_Movimiento' => (int) $t['TMO_Tipo_Movimiento']],
-            $this->conexion->fetchAllAssociative('SELECT "TMO_Tipo_Movimiento", "TMO_Nombre" FROM "INV_TIPO_MOVIMIENTO" ORDER BY "TMO_Tipo_Movimiento"'));
+            $this->datos->tipos());
     }
 
     /** @return array<string, mixed> */
     public function tipo(int $id): array
     {
-        $n = $this->conexion->fetchOne('SELECT "TMO_Nombre" FROM "INV_TIPO_MOVIMIENTO" WHERE "TMO_Tipo_Movimiento" = :id', ['id' => $id]);
+        $n = $this->datos->nombreDeTipo($id);
 
         return false === $n ? throw ErrorDominio::noEncontrado('MOVEMENT_TYPE_NOT_FOUND') : ['TMO_Nombre' => $n, 'TMO_Tipo_Movimiento' => $id];
     }
@@ -86,10 +84,10 @@ final readonly class Movimientos
     public function crearTipo(string $nombre, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($nombre, $usuario, $ip): array {
-            if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_MOVIMIENTO" WHERE LOWER("TMO_Nombre") = LOWER(:n)', ['n' => $nombre])) {
+            if (null !== $this->datos->idDeTipo($nombre)) {
                 throw ErrorDominio::invalido('MOVEMENT_TYPE_ALREADY_EXISTS');
             }
-            $id = (int) InsercionOracle::insertar($this->conexion, 'INV_TIPO_MOVIMIENTO', ['TMO_Nombre' => $nombre], 'TMO_Tipo_Movimiento');
+            $id = $this->datos->crearTipo($nombre);
             $this->gobierno->registrarAuditoria('CREATE', 'INV_TIPO_MOVIMIENTO', ['nombre' => $nombre], $usuario, $ip);
 
             return $this->tipo($id);
@@ -106,7 +104,7 @@ final readonly class Movimientos
         return $this->transaccion->ejecutar(function () use ($id, $cambios, $usuario, $ip): array {
             $this->tipo($id);
             if (\array_key_exists('TMO_Nombre', $cambios)) {
-                $this->conexion->executeStatement('UPDATE "INV_TIPO_MOVIMIENTO" SET "TMO_Nombre" = :n WHERE "TMO_Tipo_Movimiento" = :id', ['n' => $cambios['TMO_Nombre'], 'id' => $id]);
+                $this->datos->renombrarTipo($id, $cambios['TMO_Nombre']);
             }
             $this->gobierno->registrarAuditoria('UPDATE', 'INV_TIPO_MOVIMIENTO', ['id' => $id, 'cambios' => (object) $cambios], $usuario, $ip);
 
@@ -118,8 +116,7 @@ final readonly class Movimientos
     {
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $t = $this->tipo($id);
-            if ($this->alcance->elevado(fn (): bool => false !== $this->conexion->fetchOne(
-                'SELECT 1 FROM "INV_MOVIMIENTO" WHERE "TMO_Tipo_Movimiento" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id]))) {
+            if ($this->alcance->elevado(fn (): bool => $this->datos->tipoEnUso($id))) {
                 throw ErrorDominio::conflicto('CANNOT_DELETE_TYPE_HAS_MOVEMENTS');
             }
             $this->borrado->archive('INV_TIPO_MOVIMIENTO', 'TMO_Tipo_Movimiento', $id);
@@ -130,7 +127,7 @@ final readonly class Movimientos
     /** Tipo canónico del catálogo (exacto o contenido en el nombre, sin tildes). */
     private function tipoCanonico(int $id): ?string
     {
-        $nombre = $this->conexion->fetchOne('SELECT "TMO_Nombre" FROM "INV_TIPO_MOVIMIENTO" WHERE "TMO_Tipo_Movimiento" = :id', ['id' => $id]);
+        $nombre = $this->datos->nombreDeTipo($id);
         if (false === $nombre) {
             return null;
         }
@@ -151,9 +148,7 @@ final readonly class Movimientos
 
     private function idTipo(string $nombre): ?int
     {
-        $id = $this->conexion->fetchOne('SELECT "TMO_Tipo_Movimiento" FROM "INV_TIPO_MOVIMIENTO" WHERE LOWER("TMO_Nombre") = LOWER(:n) FETCH FIRST 1 ROWS ONLY', ['n' => $nombre]);
-
-        return false === $id ? null : (int) $id;
+        return $this->datos->idDeTipo($nombre);
     }
 
     // =====================================================================
@@ -185,33 +180,16 @@ final readonly class Movimientos
         ];
     }
 
-    /**
-     * @param array<string, mixed> $p
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function consultar(string $donde, array $p, string $orden = 'm."MOV_Fecha_Asignacion" DESC', ?int $saltar = null, ?int $limite = null): array
-    {
-        [$alcance, $pa] = $this->alcance->lectura('INV_MOVIMIENTO', 'm');
-        $sql = 'SELECT '.self::COLUMNAS.' FROM "INV_MOVIMIENTO" m '.self::JOINS.' WHERE '.$donde.' AND '.$alcance.' ORDER BY '.$orden.', m."MOV_Movimiento"';
-        if (null !== $limite) {
-            $sql .= ' OFFSET :saltar ROWS FETCH NEXT :limite ROWS ONLY';
-            $p += ['saltar' => $saltar ?? 0, 'limite' => $limite];
-        }
-
-        return array_map(self::aApi(...), $this->conexion->fetchAllAssociative($sql, [...$p, ...$pa]));
-    }
-
     /** @return list<array<string, mixed>> */
     public function listar(int $saltar, int $limite): array
     {
-        return $this->consultar('1 = 1', [], saltar: $saltar, limite: $limite);
+        return array_map(self::aApi(...), $this->datos->pagina($saltar, $limite));
     }
 
     /** @return list<array<string, mixed>> */
     public function historial(string $activo): array
     {
-        return $this->consultar('m."ACT_Activo" = :a', ['a' => $activo]);
+        return array_map(self::aApi(...), $this->datos->deActivo($activo));
     }
 
     /**
@@ -223,13 +201,13 @@ final readonly class Movimientos
     {
         $this->persona($persona) ?? throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
 
-        return $this->consultar('m."PER_Persona" = :p AND m."MOV_Fecha_Devolucion" IS NULL', ['p' => $persona]);
+        return array_map(self::aApi(...), $this->datos->vigentesDePersona($persona));
     }
 
     /** @return array<string, mixed> */
     private function porId(string $mov): array
     {
-        $f = $this->conexion->fetchAssociative('SELECT '.self::COLUMNAS.' FROM "INV_MOVIMIENTO" m '.self::JOINS.' WHERE m."MOV_Movimiento" = :m', ['m' => $mov]);
+        $f = $this->datos->porId($mov);
 
         return self::aApi($f ?: throw ErrorDominio::noEncontrado('MOVEMENT_NOT_FOUND'));
     }
@@ -241,25 +219,23 @@ final readonly class Movimientos
     /** @return array<string, mixed>|null fila del activo (bloqueada) visible para el usuario */
     private function activo(string $id): ?array
     {
-        [$alcance, $p] = $this->alcance->lectura('INV_ACTIVO', 'a');
-        if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id AND '.$alcance, [...$p, 'id' => $id])) {
+        if (false === $this->activos->visible($id)) {
             return null;
         }
-        $this->conexion->fetchOne('SELECT 1 FROM "INV_ACTIVO" WHERE "ACT_Activo" = :id FOR UPDATE', ['id' => $id]);
-
+        $this->activos->bloquear($id);
+        $activo = $this->activos->porId($id) ?: null;
         // Sin serie ni datos completos, el activo no puede ir a nadie.
-        if (1 === (int) $this->conexion->fetchOne('SELECT "ACT_Pending_Completion" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :id', ['id' => $id])) {
+        if (null !== $activo && 1 === (int) $activo['ACT_Pending_Completion']) {
             throw ErrorDominio::conflicto('ASSET_PENDING_COMPLETION');
         }
 
-        return $this->conexion->fetchAssociative('SELECT '.Activos::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id', ['id' => $id]) ?: null;
+        return $activo;
     }
 
     /** @return array<string, mixed>|null */
     private function persona(string $id): ?array
     {
-        [$alcance, $p] = $this->alcance->lectura('INV_PERSONA', 'p');
-        $f = $this->conexion->fetchAssociative('SELECT p.* FROM "INV_PERSONA" p WHERE p."PER_Persona" = :id AND '.$alcance, [...$p, 'id' => $id]);
+        $f = $this->datos->personaVisible($id);
 
         return false === $f ? null : $f;
     }
@@ -267,8 +243,7 @@ final readonly class Movimientos
     /** @return array<string, mixed>|null */
     private function vigente(string $activo, bool $bloquear = true): ?array
     {
-        $m = $this->conexion->fetchAssociative('SELECT "MOV_Movimiento", "PER_Persona", "ARE_Area", "MOV_Fecha_Asignacion", "MOV_Usuario_Registra" FROM "INV_MOVIMIENTO" '
-            .'WHERE "ACT_Activo" = :a AND "MOV_Fecha_Devolucion" IS NULL'.($bloquear ? ' FOR UPDATE' : ''), ['a' => $activo]);
+        $m = $this->datos->vigenteDe($activo, $bloquear);
 
         return false === $m ? null : $m;
     }
@@ -294,7 +269,7 @@ final readonly class Movimientos
 
     private function ticketAbierto(string $activo): bool
     {
-        return false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_MANTENIMIENTO" WHERE "ACT_Activo" = :a AND "MAN_Fecha_Cierre" IS NULL FETCH FIRST 1 ROWS ONLY', ['a' => $activo]);
+        return $this->mantenimientos->tieneTicketAbierto($activo);
     }
 
     /**
@@ -311,8 +286,7 @@ final readonly class Movimientos
         if (null !== $activo['ACT_Activo_Padre']) {
             throw ErrorDominio::conflicto('ASSET_INSTALLED_AS_COMPONENT');
         }
-        if (false !== $this->conexion->fetchOne("SELECT 1 FROM \"INV_APROBACION\" WHERE \"ACT_Activo\" = :a AND \"APR_Tipo\" = 'BAJA' AND \"APR_Estado\" = 'PENDIENTE' "
-            .'FETCH FIRST 1 ROWS ONLY', ['a' => $id])) {
+        if ($this->datos->tieneBajaPendiente($id)) {
             throw ErrorDominio::conflicto('ASSET_HAS_PENDING_DECOMMISSION');
         }
     }
@@ -320,8 +294,7 @@ final readonly class Movimientos
     /** Sede del área de destino, validada contra el alcance. */
     private function sedeDeDestino(int $area): int
     {
-        $sede = $this->conexion->fetchOne('SELECT e."SED_Sede" FROM "INV_AREA" a JOIN "INV_NIVEL" n ON n."NIV_Nivel" = a."NIV_Nivel" '
-            .'JOIN "INV_EDIFICIO" e ON e."EDI_Edificio" = n."EDI_Edificio" WHERE a."ARE_Area" = :a', ['a' => $area]);
+        $sede = $this->datosDeActivos->sedeDeArea($area);
         if (false === $sede || null === $sede) {
             throw ErrorDominio::invalido('AREA_WITHOUT_SEDE');
         }
@@ -331,7 +304,7 @@ final readonly class Movimientos
 
     private function existeArea(int $area): bool
     {
-        return false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_AREA" WHERE "ARE_Area" = :a', ['a' => $area]);
+        return $this->datosDeActivos->existeArea($area);
     }
 
     /**
@@ -354,11 +327,10 @@ final readonly class Movimientos
                 motivo: 'Cambio de sede por asignación o transferencia');
         }
         if ($actual !== $sede) {
-            $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "SED_Sede" = :s WHERE "ACT_Activo" = :a', ['s' => $sede, 'a' => $activo['ACT_Activo']]);
+            $this->activos->actualizar((string) $activo['ACT_Activo'], ['SED_Sede' => $sede]);
         }
         if (null !== $persona && null === $persona['SED_Sede']) {
-            $this->conexion->executeStatement('UPDATE "INV_PERSONA" SET "SED_Sede" = :s WHERE "PER_Persona" = :p AND "SED_Sede" IS NULL',
-                ['s' => $sede, 'p' => $persona['PER_Persona']]);
+            $this->datos->fijarSedeDePersonaSiFalta($persona['PER_Persona'], $sede);
         }
     }
 
@@ -383,7 +355,7 @@ final readonly class Movimientos
 
             return ['MMO_Motivo' => null, 'MOV_Motivo' => $d['MOV_Motivo'], 'MOV_Motivo_Detalle' => null];
         }
-        $m = $this->conexion->fetchAssociative('SELECT "MMO_Nombre", "MMO_Activo", "MMO_Aplica_A", "MMO_Pide_Detalle" FROM "INV_MOTIVO_MOVIMIENTO" WHERE "MMO_Motivo" = :id', ['id' => $id]);
+        $m = $this->datos->motivo($id);
         if (false === $m || 1 !== (int) $m['MMO_Activo']) {
             throw ErrorDominio::noProcesable('MOVEMENT_REASON_NOT_FOUND');
         }
@@ -405,10 +377,11 @@ final readonly class Movimientos
         if (null === $motivo) {
             return false;
         }
-        $a = $this->conexion->fetchOne('SELECT "MMO_Aplica_A" FROM "INV_MOTIVO_MOVIMIENTO" WHERE "MMO_Motivo" = :id', ['id' => $motivo]);
-        if (false === $a) {
+        $m = $this->datos->motivo($motivo);
+        if (false === $m) {
             return false;
         }
+        $a = $m['MMO_Aplica_A'];
         $lista = null === $a ? [] : (json_decode((string) $a, true) ?: []);
 
         return [] === $lista || \in_array($aplicaA, $lista, true);
@@ -418,21 +391,17 @@ final readonly class Movimientos
     private function insertarMovimiento(array $d, string $usuario): string
     {
         $id = Ident::nuevo();
-        $this->conexion->executeStatement('INSERT INTO "INV_MOVIMIENTO" ("MOV_Movimiento", "MOV_Fecha_Asignacion", "MOV_Observacion", "MOV_Usuario_Registra", '
-            .'"MOV_Motivo", "MMO_Motivo", "MOV_Motivo_Detalle", "MOV_Fecha_Prevista_Devolucion", "ACT_Activo", "PER_Persona", "ARE_Area", "TMO_Tipo_Movimiento") '
-            ."VALUES (:id, :fecha, :obs, :usuario, :motivo, :mmo, :detalle, TO_DATE(:prevista, 'YYYY-MM-DD'), :activo, :persona, :area, :tipo)", [
-                'id' => $id, 'fecha' => Reloj::aBd(Reloj::ahora()), 'obs' => $d['MOV_Observacion'] ?? null, 'usuario' => $usuario,
-                'motivo' => $d['MOV_Motivo'] ?? null, 'mmo' => $d['MMO_Motivo'] ?? null, 'detalle' => $d['MOV_Motivo_Detalle'] ?? null,
-                'prevista' => $d['MOV_Fecha_Prevista_Devolucion'] ?? null, 'activo' => $d['ACT_Activo'], 'persona' => $d['PER_Persona'],
-                'area' => $d['ARE_Area'], 'tipo' => $d['TMO_Tipo_Movimiento']], ['obs' => ParameterType::LARGE_OBJECT]);
+        $this->datos->insertar(['id' => $id, 'obs' => $d['MOV_Observacion'] ?? null, 'usuario' => $usuario,
+            'motivo' => $d['MOV_Motivo'] ?? null, 'mmo' => $d['MMO_Motivo'] ?? null, 'detalle' => $d['MOV_Motivo_Detalle'] ?? null,
+            'prevista' => $d['MOV_Fecha_Prevista_Devolucion'] ?? null, 'activo' => $d['ACT_Activo'], 'persona' => $d['PER_Persona'],
+            'area' => $d['ARE_Area'], 'tipo' => $d['TMO_Tipo_Movimiento']], Reloj::ahora());
 
         return $id;
     }
 
     private function cerrar(string $mov): bool
     {
-        return 1 === $this->conexion->executeStatement('UPDATE "INV_MOVIMIENTO" SET "MOV_Fecha_Devolucion" = :ahora WHERE "MOV_Movimiento" = :m AND "MOV_Fecha_Devolucion" IS NULL',
-            ['ahora' => Reloj::aBd(Reloj::ahora()), 'm' => $mov]);
+        return $this->datos->cerrar($mov, Reloj::ahora());
     }
 
     /** @param array<string, mixed>|null $p */
@@ -455,68 +424,65 @@ final readonly class Movimientos
      */
     public function asignar(array $d, string $usuario, ?string $ip): array
     {
-        try {
-            return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
-                $activo = $this->activo($d['ACT_Activo']) ?? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
-                // Una impresora o un switch se instalan en un área, no se asignan a una persona.
-                $this->reglas->exigirAsignableAPersona($activo);
-                $tipo = $this->tipoCanonico((int) $d['TMO_Tipo_Movimiento']);
-                // Este endpoint solo ABRE custodias; devolución, transferencia, ingreso y baja tienen su operación.
-                if (!\in_array($tipo, [self::ASIGNACION, self::PRESTAMO], true)) {
-                    throw ErrorDominio::invalido('MOVEMENT_TYPE_REQUIRES_SPECIFIC_OPERATION');
+        // Si choca el índice único es que otra custodia del mismo activo se abrió a la vez.
+        return $this->transaccion->ejecutarUnica(function () use ($d, $usuario, $ip): array {
+            $activo = $this->activo($d['ACT_Activo']) ?? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
+            // Una impresora o un switch se instalan en un área, no se asignan a una persona.
+            $this->reglas->exigirAsignableAPersona($activo);
+            $tipo = $this->tipoCanonico((int) $d['TMO_Tipo_Movimiento']);
+            // Este endpoint solo ABRE custodias; devolución, transferencia, ingreso y baja tienen su operación.
+            if (!\in_array($tipo, [self::ASIGNACION, self::PRESTAMO], true)) {
+                throw ErrorDominio::invalido('MOVEMENT_TYPE_REQUIRES_SPECIFIC_OPERATION');
+            }
+            $estado = $this->estadoDe($activo) ?? throw ErrorDominio::interno('UNKNOWN_CURRENT_STATE');
+            EstadosActivo::validarTransicion($estado, EstadosActivo::ASIGNADO);
+            $persona = $this->persona($d['PER_Persona']) ?? throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
+            self::exigirPersonaActiva($persona);
+            $this->exigirOperable($activo);
+            if (!$this->existeArea((int) $d['ARE_Area'])) {
+                throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
+            }
+            $sede = $this->sedeDeDestino((int) $d['ARE_Area']);
+            $vigente = $this->vigente($d['ACT_Activo']);
+            $hoy = Reloj::ahora()->format('Y-m-d');
+            if (self::PRESTAMO === $tipo) {
+                if (null === ($d['MOV_Fecha_Prevista_Devolucion'] ?? null)) {
+                    throw ErrorDominio::invalido('LOAN_RETURN_DATE_REQUIRED');
                 }
-                $estado = $this->estadoDe($activo) ?? throw ErrorDominio::interno('UNKNOWN_CURRENT_STATE');
-                EstadosActivo::validarTransicion($estado, EstadosActivo::ASIGNADO);
-                $persona = $this->persona($d['PER_Persona']) ?? throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
-                self::exigirPersonaActiva($persona);
-                $this->exigirOperable($activo);
-                if (!$this->existeArea((int) $d['ARE_Area'])) {
-                    throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
+                if ($d['MOV_Fecha_Prevista_Devolucion'] < $hoy) {
+                    throw ErrorDominio::invalido('LOAN_RETURN_DATE_IN_THE_PAST');
                 }
-                $sede = $this->sedeDeDestino((int) $d['ARE_Area']);
-                $vigente = $this->vigente($d['ACT_Activo']);
-                $hoy = Reloj::ahora()->format('Y-m-d');
-                if (self::PRESTAMO === $tipo) {
-                    if (null === ($d['MOV_Fecha_Prevista_Devolucion'] ?? null)) {
-                        throw ErrorDominio::invalido('LOAN_RETURN_DATE_REQUIRED');
-                    }
-                    if ($d['MOV_Fecha_Prevista_Devolucion'] < $hoy) {
-                        throw ErrorDominio::invalido('LOAN_RETURN_DATE_IN_THE_PAST');
-                    }
-                } else {
-                    $d['MOV_Fecha_Prevista_Devolucion'] = null;
-                }
-                if (null !== $vigente) {
-                    throw ErrorDominio::conflicto('ASSET_ALREADY_ASSIGNED_USE_TRANSFER');
-                }
-                if (!\in_array($estado, EstadosActivo::DE_ALMACEN, true)) {
-                    throw ErrorDominio::invalido('ASSET_NOT_AVAILABLE_FOR_ASSIGNMENT');
-                }
-                $d = [...$d, ...$this->conMotivo($d, self::PRESTAMO === $tipo ? 'PRESTAMO' : 'ASIGNACION')];
-                $this->ubicarEnSede($activo, $persona, $sede, $usuario, $ip);
-                $mov = $this->insertarMovimiento($d, $usuario);
-                $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "ARE_Area_Ubicacion" = :a WHERE "ACT_Activo" = :id', ['a' => $d['ARE_Area'], 'id' => $d['ACT_Activo']]);
-                $this->kardex->registrar(self::PRESTAMO === $tipo ? 'PRESTAMO' : 'ASIGNACION', activo: $activo, usuario: $usuario,
-                    destino: ['persona' => $d['PER_Persona'], 'area' => (int) $d['ARE_Area'], 'sede' => $sede], documento: ['MOVIMIENTO', Ident::aTexto($mov)],
-                    motivo: ($d['MOV_Motivo'] ?? null) ?: ($d['MOV_Observacion'] ?? null), detalle: ['devolucion_prevista' => $d['MOV_Fecha_Prevista_Devolucion']]);
-                $asignado = $this->idEstado(EstadosActivo::ASIGNADO);
-                if ($asignado !== (int) $activo['EOP_Estado_Operativo']) {
-                    $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "EOP_Estado_Operativo" = :e WHERE "ACT_Activo" = :id', ['e' => $asignado, 'id' => $d['ACT_Activo']]);
-                }
-                // Cambio opcional de hostname al entregar el equipo.
-                if (\array_key_exists('ACT_Hostname', $d) && null !== $d['ACT_Hostname'] && (($d['ACT_Hostname'] ?: null) !== ($activo['ACT_Hostname'] ?: null))) {
-                    $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "ACT_Hostname" = :h WHERE "ACT_Activo" = :id', ['h' => $d['ACT_Hostname'] ?: null, 'id' => $d['ACT_Activo']]);
-                }
-                $this->gobierno->registrarAuditoria('ASSIGN', 'INV_MOVIMIENTO', ['activo' => Ident::aTexto($d['ACT_Activo']), 'persona' => Ident::aTexto($d['PER_Persona']),
-                    'area' => (int) $d['ARE_Area'], 'sede' => $sede, 'tipo' => $tipo], $usuario, $ip, sedeId: $sede);
-                $resultado = $this->porId($mov);
-                $this->avisarAsignacion($d['ACT_Activo'], $persona, $resultado, $usuario);
+            } else {
+                $d['MOV_Fecha_Prevista_Devolucion'] = null;
+            }
+            if (null !== $vigente) {
+                throw ErrorDominio::conflicto('ASSET_ALREADY_ASSIGNED_USE_TRANSFER');
+            }
+            if (!\in_array($estado, EstadosActivo::DE_ALMACEN, true)) {
+                throw ErrorDominio::invalido('ASSET_NOT_AVAILABLE_FOR_ASSIGNMENT');
+            }
+            $d = [...$d, ...$this->conMotivo($d, self::PRESTAMO === $tipo ? 'PRESTAMO' : 'ASIGNACION')];
+            $this->ubicarEnSede($activo, $persona, $sede, $usuario, $ip);
+            $mov = $this->insertarMovimiento($d, $usuario);
+            $this->activos->actualizar($d['ACT_Activo'], ['ARE_Area_Ubicacion' => $d['ARE_Area']]);
+            $this->kardex->registrar(self::PRESTAMO === $tipo ? 'PRESTAMO' : 'ASIGNACION', activo: $activo, usuario: $usuario,
+                destino: ['persona' => $d['PER_Persona'], 'area' => (int) $d['ARE_Area'], 'sede' => $sede], documento: ['MOVIMIENTO', Ident::aTexto($mov)],
+                motivo: ($d['MOV_Motivo'] ?? null) ?: ($d['MOV_Observacion'] ?? null), detalle: ['devolucion_prevista' => $d['MOV_Fecha_Prevista_Devolucion']]);
+            $asignado = $this->idEstado(EstadosActivo::ASIGNADO);
+            if ($asignado !== (int) $activo['EOP_Estado_Operativo']) {
+                $this->activos->actualizar($d['ACT_Activo'], ['EOP_Estado_Operativo' => $asignado]);
+            }
+            // Cambio opcional de hostname al entregar el equipo.
+            if (\array_key_exists('ACT_Hostname', $d) && null !== $d['ACT_Hostname'] && (($d['ACT_Hostname'] ?: null) !== ($activo['ACT_Hostname'] ?: null))) {
+                $this->activos->actualizar($d['ACT_Activo'], ['ACT_Hostname' => $d['ACT_Hostname'] ?: null]);
+            }
+            $this->gobierno->registrarAuditoria('ASSIGN', 'INV_MOVIMIENTO', ['activo' => Ident::aTexto($d['ACT_Activo']), 'persona' => Ident::aTexto($d['PER_Persona']),
+                'area' => (int) $d['ARE_Area'], 'sede' => $sede, 'tipo' => $tipo], $usuario, $ip, sedeId: $sede);
+            $resultado = $this->porId($mov);
+            $this->avisarAsignacion($d['ACT_Activo'], $persona, $resultado, $usuario);
 
-                return $resultado;
-            });
-        } catch (UniqueConstraintViolationException) {
-            throw ErrorDominio::conflicto('ASSET_ALREADY_HAS_OPEN_MOVEMENT');
-        }
+            return $resultado;
+        }, ErrorDominio::conflicto('ASSET_ALREADY_HAS_OPEN_MOVEMENT'));
     }
 
     /**
@@ -525,9 +491,7 @@ final readonly class Movimientos
      */
     private function avisarAsignacion(string $activo, array $persona, array $mov, string $usuario): void
     {
-        $a = $this->conexion->fetchAssociative('SELECT a."ACT_Codigo_Interno", a."ACT_Serie_Fabricante", a."ACT_Hostname", t."TAC_Nombre", m."MOD_Nombre", ma."MAR_Nombre" '
-            .'FROM "INV_ACTIVO" a LEFT JOIN "INV_TIPO_ACTIVO" t ON t."TAC_Tipo_Activo" = a."TAC_Tipo_Activo" LEFT JOIN "INV_MODELO" m ON m."MOD_Modelo" = a."MOD_Modelo" '
-            .'LEFT JOIN "INV_MARCA" ma ON ma."MAR_Marca" = m."MAR_Marca" WHERE a."ACT_Activo" = :a', ['a' => $activo]) ?: [];
+        $a = $this->datos->fichaDeActivo($activo) ?: [];
         $op = $this->operador->de($usuario);
         $correo = $persona['PER_Email_Corporativo'] ?? null;
         $contexto = ['codigo' => $a['ACT_Codigo_Interno'] ?? '', 'serie' => $a['ACT_Serie_Fabricante'] ?? '', 'hostname' => $a['ACT_Hostname'] ?? '',
@@ -570,29 +534,16 @@ final readonly class Movimientos
             if (!$this->cerrar((string) $vigente['MOV_Movimiento'])) {
                 throw ErrorDominio::conflicto('MOVEMENT_ALREADY_CLOSED');
             }
-            if (null !== $motivo['MOV_Motivo'] && '' !== $motivo['MOV_Motivo']) {
-                $this->conexion->executeStatement('UPDATE "INV_MOVIMIENTO" SET "MOV_Motivo" = :m WHERE "MOV_Movimiento" = :id', ['m' => $motivo['MOV_Motivo'], 'id' => $vigente['MOV_Movimiento']]);
-            }
-            if (null !== $motivo['MMO_Motivo']) {
-                $this->conexion->executeStatement('UPDATE "INV_MOVIMIENTO" SET "MMO_Motivo" = :m, "MOV_Motivo_Detalle" = :d WHERE "MOV_Movimiento" = :id',
-                    ['m' => $motivo['MMO_Motivo'], 'd' => $motivo['MOV_Motivo_Detalle'], 'id' => $vigente['MOV_Movimiento']]);
-            }
+            $this->datos->anotarMotivo($vigente['MOV_Movimiento'], $motivo['MOV_Motivo'], $motivo['MMO_Motivo'], $motivo['MOV_Motivo_Detalle']);
             $bodega = $this->idEstado(EstadosActivo::BODEGA);
-            $sets = ['"ARE_Area_Ubicacion" = :area'];
-            $p = ['area' => $destino, 'id' => $d['ACT_Activo']];
-            if (!$reparacion) {
-                $sets[] = '"EOP_Estado_Operativo" = :e';
-                $p['e'] = $bodega;
-            }
-            $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET '.implode(', ', $sets).' WHERE "ACT_Activo" = :id', $p);
+            $this->activos->actualizar($d['ACT_Activo'], ['ARE_Area_Ubicacion' => $destino, ...($reparacion ? [] : ['EOP_Estado_Operativo' => $bodega])]);
             $sede = null === $activo['SED_Sede'] ? null : (int) $activo['SED_Sede'];
             $this->kardex->registrar('DEVOLUCION', activo: $activo, usuario: $usuario,
                 origen: ['persona' => (string) $vigente['PER_Persona'], 'area' => (int) $vigente['ARE_Area'], 'sede' => $sede],
                 destino: ['area' => null === $destino ? null : (int) $destino, 'sede' => $sede], documento: ['MOVIMIENTO', Ident::aTexto((string) $vigente['MOV_Movimiento'])],
                 motivo: $motivo['MOV_Motivo'], detalle: ['condicion' => $d['condicion'] ?? null, 'en_reparacion' => $reparacion]);
             $this->gobierno->registrarAuditoria('RETURN', 'INV_MOVIMIENTO', ['activo' => Ident::aTexto($d['ACT_Activo']), 'estado_nuevo' => $bodega], $usuario, $ip, sedeId: $sede);
-            $persona = $this->conexion->fetchAssociative('SELECT "PER_Primer_Nombre", "PER_Primer_Apellido", "PER_Email_Corporativo" FROM "INV_PERSONA" WHERE "PER_Persona" = :p',
-                ['p' => $vigente['PER_Persona']]) ?: null;
+            $persona = $this->datos->contactoDePersona($vigente['PER_Persona']) ?: null;
             $op = $this->operador->de($usuario);
             $contexto = ['codigo' => $activo['ACT_Codigo_Interno'], 'persona_nombre' => self::nombre($persona), 'fecha' => Reloj::iso(Reloj::ahora())];
             $para = null === $persona || null === $persona['PER_Email_Corporativo'] ? [] : [$persona['PER_Email_Corporativo']];
@@ -620,54 +571,49 @@ final readonly class Movimientos
      */
     public function transferir(array $d, string $usuario, ?string $ip): array
     {
-        try {
-            return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
-                $activo = $this->activo($d['ACT_Activo']) ?? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
-                $this->reglas->exigirAsignableAPersona($activo);
-                EstadosActivo::validarTransicion($this->estadoDe($activo) ?? throw ErrorDominio::interno('UNKNOWN_CURRENT_STATE'), EstadosActivo::ASIGNADO);
-                $vigente = $this->vigente($d['ACT_Activo']) ?? throw ErrorDominio::invalido('ASSET_IS_NOT_ASSIGNED_CANNOT_TRANSFER');
-                $persona = $this->persona($d['PER_Persona_Destino']) ?? throw ErrorDominio::noEncontrado('DESTINATION_PERSON_NOT_FOUND');
-                self::exigirPersonaActiva($persona);
-                $this->exigirOperable($activo);
-                if ((string) $vigente['PER_Persona'] === $d['PER_Persona_Destino'] && (int) $vigente['ARE_Area'] === (int) $d['ARE_Area_Destino']) {
-                    throw ErrorDominio::invalido('TRANSFER_TO_SAME_CUSTODIAN');
-                }
-                if (!$this->existeArea((int) $d['ARE_Area_Destino'])) {
-                    throw ErrorDominio::noEncontrado('DESTINATION_AREA_NOT_FOUND');
-                }
-                $sede = $this->sedeDeDestino((int) $d['ARE_Area_Destino']);
-                // La nueva custodia se registra como "Transferencia" (o "Asignación" si el catálogo no lo tiene).
-                $tipo = $this->idTipo(self::TRANSFERENCIA) ?? $this->idTipo(self::ASIGNACION)
-                    ?? ((int) $this->conexion->fetchOne("SELECT MIN(\"TMO_Tipo_Movimiento\") FROM \"INV_TIPO_MOVIMIENTO\" WHERE LOWER(\"TMO_Nombre\") LIKE '%asignaci%'") ?: null)
-                    ?? throw ErrorDominio::interno('SYSTEM_CONFIG_ERROR_MISSING_ASSIGNMENT_TYPE');
-                $motivo = $this->conMotivo($d, 'TRANSFERENCIA');
-                $this->cerrar((string) $vigente['MOV_Movimiento']);
-                $sedeOrigen = null === $activo['SED_Sede'] ? null : (int) $activo['SED_Sede'];
-                $this->ubicarEnSede($activo, $persona, $sede, $usuario, $ip);
-                $mov = $this->insertarMovimiento(['ACT_Activo' => $d['ACT_Activo'], 'PER_Persona' => $d['PER_Persona_Destino'], 'ARE_Area' => (int) $d['ARE_Area_Destino'],
-                    'TMO_Tipo_Movimiento' => $tipo, 'MOV_Observacion' => ($d['MOV_Observacion'] ?? null) ?: 'Transferencia de custodia', ...$motivo], $usuario);
-                $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "ARE_Area_Ubicacion" = :a, "EOP_Estado_Operativo" = :e WHERE "ACT_Activo" = :id',
-                    ['a' => (int) $d['ARE_Area_Destino'], 'e' => $this->idEstado(EstadosActivo::ASIGNADO), 'id' => $d['ACT_Activo']]);
-                $this->kardex->registrar('TRANSFERENCIA', activo: $activo, usuario: $usuario,
-                    origen: ['persona' => (string) $vigente['PER_Persona'], 'area' => (int) $vigente['ARE_Area'], 'sede' => $sedeOrigen],
-                    destino: ['persona' => $d['PER_Persona_Destino'], 'area' => (int) $d['ARE_Area_Destino'], 'sede' => $sede],
-                    documento: ['MOVIMIENTO', Ident::aTexto($mov)], motivo: ($motivo['MOV_Motivo'] ?? null) ?: ($d['MOV_Observacion'] ?? null));
-                $this->gobierno->registrarAuditoria('TRANSFER', 'INV_MOVIMIENTO', ['activo' => Ident::aTexto($d['ACT_Activo']), 'de' => Ident::aTexto((string) $vigente['PER_Persona']),
-                    'a' => Ident::aTexto($d['PER_Persona_Destino']), 'sede_origen' => $sedeOrigen, 'sede_destino' => $sede], $usuario, $ip, sedeId: $sede);
-                $origen = $this->conexion->fetchAssociative('SELECT "PER_Primer_Nombre", "PER_Primer_Apellido", "PER_Email_Corporativo" FROM "INV_PERSONA" WHERE "PER_Persona" = :p',
-                    ['p' => $vigente['PER_Persona']]) ?: null;
-                $op = $this->operador->de($usuario);
-                $para = array_values(array_filter([$origen['PER_Email_Corporativo'] ?? null, $persona['PER_Email_Corporativo'] ?? null]));
-                $contexto = ['codigo' => $activo['ACT_Codigo_Interno'], 'origen_nombre' => self::nombre($origen), 'destino_nombre' => self::nombre($persona),
-                    'fecha' => Reloj::iso(Reloj::ahora())];
-                $this->transaccion->alConfirmar(fn () => $this->notificador->enviar('transferencia', $contexto, $para, responderA: $op['correo'],
-                    operador: $op['nombre'], rolOperador: $op['rol']));
+        // Si choca el índice único es que otra custodia del mismo activo se abrió a la vez.
+        return $this->transaccion->ejecutarUnica(function () use ($d, $usuario, $ip): array {
+            $activo = $this->activo($d['ACT_Activo']) ?? throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
+            $this->reglas->exigirAsignableAPersona($activo);
+            EstadosActivo::validarTransicion($this->estadoDe($activo) ?? throw ErrorDominio::interno('UNKNOWN_CURRENT_STATE'), EstadosActivo::ASIGNADO);
+            $vigente = $this->vigente($d['ACT_Activo']) ?? throw ErrorDominio::invalido('ASSET_IS_NOT_ASSIGNED_CANNOT_TRANSFER');
+            $persona = $this->persona($d['PER_Persona_Destino']) ?? throw ErrorDominio::noEncontrado('DESTINATION_PERSON_NOT_FOUND');
+            self::exigirPersonaActiva($persona);
+            $this->exigirOperable($activo);
+            if ((string) $vigente['PER_Persona'] === $d['PER_Persona_Destino'] && (int) $vigente['ARE_Area'] === (int) $d['ARE_Area_Destino']) {
+                throw ErrorDominio::invalido('TRANSFER_TO_SAME_CUSTODIAN');
+            }
+            if (!$this->existeArea((int) $d['ARE_Area_Destino'])) {
+                throw ErrorDominio::noEncontrado('DESTINATION_AREA_NOT_FOUND');
+            }
+            $sede = $this->sedeDeDestino((int) $d['ARE_Area_Destino']);
+            // La nueva custodia se registra como "Transferencia" (o "Asignación" si el catálogo no lo tiene).
+            $tipo = $this->idTipo(self::TRANSFERENCIA) ?? $this->idTipo(self::ASIGNACION)
+                ?? $this->datos->primerTipoDeAsignacion()
+                ?? throw ErrorDominio::interno('SYSTEM_CONFIG_ERROR_MISSING_ASSIGNMENT_TYPE');
+            $motivo = $this->conMotivo($d, 'TRANSFERENCIA');
+            $this->cerrar((string) $vigente['MOV_Movimiento']);
+            $sedeOrigen = null === $activo['SED_Sede'] ? null : (int) $activo['SED_Sede'];
+            $this->ubicarEnSede($activo, $persona, $sede, $usuario, $ip);
+            $mov = $this->insertarMovimiento(['ACT_Activo' => $d['ACT_Activo'], 'PER_Persona' => $d['PER_Persona_Destino'], 'ARE_Area' => (int) $d['ARE_Area_Destino'],
+                'TMO_Tipo_Movimiento' => $tipo, 'MOV_Observacion' => ($d['MOV_Observacion'] ?? null) ?: 'Transferencia de custodia', ...$motivo], $usuario);
+            $this->activos->actualizar($d['ACT_Activo'], ['ARE_Area_Ubicacion' => (int) $d['ARE_Area_Destino'], 'EOP_Estado_Operativo' => $this->idEstado(EstadosActivo::ASIGNADO)]);
+            $this->kardex->registrar('TRANSFERENCIA', activo: $activo, usuario: $usuario,
+                origen: ['persona' => (string) $vigente['PER_Persona'], 'area' => (int) $vigente['ARE_Area'], 'sede' => $sedeOrigen],
+                destino: ['persona' => $d['PER_Persona_Destino'], 'area' => (int) $d['ARE_Area_Destino'], 'sede' => $sede],
+                documento: ['MOVIMIENTO', Ident::aTexto($mov)], motivo: ($motivo['MOV_Motivo'] ?? null) ?: ($d['MOV_Observacion'] ?? null));
+            $this->gobierno->registrarAuditoria('TRANSFER', 'INV_MOVIMIENTO', ['activo' => Ident::aTexto($d['ACT_Activo']), 'de' => Ident::aTexto((string) $vigente['PER_Persona']),
+                'a' => Ident::aTexto($d['PER_Persona_Destino']), 'sede_origen' => $sedeOrigen, 'sede_destino' => $sede], $usuario, $ip, sedeId: $sede);
+            $origen = $this->datos->contactoDePersona($vigente['PER_Persona']) ?: null;
+            $op = $this->operador->de($usuario);
+            $para = array_values(array_filter([$origen['PER_Email_Corporativo'] ?? null, $persona['PER_Email_Corporativo'] ?? null]));
+            $contexto = ['codigo' => $activo['ACT_Codigo_Interno'], 'origen_nombre' => self::nombre($origen), 'destino_nombre' => self::nombre($persona),
+                'fecha' => Reloj::iso(Reloj::ahora())];
+            $this->transaccion->alConfirmar(fn () => $this->notificador->enviar('transferencia', $contexto, $para, responderA: $op['correo'],
+                operador: $op['nombre'], rolOperador: $op['rol']));
 
-                return $this->porId($mov);
-            });
-        } catch (UniqueConstraintViolationException) {
-            throw ErrorDominio::conflicto('ASSET_ALREADY_HAS_OPEN_MOVEMENT');
-        }
+            return $this->porId($mov);
+        }, ErrorDominio::conflicto('ASSET_ALREADY_HAS_OPEN_MOVEMENT'));
     }
 
     // =====================================================================
@@ -689,19 +635,16 @@ final readonly class Movimientos
             $sedePersona = null === $persona['SED_Sede'] ? null : (int) $persona['SED_Sede'];
             $this->alcance->exigirPropio($sedePersona);
             // Si alguna custodia está en una sede fuera del alcance, se haría a medias.
-            [$alcance, $pa] = $this->alcance->lectura('INV_MOVIMIENTO', 'm');
-            $donde = 'm."PER_Persona" = :p AND m."MOV_Fecha_Devolucion" IS NULL';
-            $visibles = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_MOVIMIENTO" m WHERE '.$donde.' AND '.$alcance, [...$pa, 'p' => $personaId]);
-            $totales = (int) $this->alcance->elevado(fn (): mixed => $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_MOVIMIENTO" m WHERE '.$donde, ['p' => $personaId]));
+            $visibles = $this->datos->custodiasVisiblesDe($personaId);
+            $totales = $this->alcance->elevado(fn (): int => $this->datos->custodiasDe($personaId));
             if ($totales !== $visibles) {
                 throw ErrorDominio::prohibido('OFFBOARDING_REQUIRES_SCOPE_OVER_ALL_ASSETS');
             }
             $estabaActiva = 1 === (int) $persona['PER_Estado'];
             // La cuenta solo se desactiva si se puede (nunca el último SUPER_ADMIN, ni la propia, ni fuera de la jerarquía).
-            $cuenta = !$desactivarUsuario ? false : $this->conexion->fetchAssociative('SELECT "USU_Usuario", "USU_Rol", "USU_Estado" FROM "INV_USUARIO" WHERE "PER_Persona" = :p',
-                ['p' => $personaId]);
+            $cuenta = !$desactivarUsuario ? false : $this->datos->cuentaDePersona($personaId);
             if (false !== $cuenta && 1 === (int) $cuenta['USU_Estado']) {
-                if (Roles::SUPER_ADMIN === $cuenta['USU_Rol'] && (int) $this->conexion->fetchOne("SELECT COUNT(*) FROM \"INV_USUARIO\" WHERE \"USU_Rol\" = 'SUPER_ADMIN' AND \"USU_Estado\" = 1") <= 1) {
+                if (Roles::SUPER_ADMIN === $cuenta['USU_Rol'] && $this->identidades->superAdministradoresActivos() <= 1) {
                     throw ErrorDominio::invalido('CANNOT_OFFBOARD_LAST_SUPER_ADMIN');
                 }
                 if ((string) $cuenta['USU_Usuario'] === $usuario) {
@@ -712,28 +655,25 @@ final readonly class Movimientos
                 }
             }
             // Cerrojo único en todo el sistema: activos (en orden) -> movimientos -> sello del kardex.
-            $this->conexion->fetchAllNumeric('SELECT "ACT_Activo" FROM "INV_ACTIVO" WHERE "ACT_Activo" IN (SELECT "ACT_Activo" FROM "INV_MOVIMIENTO" WHERE "PER_Persona" = :p AND "MOV_Fecha_Devolucion" IS NULL) ORDER BY "ACT_Activo" FOR UPDATE', ['p' => $personaId]);
-            $vigentes = $this->conexion->fetchAllAssociative('SELECT "MOV_Movimiento", "ACT_Activo", "ARE_Area" FROM "INV_MOVIMIENTO" WHERE "PER_Persona" = :p '
-                .'AND "MOV_Fecha_Devolucion" IS NULL ORDER BY "MOV_Fecha_Asignacion" FOR UPDATE', ['p' => $personaId]);
-            $cerrados = $this->conexion->executeStatement('UPDATE "INV_MOVIMIENTO" SET "MOV_Fecha_Devolucion" = :ahora WHERE "PER_Persona" = :p AND "MOV_Fecha_Devolucion" IS NULL',
-                ['ahora' => Reloj::aBd(Reloj::ahora()), 'p' => $personaId]);
+            $vigentes = $this->datos->bloquearCustodiasDe($personaId);
+            $cerrados = $this->datos->cerrarTodosDe($personaId, Reloj::ahora());
             $activos = array_map(static fn (array $m): string => (string) $m['ACT_Activo'], $vigentes);
             $reparacion = array_values(array_filter($activos, fn (string $a): bool => $this->ticketAbierto($a)));
             $aBodega = array_values(array_diff($activos, $reparacion));
             if ([] !== $aBodega) {
                 $bodega = $this->idEstado(EstadosActivo::BODEGA);
                 foreach ($aBodega as $a) {
-                    $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "EOP_Estado_Operativo" = :e WHERE "ACT_Activo" = :a', ['e' => $bodega, 'a' => $a]);
+                    $this->activos->actualizar($a, ['EOP_Estado_Operativo' => $bodega]);
                 }
             }
             foreach ($vigentes as $m) {
-                $act = $this->conexion->fetchAssociative('SELECT '.Activos::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :a', ['a' => $m['ACT_Activo']]) ?: null;
+                $act = $this->activos->porId((string) $m['ACT_Activo']) ?: null;
                 $sede = null === $act || null === $act['SED_Sede'] ? null : (int) $act['SED_Sede'];
                 $this->kardex->registrar('DEVOLUCION', activo: $act, activoId: (string) $m['ACT_Activo'], usuario: $usuario,
                     origen: ['persona' => $personaId, 'area' => (int) $m['ARE_Area'], 'sede' => $sede], destino: ['sede' => $sede],
                     documento: ['OFFBOARDING', Ident::aTexto($personaId)], motivo: 'Salida de la persona (offboarding)',
                     detalle: ['en_reparacion' => \in_array((string) $m['ACT_Activo'], $reparacion, true)]);
-                $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "ARE_Area_Ubicacion" = NULL WHERE "ACT_Activo" = :a', ['a' => $m['ACT_Activo']]);
+                $this->activos->actualizar((string) $m['ACT_Activo'], ['ARE_Area_Ubicacion' => null]);
             }
             $liberadas = $this->instalaciones->liberarPorDestino($activos, $personaId, 'Salida de la persona (offboarding)');
             foreach ($liberadas as $l) {
@@ -745,21 +685,18 @@ final readonly class Movimientos
             $desactivado = false;
             if (false !== $cuenta) {
                 // La columna de identidad está protegida: se cambia sin contexto de usuario.
-                $this->alcance->elevado(fn (): int => $this->conexion->executeStatement('UPDATE "INV_USUARIO" SET "USU_Estado" = 0 WHERE "USU_Usuario" = :u',
-                    ['u' => $cuenta['USU_Usuario']]));
+                $this->alcance->elevado(fn () => $this->cuentas->actualizar((string) $cuenta['USU_Usuario'], ['USU_Estado' => 0]));
                 $this->identidades->revocarAcceso((string) $cuenta['USU_Usuario']);
                 $desactivado = true;
             }
-            $this->conexion->executeStatement('UPDATE "INV_PERSONA" SET "PER_Estado" = 0 WHERE "PER_Persona" = :p', ['p' => $personaId]);
+            $this->datos->desactivarPersona($personaId);
             $cambio = $cerrados > 0 || [] !== $liberadas || $desactivado || $estabaActiva;
             if ($cambio) {
                 $ids = array_map(static fn (string $a): string => Ident::aTexto($a), $activos);
                 $this->gobierno->registrarAuditoria('OFFBOARDING', 'INV_PERSONA', ['persona_id' => Ident::aTexto($personaId), 'usuario_desactivado' => $desactivado,
                     'movimientos_cerrados' => $cerrados, 'activos_devueltos' => \count($activos), 'activos_ids' => $ids, 'licencias_liberadas' => \count($liberadas)],
                     $usuario, $ip, sedeId: $sedePersona);
-                $codigos = [] === $activos ? [] : array_map('strval', $this->conexion->fetchFirstColumn('SELECT "ACT_Codigo_Interno" FROM "INV_ACTIVO" WHERE "ACT_Activo" IN (:'
-                    .implode(', :', array_map(static fn (int $i): string => "a{$i}", array_keys($activos))).')',
-                    array_combine(array_map(static fn (int $i): string => "a{$i}", array_keys($activos)), $activos)));
+                $codigos = array_values($this->datosDeActivos->codigosDe($activos));
                 $op = $this->operador->de($usuario);
                 $correo = $persona['PER_Email_Corporativo'];
                 $contexto = ['persona_nombre' => self::nombre($persona), 'persona_email' => $correo ?: '—', 'num_activos' => \count($codigos), 'activos_lista' => $codigos,
@@ -790,10 +727,7 @@ final readonly class Movimientos
     /** @return array<string, mixed> */
     public function estadoInstalacion(string $activo): array
     {
-        $f = $this->conexion->fetchAssociative('SELECT a."ACT_Activo", a."ACT_Codigo_Interno", a."ACT_Instalado", a."ARE_Area_Ubicacion", ar."ARE_Nombre", '
-            .'a."ACT_Responsable", p."PER_Primer_Nombre", p."PER_Primer_Apellido" FROM "INV_ACTIVO" a LEFT JOIN "INV_AREA" ar ON ar."ARE_Area" = a."ARE_Area_Ubicacion" '
-            .'LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = a."ACT_Responsable" WHERE a."ACT_Activo" = :a', ['a' => $activo])
-            ?: throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
+        $f = $this->datos->instalacionEnArea($activo) ?: throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
 
         return ['ACT_Activo' => Ident::aTexto((string) $f['ACT_Activo']), 'ACT_Codigo_Interno' => $f['ACT_Codigo_Interno'], 'ACT_Instalado' => 1 === (int) $f['ACT_Instalado'],
             'ARE_Area' => null === $f['ARE_Area_Ubicacion'] ? null : (int) $f['ARE_Area_Ubicacion'], 'area' => $f['ARE_Nombre'],
@@ -823,7 +757,7 @@ final readonly class Movimientos
                 throw ErrorDominio::conflicto('ASSET_HAS_CUSTODIAN_RETURN_FIRST');
             }
             $area = (int) $d['ARE_Area'];
-            $nombreArea = $this->conexion->fetchOne('SELECT "ARE_Nombre" FROM "INV_AREA" WHERE "ARE_Area" = :a', ['a' => $area]);
+            $nombreArea = $this->datos->nombreDeArea($area);
             if (false === $nombreArea) {
                 throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
             }
@@ -833,7 +767,7 @@ final readonly class Movimientos
             }
             $responsable = null;
             if (null !== $responsableId) {
-                $responsable = $this->conexion->fetchAssociative('SELECT * FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $responsableId]) ?: throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
+                $responsable = $this->cuentas->personaCompleta($responsableId) ?: throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
                 self::exigirPersonaActiva($responsable);
             }
             $motivo = $this->conMotivo($d, 'INSTALACION');
@@ -842,11 +776,10 @@ final readonly class Movimientos
             $origen = ['area' => null === $activo['ARE_Area_Ubicacion'] ? null : (int) $activo['ARE_Area_Ubicacion'],
                 'sede' => null === $activo['SED_Sede'] ? null : (int) $activo['SED_Sede'], 'persona' => $activo['ACT_Responsable']];
             $reubicacion = EstadosActivo::INSTALADO === $estado;
-            $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "EOP_Estado_Operativo" = :e, "ARE_Area_Ubicacion" = :a, "ACT_Instalado" = 1, "ACT_Responsable" = :r '
-                .'WHERE "ACT_Activo" = :id', ['e' => $this->idEstado(EstadosActivo::INSTALADO), 'a' => $area, 'r' => $responsableId, 'id' => $d['ACT_Activo']]);
+            $this->activos->actualizar($d['ACT_Activo'], ['EOP_Estado_Operativo' => $this->idEstado(EstadosActivo::INSTALADO), 'ARE_Area_Ubicacion' => $area,
+                'ACT_Instalado' => 1, 'ACT_Responsable' => $responsableId]);
             // Los componentes instalados en el equipo lo siguen.
-            $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "ARE_Area_Ubicacion" = :a, "SED_Sede" = :s WHERE "ACT_Activo_Padre" = :id',
-                ['a' => $area, 's' => $sede, 'id' => $d['ACT_Activo']]);
+            $this->datos->ubicarComponentesDe($d['ACT_Activo'], $area, $sede);
             $nombreResp = null === $responsable ? null : self::nombre($responsable);
             $this->kardex->registrar('INSTALACION_AREA', activo: $activo, usuario: $usuario,
                 origen: $reubicacion ? $origen : ['area' => $origen['area'], 'sede' => $origen['sede']],
@@ -886,8 +819,8 @@ final readonly class Movimientos
             $motivo = $this->conMotivo($d, 'RETIRO');
             $origen = ['area' => null === $activo['ARE_Area_Ubicacion'] ? null : (int) $activo['ARE_Area_Ubicacion'],
                 'sede' => null === $activo['SED_Sede'] ? null : (int) $activo['SED_Sede'], 'persona' => $activo['ACT_Responsable']];
-            $this->conexion->executeStatement('UPDATE "INV_ACTIVO" SET "EOP_Estado_Operativo" = :e, "ARE_Area_Ubicacion" = :a, "ACT_Instalado" = 0, "ACT_Responsable" = NULL '
-                .'WHERE "ACT_Activo" = :id', ['e' => $this->idEstado(EstadosActivo::BODEGA), 'a' => $destino ?? $activo['ARE_Area_Ubicacion'], 'id' => $d['ACT_Activo']]);
+            $this->activos->actualizar($d['ACT_Activo'], ['EOP_Estado_Operativo' => $this->idEstado(EstadosActivo::BODEGA),
+                'ARE_Area_Ubicacion' => $destino ?? $activo['ARE_Area_Ubicacion'], 'ACT_Instalado' => 0, 'ACT_Responsable' => null]);
             $condicion = $d['condicion'] ?? null;
             $this->kardex->registrar('RETIRO_AREA', activo: $activo, usuario: $usuario, origen: $origen, destino: ['area' => null === $destino ? null : (int) $destino, 'sede' => $sede],
                 motivo: $motivo['MOV_Motivo'], detalle: null === $condicion ? null : ['condicion' => $condicion]);

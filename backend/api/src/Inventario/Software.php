@@ -5,17 +5,18 @@ declare(strict_types=1);
 namespace App\Inventario;
 
 use App\Inventario\Infrastructure\Kardex;
+use App\Inventario\Infrastructure\CredencialesStore;
+use App\Inventario\Infrastructure\DatosActivos;
 use App\Inventario\Infrastructure\Instalaciones;
+use App\Inventario\Infrastructure\SoftwareStore;
 use App\Catalogo\CatalogoGenerico;
 use App\Crud\Esquema;
-use App\Db\InsercionOracle;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\CifradoCampos;
-use Doctrine\DBAL\Connection;
 
 /**
  * Software, tipos y licencias, e instalaciones (asignación de una licencia a un
@@ -25,12 +26,10 @@ use Doctrine\DBAL\Connection;
  */
 final readonly class Software
 {
-    private const string LICENCIA = 'l."LIC_Licencia", l."LIC_Clave_Activacion", l."LIC_Fecha_Vencimiento", l."LIC_Cantidad_Total", '
-        .'l."LIC_Cantidad_Usada", l."LIC_Costo", l."LIC_Moneda", l."MCO_Modelo_Comercial", l."MAC_Metodo_Activacion", l."FCO_Forma_Conteo", '
-        .'l."LIC_Proveedor", l."LIC_Fecha_Inicio", l."LIC_Renovacion_Automatica", l."LIC_Notas", l."SOF_Software", l."TLI_Tipo_Licencia"';
-
     public function __construct(
-        private Connection $conexion,
+        private SoftwareStore $datos,
+        private CredencialesStore $claves,
+        private DatosActivos $activos,
         private Kardex $kardex,
         private GobiernoRepositorio $gobierno,
         private CatalogoGenerico $catalogos,
@@ -49,14 +48,13 @@ final readonly class Software
     /** @return list<array<string, mixed>> */
     public function tipos(): array
     {
-        return array_map(self::tipoAApi(...), $this->conexion->fetchAllAssociative(
-            'SELECT "TLI_Tipo_Licencia", "TLI_Nombre", "TLI_Descripcion" FROM "INV_TIPO_LICENCIA" ORDER BY "TLI_Tipo_Licencia"'));
+        return array_map(self::tipoAApi(...), $this->datos->tiposDeLicencia());
     }
 
     /** @return array<string, mixed> */
     public function tipo(int $id): array
     {
-        $f = $this->conexion->fetchAssociative('SELECT "TLI_Tipo_Licencia", "TLI_Nombre", "TLI_Descripcion" FROM "INV_TIPO_LICENCIA" WHERE "TLI_Tipo_Licencia" = :id', ['id' => $id]);
+        $f = $this->datos->tipoDeLicencia($id);
 
         return false === $f ? throw ErrorDominio::noEncontrado('LICENSE_TYPE_NOT_FOUND') : self::tipoAApi($f);
     }
@@ -79,7 +77,7 @@ final readonly class Software
     public function crearTipo(array $d, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
-            $id = (int) InsercionOracle::insertar($this->conexion, 'INV_TIPO_LICENCIA', $d, 'TLI_Tipo_Licencia');
+            $id = $this->datos->crearTipoDeLicencia($d);
             $this->gobierno->registrarAuditoria('CREATE', 'INV_TIPO_LICENCIA', ['nombre' => $d['TLI_Nombre']], $usuario, $ip);
 
             return $this->tipo($id);
@@ -95,7 +93,7 @@ final readonly class Software
     {
         return $this->transaccion->ejecutar(function () use ($id, $cambios, $usuario, $ip): array {
             $this->tipo($id);
-            $this->actualizar('INV_TIPO_LICENCIA', 'TLI_Tipo_Licencia', $id, $cambios);
+            $this->datos->actualizar('INV_TIPO_LICENCIA', 'TLI_Tipo_Licencia', $id, $cambios);
             $this->gobierno->registrarAuditoria('UPDATE', 'INV_TIPO_LICENCIA', ['id' => $id, 'cambios' => (object) $cambios], $usuario, $ip);
 
             return $this->tipo($id);
@@ -106,7 +104,7 @@ final readonly class Software
     {
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $tipo = $this->tipo($id);
-            if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA" WHERE "TLI_Tipo_Licencia" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
+            if ($this->datos->tipoDeLicenciaEnUso($id)) {
                 throw ErrorDominio::conflicto('CANNOT_DELETE_TYPE_HAS_LICENSES');
             }
             $this->borrado->archive('INV_TIPO_LICENCIA', 'TLI_Tipo_Licencia', $id);
@@ -117,15 +115,13 @@ final readonly class Software
     /** @return list<array<string, mixed>> */
     public function listaSoftware(): array
     {
-        return array_map(self::softwareAApi(...), $this->conexion->fetchAllAssociative(
-            'SELECT "SOF_Software", "SOF_Nombre", "SOF_Version", "SOF_Fabricante", "MAR_Marca" FROM "INV_SOFTWARE" ORDER BY "SOF_Software"'));
+        return array_map(self::softwareAApi(...), $this->datos->todoElSoftware());
     }
 
     /** @return array<string, mixed> */
     public function software(int $id): array
     {
-        $f = $this->conexion->fetchAssociative('SELECT "SOF_Software", "SOF_Nombre", "SOF_Version", "SOF_Fabricante", "MAR_Marca" FROM "INV_SOFTWARE" '
-            .'WHERE "SOF_Software" = :id', ['id' => $id]);
+        $f = $this->datos->software($id);
 
         return false === $f ? throw ErrorDominio::noEncontrado('SOFTWARE_NOT_FOUND') : self::softwareAApi($f);
     }
@@ -154,9 +150,7 @@ final readonly class Software
         if (null !== ($d['MAR_Marca'] ?? null)) {
             $d['SOF_Fabricante'] = $this->catalogos->nombreVigente('marcas', (int) $d['MAR_Marca']);
         } elseif (null !== ($d['SOF_Fabricante'] ?? null) && '' !== $d['SOF_Fabricante']) {
-            $marca = $this->conexion->fetchOne('SELECT "MAR_Marca" FROM "INV_MARCA" WHERE LOWER(TRIM("MAR_Nombre")) = :n AND "MAR_Activo" = 1 '
-                .'FETCH FIRST 1 ROWS ONLY', ['n' => mb_strtolower((string) $d['SOF_Fabricante'])]);
-            $d['MAR_Marca'] = false === $marca ? null : (int) $marca;
+            $d['MAR_Marca'] = $this->datos->marcaActivaPorNombre((string) $d['SOF_Fabricante']);
         }
         if (($creacion || \array_key_exists('SOF_Fabricante', $d)) && mb_strlen(trim((string) ($d['SOF_Fabricante'] ?? ''))) < 2) {
             throw ErrorDominio::noProcesable('SOFTWARE_MANUFACTURER_REQUIRED');
@@ -174,7 +168,7 @@ final readonly class Software
     {
         return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
             $d = $this->fabricante($d, true);
-            $id = (int) InsercionOracle::insertar($this->conexion, 'INV_SOFTWARE', $d, 'SOF_Software');
+            $id = $this->datos->crearSoftware($d);
             $this->gobierno->registrarAuditoria('CREATE', 'INV_SOFTWARE', ['nombre' => $d['SOF_Nombre'], 'version' => $d['SOF_Version']], $usuario, $ip);
 
             return $this->software($id);
@@ -192,7 +186,7 @@ final readonly class Software
             $this->software($id);
             $snapshot = $cambios;
             $cambios = $this->fabricante($cambios, false);
-            $this->actualizar('INV_SOFTWARE', 'SOF_Software', $id, $cambios);
+            $this->datos->actualizar('INV_SOFTWARE', 'SOF_Software', $id, $cambios);
             $this->gobierno->registrarAuditoria('UPDATE', 'INV_SOFTWARE', ['id' => $id, 'cambios' => (object) $snapshot], $usuario, $ip);
 
             return $this->software($id);
@@ -203,7 +197,7 @@ final readonly class Software
     {
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $sw = $this->software($id);
-            if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA" WHERE "SOF_Software" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
+            if ($this->datos->softwareTieneLicencias($id)) {
                 throw ErrorDominio::conflicto('CANNOT_DELETE_SOFTWARE_HAS_LICENSES');
             }
             try {
@@ -222,9 +216,7 @@ final readonly class Software
     /** @return array<string, mixed>|null */
     public function filaLicencia(int $id, bool $bloquear = false): ?array
     {
-        $f = $this->conexion->fetchAssociative('SELECT '.self::LICENCIA.', fc."FCO_Codigo" FROM "INV_LICENCIA" l '
-            .'LEFT JOIN "INV_FORMA_CONTEO" fc ON fc."FCO_Forma" = l."FCO_Forma_Conteo" WHERE l."LIC_Licencia" = :id'
-            .($bloquear ? ' FOR UPDATE OF l."LIC_Cantidad_Usada"' : ''), ['id' => $id]);
+        $f = $this->datos->licencia($id, $bloquear);
 
         return false === $f ? null : $f;
     }
@@ -244,8 +236,7 @@ final readonly class Software
      */
     public function licenciaAApi(array $l): array
     {
-        $estados = $this->conexion->fetchAllKeyValue('SELECT "LCL_Estado", COUNT(*) FROM "INV_LICENCIA_CLAVE" WHERE "LIC_Licencia" = :id GROUP BY "LCL_Estado"',
-            ['id' => (int) $l['LIC_Licencia']]);
+        $estados = $this->datos->clavesPorEstado((int) $l['LIC_Licencia']);
         $total = array_sum(array_map('intval', $estados));
         $usada = (int) $l['LIC_Cantidad_Usada'];
         if (0 === $total && null !== $l['LIC_Clave_Activacion'] && '' !== $l['LIC_Clave_Activacion']) {
@@ -272,8 +263,7 @@ final readonly class Software
     /** @return list<array<string, mixed>> */
     public function licencias(int $software): array
     {
-        return array_map($this->licenciaAApi(...), $this->conexion->fetchAllAssociative('SELECT '.self::LICENCIA.' FROM "INV_LICENCIA" l '
-            .'WHERE l."SOF_Software" = :s ORDER BY l."LIC_Licencia"', ['s' => $software]));
+        return array_map($this->licenciaAApi(...), $this->datos->licenciasDe($software));
     }
 
     /** @return array<string, mixed> */
@@ -294,8 +284,7 @@ final readonly class Software
                 $this->catalogos->nombreVigente($clave, (int) $d[$campo]);
             }
         }
-        if (null !== ($d['LIC_Proveedor'] ?? null)
-            && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :p', ['p' => $d['LIC_Proveedor']])) {
+        if (null !== ($d['LIC_Proveedor'] ?? null) && !$this->activos->existeProveedor($d['LIC_Proveedor'])) {
             throw ErrorDominio::noEncontrado('SUPPLIER_NOT_FOUND');
         }
     }
@@ -313,10 +302,8 @@ final readonly class Software
     public function crearLicenciaEnTransaccion(array $d, array $claves, array $credenciales, ?string $usuario, ?string $ip,
         ?string $origen = null, ?array $documento = null, ?int $sede = null): int
     {
-        $sw = $this->conexion->fetchAssociative('SELECT "SOF_Nombre", "SOF_Version" FROM "INV_SOFTWARE" WHERE "SOF_Software" = :s', ['s' => $d['SOF_Software']])
-            ?: throw ErrorDominio::noEncontrado('SOFTWARE_NOT_FOUND');
-        if (null !== ($d['TLI_Tipo_Licencia'] ?? null)
-            && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_LICENCIA" WHERE "TLI_Tipo_Licencia" = :t', ['t' => $d['TLI_Tipo_Licencia']])) {
+        $sw = $this->datos->software($d['SOF_Software']) ?: throw ErrorDominio::noEncontrado('SOFTWARE_NOT_FOUND');
+        if (null !== ($d['TLI_Tipo_Licencia'] ?? null) && false === $this->datos->tipoDeLicencia((int) $d['TLI_Tipo_Licencia'])) {
             throw ErrorDominio::noEncontrado('LICENSE_TYPE_NOT_FOUND');
         }
         $this->validarCatalogos($d);
@@ -333,21 +320,16 @@ final readonly class Software
         if ([] !== $huellas && $this->hayHuellas($huellas)) {
             throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
         }
-        $id = (int) InsercionOracle::insertar($this->conexion, 'INV_LICENCIA', [
+        $id = $this->datos->crearLicencia([
             'LIC_Clave_Activacion' => $this->cifrado->cifrar($d['LIC_Clave_Activacion'] ?? null), 'LIC_Cantidad_Total' => $d['LIC_Cantidad_Total'],
             'LIC_Cantidad_Usada' => 0, 'LIC_Costo' => $d['LIC_Costo'] ?? null, 'LIC_Moneda' => $d['LIC_Moneda'] ?? null,
             'MCO_Modelo_Comercial' => $d['MCO_Modelo_Comercial'] ?? null, 'MAC_Metodo_Activacion' => $d['MAC_Metodo_Activacion'] ?? null,
             'FCO_Forma_Conteo' => $d['FCO_Forma_Conteo'] ?? null, 'LIC_Proveedor' => $d['LIC_Proveedor'] ?? null,
             'LIC_Renovacion_Automatica' => ($d['LIC_Renovacion_Automatica'] ?? false) ? 1 : 0, 'LIC_Notas' => $d['LIC_Notas'] ?? null,
             'SOF_Software' => $d['SOF_Software'], 'TLI_Tipo_Licencia' => $d['TLI_Tipo_Licencia'] ?? null,
-        ], 'LIC_Licencia');
-        $this->conexion->executeStatement('UPDATE "INV_LICENCIA" SET "LIC_Fecha_Vencimiento" = TO_DATE(:v, \'YYYY-MM-DD\'), '
-            .'"LIC_Fecha_Inicio" = TO_DATE(:i, \'YYYY-MM-DD\') WHERE "LIC_Licencia" = :id',
-            ['v' => $d['LIC_Fecha_Vencimiento'] ?? null, 'i' => $d['LIC_Fecha_Inicio'] ?? null, 'id' => $id]);
+        ], $d['LIC_Fecha_Vencimiento'] ?? null, $d['LIC_Fecha_Inicio'] ?? null);
         foreach ($claves as $i => $k) {
-            $this->conexion->executeStatement("INSERT INTO \"INV_LICENCIA_CLAVE\" (\"LIC_Licencia\", \"LCL_Clave_Activacion\", \"LCL_Clave_Hash\", "
-                ."\"LCL_Referencia\", \"LCL_Estado\", \"LCL_Requiere_Cambio\") VALUES (:l, :c, :h, :r, 'DISPONIBLE', 0)",
-                ['l' => $id, 'c' => $this->cifrado->cifrar($k['LCL_Clave_Activacion']), 'h' => $huellas[$i], 'r' => $k['LCL_Referencia'] ?? null]);
+            $this->datos->agregarClave($id, $this->cifrado->cifrar($k['LCL_Clave_Activacion']), $huellas[$i], $k['LCL_Referencia'] ?? null);
         }
         if ([] !== $credenciales) {
             // Credenciales según el método (cuentas, seriales…): quedan en el mismo evento de alta.
@@ -381,8 +363,7 @@ final readonly class Software
             throw ErrorDominio::conflicto('LICENSE_KEY_ALREADY_EXISTS');
         }
         foreach ($keys as $i => $key) {
-            $this->conexion->executeStatement("INSERT INTO \"INV_LICENCIA_CLAVE\" (\"LIC_Licencia\", \"LCL_Clave_Activacion\", \"LCL_Clave_Hash\", \"LCL_Estado\", \"LCL_Requiere_Cambio\") VALUES (:l, :c, :h, 'DISPONIBLE', 0)",
-                ['l' => $license, 'c' => $this->cifrado->cifrar($key), 'h' => $hashes[$i]]);
+            $this->datos->agregarClave($license, $this->cifrado->cifrar($key), $hashes[$i]);
         }
         $this->gobierno->registrarAuditoria('CREATE', 'INV_LICENCIA_CLAVE', ['licencia_id' => $license, 'claves' => \count($keys)], $user, $ip);
     }
@@ -390,17 +371,7 @@ final readonly class Software
     /** @param list<string> $huellas */
     public function hayHuellas(array $huellas, ?int $excepto = null): bool
     {
-        $p = [];
-        foreach ($huellas as $i => $h) {
-            $p["h{$i}"] = $h;
-        }
-        $sql = 'SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Clave_Hash" IN (:'.implode(', :', array_keys($p)).')';
-        if (null !== $excepto) {
-            $sql .= ' AND "LCL_Licencia_Clave" <> :excepto';
-            $p['excepto'] = $excepto;
-        }
-
-        return false !== $this->conexion->fetchOne($sql.' FETCH FIRST 1 ROWS ONLY', $p);
+        return $this->claves->existeHuella($huellas, $excepto);
     }
 
     /**
@@ -428,7 +399,7 @@ final readonly class Software
             $this->validarCatalogos($cambios);
             // El método decide qué guarda cada credencial: no cambia si ya hay credenciales.
             if (null !== ($cambios['MAC_Metodo_Activacion'] ?? null) && (int) $cambios['MAC_Metodo_Activacion'] !== (int) $l['MAC_Metodo_Activacion']
-                && false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LIC_Licencia" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id])) {
+                && $this->datos->tieneClaves($id)) {
                 throw ErrorDominio::conflicto('LICENSE_METHOD_LOCKED');
             }
             if (null !== ($cambios['LIC_Cantidad_Total'] ?? null) && $cambios['LIC_Cantidad_Total'] < (int) $l['LIC_Cantidad_Usada']) {
@@ -439,7 +410,7 @@ final readonly class Software
             if (null !== ($cambios['LIC_Clave_Activacion'] ?? null)) {
                 $cambios['LIC_Clave_Activacion'] = $this->cifrado->cifrar($cambios['LIC_Clave_Activacion']);
             }
-            $this->actualizar('INV_LICENCIA', 'LIC_Licencia', $id, $cambios, ['LIC_Fecha_Vencimiento', 'LIC_Fecha_Inicio']);
+            $this->datos->actualizar('INV_LICENCIA', 'LIC_Licencia', $id, $cambios, ['LIC_Fecha_Vencimiento', 'LIC_Fecha_Inicio']);
             $antes = (int) $l['LIC_Cantidad_Total'];
             if (null !== ($cambios['LIC_Cantidad_Total'] ?? null) && $cambios['LIC_Cantidad_Total'] !== $antes) {
                 $this->kardex->registrar('LICENCIA_AJUSTE', licencia: $id, referencia: $this->referenciaLicencia($id),
@@ -456,11 +427,11 @@ final readonly class Software
     {
         $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): void {
             $l = $this->licenciaO404($id, true);
-            $activas = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_INSTALACION" WHERE "LIC_Licencia" = :id AND "INS_Estado" = 1', ['id' => $id]);
+            $activas = $this->datos->instalacionesActivasDe($id);
             if ($activas > 0) {
                 throw ErrorDominio::conflicto("CANNOT_DELETE_LICENSE_WITH_ACTIVE_INSTALLATIONS:{$activas}");
             }
-            $sw = $this->conexion->fetchAssociative('SELECT "SOF_Nombre", "SOF_Version" FROM "INV_SOFTWARE" WHERE "SOF_Software" = :s', ['s' => $l['SOF_Software']]);
+            $sw = $this->datos->software($l['SOF_Software']);
             // Salida de la licencia del inventario (el kardex conserva su historia).
             $this->kardex->registrar('LICENCIA_BAJA', licencia: $id, referencia: self::referenciaSoftware($sw ?: null), cantidad: (int) $l['LIC_Cantidad_Total'],
                 saldo: 0, costo: $l['LIC_Costo'], moneda: $l['LIC_Moneda'], motivo: 'Licencia eliminada del inventario', usuario: $usuario);
@@ -484,12 +455,7 @@ final readonly class Software
     {
         return $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): array {
             $l = $this->licenciaO404($id);
-            $filas = $this->conexion->fetchAllAssociative('SELECT c."LCL_Licencia_Clave", c."LIC_Licencia", c."LCL_Clave_Activacion", c."LCL_Referencia", '
-                .'c."LCL_Estado", c."CREATED_AT", i."INS_Fecha_Instalacion", i."ACT_Activo", i."PER_Persona", a."ACT_Codigo_Interno", a."ACT_Hostname", '
-                .'a."ACT_Serie_Fabricante", p."PER_Primer_Nombre", p."PER_Segundo_Nombre", p."PER_Primer_Apellido", p."PER_Segundo_Apellido", p."PER_Email_Corporativo" '
-                .'FROM "INV_LICENCIA_CLAVE" c LEFT JOIN "INV_INSTALACION" i ON i."LCL_Licencia_Clave" = c."LCL_Licencia_Clave" AND i."INS_Estado" = 1 '
-                .'LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = i."ACT_Activo" LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = i."PER_Persona" '
-                .'WHERE c."LIC_Licencia" = :id ORDER BY c."LCL_Licencia_Clave"', ['id' => $id]);
+            $filas = $this->datos->clavesConDestino($id);
             $salida = [];
             foreach ($filas as $f) {
                 [$tipo, $destino, $nombre, $detalle] = [null, null, null, null];
@@ -529,17 +495,9 @@ final readonly class Software
      */
     public function disponibles(?string $forma, bool $todas): array
     {
-        $sql = 'SELECT l."LIC_Licencia", l."LIC_Cantidad_Total", l."LIC_Cantidad_Usada", l."LIC_Fecha_Vencimiento", s."SOF_Software", s."SOF_Nombre", '
-            .'s."SOF_Version", fc."FCO_Codigo", ma."MAC_Codigo" FROM "INV_LICENCIA" l JOIN "INV_SOFTWARE" s ON s."SOF_Software" = l."SOF_Software" '
-            .'LEFT JOIN "INV_FORMA_CONTEO" fc ON fc."FCO_Forma" = l."FCO_Forma_Conteo" LEFT JOIN "INV_METODO_ACTIVACION" ma ON ma."MAC_Metodo" = l."MAC_Metodo_Activacion"';
-        $p = [];
-        if (null !== $forma) {
-            $sql .= ' WHERE fc."FCO_Codigo" = :forma';
-            $p['forma'] = $forma;
-        }
         $hoy = Reloj::ahora()->format('Y-m-d');
         $salida = [];
-        foreach ($this->conexion->fetchAllAssociative($sql.' ORDER BY s."SOF_Nombre", l."LIC_Licencia"', $p) as $f) {
+        foreach ($this->datos->licenciasConSoftware($forma) as $f) {
             $libres = 'SITIO' === $f['FCO_Codigo'] ? null : (int) $f['LIC_Cantidad_Total'] - (int) $f['LIC_Cantidad_Usada'];
             $vence = null === $f['LIC_Fecha_Vencimiento'] ? null : substr((string) $f['LIC_Fecha_Vencimiento'], 0, 10);
             // `todas`: para configurar (kits) se listan también las sin cupo o vencidas.
@@ -561,12 +519,7 @@ final readonly class Software
     /** @return list<array<string, mixed>> InstalacionDetalleResponse */
     public function instalacionesDe(string $columna, string $hex, bool $soloActivas): array
     {
-        $filas = $this->conexion->fetchAllAssociative('SELECT i."INS_Instalacion", i."INS_Fecha_Instalacion", i."INS_Estado", i."INS_Fecha_Retiro", '
-            .'i."INS_Motivo_Retiro", i."ACT_Activo", i."PER_Persona", i."LIC_Licencia", i."LCL_Licencia_Clave", l."LIC_Fecha_Vencimiento", '
-            .'l."LIC_Cantidad_Total", l."LIC_Cantidad_Usada", s."SOF_Software", s."SOF_Nombre", s."SOF_Version", s."SOF_Fabricante", t."TLI_Tipo_Licencia", '
-            .'t."TLI_Nombre" FROM "INV_INSTALACION" i JOIN "INV_LICENCIA" l ON l."LIC_Licencia" = i."LIC_Licencia" '
-            .'LEFT JOIN "INV_SOFTWARE" s ON s."SOF_Software" = l."SOF_Software" LEFT JOIN "INV_TIPO_LICENCIA" t ON t."TLI_Tipo_Licencia" = l."TLI_Tipo_Licencia" '
-            .'WHERE i."'.$columna.'" = :d'.($soloActivas ? ' AND i."INS_Estado" = 1' : '').' ORDER BY i."INS_Instalacion"', ['d' => $hex]);
+        $filas = $this->datos->instalacionesDe($columna, $hex, $soloActivas);
 
         return array_map(static fn (array $f): array => [...self::instalacionAApi($f), 'licencia' => [
             'LIC_Licencia' => (int) $f['LIC_Licencia'],
@@ -597,10 +550,7 @@ final readonly class Software
     /** @return array<string, mixed>|null */
     private function instalacionActiva(int $licencia, ?string $activo, ?string $persona): ?array
     {
-        $f = $this->conexion->fetchAssociative('SELECT "INS_Instalacion", "INS_Fecha_Instalacion", "INS_Estado", "INS_Fecha_Retiro", "INS_Motivo_Retiro", '
-            .'"ACT_Activo", "PER_Persona", "LIC_Licencia", "LCL_Licencia_Clave", "INS_Consume_Cupo" FROM "INV_INSTALACION" '
-            .'WHERE "LIC_Licencia" = :l AND "INS_Estado" = 1 AND '.(null !== $activo ? '"ACT_Activo" = :d' : '"PER_Persona" = :d')
-            .' FETCH FIRST 1 ROWS ONLY', ['l' => $licencia, 'd' => $activo ?? $persona]);
+        $f = $this->datos->instalacionActiva($licencia, $activo, $persona);
 
         return false === $f ? null : $f;
     }
@@ -615,14 +565,14 @@ final readonly class Software
     {
         return $this->transaccion->ejecutar(function () use ($licencia, $activo, $persona, $clave, $fecha, $usuario, $ip): array {
             if (null !== $activo) {
-                if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => $activo])) {
+                if (!$this->datos->existeActivo($activo)) {
                     throw ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
                 }
                 // Software y licencias por equipo: solo en equipos que lo llevan (no en un monitor).
                 $this->reglas->exigirSoftware($activo);
             }
             if (null !== $persona) {
-                $estado = $this->conexion->fetchOne('SELECT "PER_Estado" FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $persona]);
+                $estado = $this->datos->estadoDePersona($persona);
                 if (false === $estado) {
                     throw ErrorDominio::noEncontrado('PERSON_NOT_FOUND');
                 }
@@ -646,18 +596,17 @@ final readonly class Software
             $consumeCupo = 'SITIO' !== $forma;
             $reservada = $reservaCredencial ? $clave : null;
             if (null !== $reservada) {
-                $propia = $this->conexion->fetchOne('SELECT "LIC_Licencia" FROM "INV_LICENCIA_CLAVE" WHERE "LCL_Licencia_Clave" = :c', ['c' => $reservada]);
+                $propia = $this->datos->licenciaDeClave($reservada);
                 if (false === $propia || (int) $propia !== $licencia) {
                     throw ErrorDominio::noEncontrado('LICENSE_KEY_NOT_FOUND');
                 }
-                if (!$this->reservarClave($licencia, $reservada)) {
+                if (!$this->datos->reservarClave($licencia, $reservada)) {
                     throw ErrorDominio::conflicto('LICENSE_KEY_NOT_AVAILABLE');
                 }
-            } elseif ($reservaCredencial && false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_LICENCIA_CLAVE" WHERE "LIC_Licencia" = :l FETCH FIRST 1 ROWS ONLY', ['l' => $licencia])) {
-                foreach ($this->conexion->fetchFirstColumn("SELECT \"LCL_Licencia_Clave\" FROM \"INV_LICENCIA_CLAVE\" WHERE \"LIC_Licencia\" = :l "
-                    ."AND \"LCL_Estado\" = 'DISPONIBLE' AND \"LCL_Requiere_Cambio\" = 0 ORDER BY \"LCL_Licencia_Clave\" FETCH FIRST 20 ROWS ONLY", ['l' => $licencia]) as $candidata) {
-                    if ($this->reservarClave($licencia, (int) $candidata)) {
-                        $reservada = (int) $candidata;
+            } elseif ($reservaCredencial && $this->datos->tieneClaves($licencia)) {
+                foreach ($this->datos->clavesAsignables($licencia) as $candidata) {
+                    if ($this->datos->reservarClave($licencia, $candidata)) {
+                        $reservada = $candidata;
                         break;
                     }
                 }
@@ -665,31 +614,19 @@ final readonly class Software
                     throw ErrorDominio::conflicto('NO_LICENSE_KEYS_AVAILABLE');
                 }
             }
-            if ($consumeCupo && 1 !== $this->conexion->executeStatement('UPDATE "INV_LICENCIA" SET "LIC_Cantidad_Usada" = "LIC_Cantidad_Usada" + 1 '
-                .'WHERE "LIC_Licencia" = :l AND "LIC_Cantidad_Usada" < "LIC_Cantidad_Total"', ['l' => $licencia])) {
+            if ($consumeCupo && !$this->datos->tomarCupo($licencia)) {
                 throw ErrorDominio::conflicto('NO_LICENSE_SEATS_AVAILABLE');
             }
-            $id = (int) InsercionOracle::insertar($this->conexion, 'INV_INSTALACION', ['INS_Fecha_Instalacion' => $fecha, 'INS_Estado' => 1, 'INS_Consume_Cupo' => $consumeCupo ? 1 : 0,
-                'ACT_Activo' => $activo, 'PER_Persona' => $persona, 'LIC_Licencia' => $licencia, 'LCL_Licencia_Clave' => $reservada], 'INS_Instalacion');
-            $usada = (int) $this->conexion->fetchOne('SELECT "LIC_Cantidad_Usada" FROM "INV_LICENCIA" WHERE "LIC_Licencia" = :l', ['l' => $licencia]);
+            $id = $this->datos->crearInstalacion(['INS_Fecha_Instalacion' => $fecha, 'INS_Estado' => 1, 'INS_Consume_Cupo' => $consumeCupo ? 1 : 0,
+                'ACT_Activo' => $activo, 'PER_Persona' => $persona, 'LIC_Licencia' => $licencia, 'LCL_Licencia_Clave' => $reservada]);
+            $usada = (int) $this->datos->cuposUsados($licencia);
             $this->kardex->registrar('LICENCIA_ASIGNADA', licencia: $licencia, clave: $reservada, referencia: $this->referenciaLicencia($licencia),
                 destino: ['persona' => $persona, 'activo' => $activo, 'sede' => $this->sedeDestino($activo, $persona)], cantidad: 1, saldo: $usada, usuario: $usuario);
             $this->gobierno->registrarAuditoria('INSTALL', 'INV_INSTALACION', ['activo' => null === $activo ? null : Ident::aTexto($activo),
                 'persona' => null === $persona ? null : Ident::aTexto($persona), 'licencia' => $licencia, 'licencia_clave' => $reservada], $usuario, $ip);
 
-            return self::instalacionAApi($this->conexion->fetchAssociative('SELECT "INS_Instalacion", "INS_Fecha_Instalacion", "INS_Estado", "INS_Fecha_Retiro", '
-                .'"INS_Motivo_Retiro", "ACT_Activo", "PER_Persona", "LIC_Licencia", "LCL_Licencia_Clave" FROM "INV_INSTALACION" WHERE "INS_Instalacion" = :id', ['id' => $id]));
+            return self::instalacionAApi((array) $this->datos->instalacion($id));
         });
-    }
-
-    /**
-     * Reserva atómica de una credencial libre. Una marcada para rotar (la conocía alguien que salió)
-     * no se entrega hasta que se cambie su secreto.
-     */
-    private function reservarClave(int $licencia, int $clave): bool
-    {
-        return 1 === $this->conexion->executeStatement("UPDATE \"INV_LICENCIA_CLAVE\" SET \"LCL_Estado\" = 'ASIGNADA' WHERE \"LCL_Licencia_Clave\" = :c "
-            ."AND \"LIC_Licencia\" = :l AND \"LCL_Estado\" = 'DISPONIBLE' AND \"LCL_Requiere_Cambio\" = 0", ['c' => $clave, 'l' => $licencia]);
     }
 
     /**
@@ -701,21 +638,17 @@ final readonly class Software
     {
         return $this->transaccion->ejecutar(function () use ($licencia, $activo, $persona, $motivo, $usuario, $ip): array {
             $actual = $this->instalacionActiva($licencia, $activo, $persona) ?? throw ErrorDominio::noEncontrado('INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED');
-            if (1 !== $this->conexion->executeStatement('UPDATE "INV_INSTALACION" SET "INS_Estado" = 0, "INS_Fecha_Retiro" = :ahora, "INS_Motivo_Retiro" = :m '
-                .'WHERE "INS_Instalacion" = :id AND "INS_Estado" = 1', ['ahora' => Reloj::aBd(Reloj::ahora()),
-                    'm' => null === $motivo || '' === $motivo ? null : mb_substr($motivo, 0, 255), 'id' => (int) $actual['INS_Instalacion']])) {
+            if (!$this->datos->retirarInstalacion((int) $actual['INS_Instalacion'], Reloj::ahora(), null === $motivo || '' === $motivo ? null : mb_substr($motivo, 0, 255))) {
                 throw ErrorDominio::noEncontrado('INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED');
             }
             if (1 === (int) $actual['INS_Consume_Cupo']) {
-                $this->conexion->executeStatement('UPDATE "INV_LICENCIA" SET "LIC_Cantidad_Usada" = "LIC_Cantidad_Usada" - 1 WHERE "LIC_Licencia" = :l '
-                    .'AND "LIC_Cantidad_Usada" > 0', ['l' => $licencia]);
+                $this->datos->devolverCupo($licencia);
             }
             $clave = null === $actual['LCL_Licencia_Clave'] ? null : (int) $actual['LCL_Licencia_Clave'];
             if (null !== $clave) {
-                $this->conexion->executeStatement("UPDATE \"INV_LICENCIA_CLAVE\" SET \"LCL_Estado\" = 'DISPONIBLE' WHERE \"LCL_Licencia_Clave\" = :c "
-                    ."AND \"LCL_Estado\" = 'ASIGNADA'", ['c' => $clave]);
+                $this->datos->liberarClave($clave);
             }
-            $usada = $this->conexion->fetchOne('SELECT "LIC_Cantidad_Usada" FROM "INV_LICENCIA" WHERE "LIC_Licencia" = :l', ['l' => $licencia]);
+            $usada = $this->datos->cuposUsados($licencia);
             $this->kardex->registrar('LICENCIA_RETIRADA', licencia: $licencia, clave: $clave, referencia: $this->referenciaLicencia($licencia),
                 origen: ['persona' => $persona, 'activo' => $activo, 'sede' => $this->sedeDestino($activo, $persona)], cantidad: 1,
                 saldo: false === $usada ? null : (int) $usada, motivo: $motivo, usuario: $usuario);
@@ -743,10 +676,7 @@ final readonly class Software
             'LCL_Licencia_Clave' => null === $f['LCL_Licencia_Clave'] ? null : (int) $f['LCL_Licencia_Clave'],
             'INS_Fecha_Instalacion' => substr((string) $f['INS_Fecha_Instalacion'], 0, 10), 'INS_Estado' => 1 === (int) $f['INS_Estado'],
             'INS_Fecha_Retiro' => Reloj::iso(Reloj::desdeBd($f['INS_Fecha_Retiro'])), 'INS_Motivo_Retiro' => $f['INS_Motivo_Retiro']],
-            $this->conexion->fetchAllAssociative('SELECT i."INS_Instalacion", i."ACT_Activo", i."PER_Persona", i."LCL_Licencia_Clave", i."INS_Fecha_Instalacion", '
-                .'i."INS_Estado", i."INS_Fecha_Retiro", i."INS_Motivo_Retiro", a."ACT_Codigo_Interno", p."PER_Primer_Nombre", p."PER_Primer_Apellido" '
-                .'FROM "INV_INSTALACION" i LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = i."ACT_Activo" LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = i."PER_Persona" '
-                .'WHERE i."LIC_Licencia" = :l ORDER BY i."INS_Fecha_Instalacion" DESC, i."INS_Instalacion" DESC', ['l' => $licencia]));
+            $this->datos->historialDe($licencia));
     }
 
     // =====================================================================
@@ -765,36 +695,13 @@ final readonly class Software
 
     public function referenciaLicencia(int $licencia): string
     {
-        $sw = $this->conexion->fetchAssociative('SELECT s."SOF_Nombre", s."SOF_Version" FROM "INV_SOFTWARE" s JOIN "INV_LICENCIA" l ON l."SOF_Software" = s."SOF_Software" '
-            .'WHERE l."LIC_Licencia" = :l', ['l' => $licencia]);
+        $sw = $this->claves->softwareDeLicencia($licencia);
 
         return false === $sw ? "Licencia #{$licencia}" : self::referenciaSoftware($sw)." · licencia #{$licencia}";
     }
 
     private function sedeDestino(?string $activo, ?string $persona): ?int
     {
-        $sede = null !== $activo
-            ? $this->conexion->fetchOne('SELECT "SED_Sede" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => $activo])
-            : (null !== $persona ? $this->conexion->fetchOne('SELECT "SED_Sede" FROM "INV_PERSONA" WHERE "PER_Persona" = :p', ['p' => $persona]) : false);
-
-        return false === $sede || null === $sede ? null : (int) $sede;
-    }
-
-    /**
-     * @param array<string, mixed> $cambios
-     * @param list<string>         $fechas columnas DATE
-     */
-    private function actualizar(string $tabla, string $clave, int $id, array $cambios, array $fechas = []): void
-    {
-        if ([] === $cambios) {
-            return;
-        }
-        $sets = [];
-        $p = ['id' => $id];
-        foreach ($cambios as $c => $v) {
-            $sets[] = \in_array($c, $fechas, true) ? "\"{$c}\" = TO_DATE(:{$c}, 'YYYY-MM-DD')" : "\"{$c}\" = :{$c}";
-            $p[$c] = \is_bool($v) ? (int) $v : $v;
-        }
-        $this->conexion->executeStatement("UPDATE \"{$tabla}\" SET ".implode(', ', $sets)." WHERE \"{$clave}\" = :id", $p);
+        return $this->datos->sedeDeDestino($activo, $persona);
     }
 }

@@ -41,9 +41,6 @@ return array (
   ),
   'negocio-sin-sql' => 
   array (
-    0 => 'Inventario/Activos.php',
-    1 => 'Inventario/Movimientos.php',
-    2 => 'Inventario/Software.php',
   ),
   'entrega-sin-sql' => 
   array (
