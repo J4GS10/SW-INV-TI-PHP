@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Autenticacion\DosFactores;
 use App\Autenticacion\InicioSesion;
+use App\Http\CookiesSesion;
 use App\Autenticacion\Sso;
 use App\Config\Ajustes;
 use App\Dominio\Reloj;
@@ -31,6 +32,7 @@ final readonly class SsoController
     public function __construct(
         private Sso $sso,
         private InicioSesion $inicio,
+        private CookiesSesion $cookies,
         private DosFactores $dosFactores,
         private UsuarioRepositorio $usuarios,
         private GobiernoRepositorio $gobierno,
@@ -107,13 +109,14 @@ final readonly class SsoController
 
         $respuesta = $this->redirigir($volverA.$separador.'sso=ok');
         $usuario->ultimoLogin = Reloj::ahora();
-        $sesion = $this->transaccion->ejecutar(function () use ($usuario, $provider, $ip, $ua, $respuesta): array {
+        $sesion = $this->transaccion->ejecutar(function () use ($usuario, $provider, $ip, $ua): array {
             $this->usuarios->guardarEstadoAcceso($usuario);
             $this->gobierno->registrarAuditoria('LOGIN_SUCCESS', 'INV_USUARIO',
                 ['username' => $usuario->username, 'rol' => $usuario->rol, 'sso' => $provider], $usuario->id, $ip, $ua);
 
-            return $this->inicio->iniciar($usuario, $this->politica->claims($usuario, true), 'sso', $ip, $ua, $respuesta);
+            return $this->inicio->iniciar($usuario, $this->politica->claims($usuario, true), 'sso', $ip, $ua);
         });
+        $this->cookies->abrir($respuesta, $sesion['refresh'], $usuario->id);
         $this->inicio->avisarDispositivo($usuario, $sesion['dispositivo_nuevo'], $ip);
 
         return $respuesta;
@@ -121,7 +124,7 @@ final readonly class SsoController
 
     private function redirigir(string $url): Response
     {
-        $respuesta = InicioSesion::sinCache(new RedirectResponse($url, 303));
+        $respuesta = CookiesSesion::sinCache(new RedirectResponse($url, 303));
         // El vínculo del state es de un solo uso.
         $respuesta->headers->clearCookie(Sso::COOKIE_VINCULO, $this->rutaCookie(), null, $this->ajustes->esProduccion(), true, Cookie::SAMESITE_LAX);
 

@@ -20,6 +20,8 @@ enum MotivoError
     case NoProcesable;
     case Prohibido;
     case NoAutenticado;
+    /** Too many failed attempts: the caller must wait before trying again. */
+    case DemasiadosIntentos;
     /** It existed and is gone for good (an expired link). */
     case YaNoExiste;
     case DemasiadoGrande;

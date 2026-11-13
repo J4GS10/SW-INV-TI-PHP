@@ -27,17 +27,15 @@ return array (
   'negocio-sin-http' => 
   array (
     0 => 'Adjuntos/Subida.php',
-    1 => 'Autenticacion/InicioSesion.php',
-    2 => 'Correo/Notificador.php',
-    3 => 'Crud/Esquema.php',
-    4 => 'Crud/Operaciones.php',
-    5 => 'Documentos/Descarga.php',
-    6 => 'GoodsReceipt/Application/GoodsReceiptService.php',
-    7 => 'Integracion/FormularioIntegracion.php',
-    8 => 'Inventario/Aprobaciones.php',
-    9 => 'Inventario/Esquemas.php',
-    10 => 'Realtime/PublishChangesListener.php',
-    11 => 'Security/Mfa/TrustedDevices.php',
+    1 => 'Correo/Notificador.php',
+    2 => 'Crud/Esquema.php',
+    3 => 'Crud/Operaciones.php',
+    4 => 'Documentos/Descarga.php',
+    5 => 'GoodsReceipt/Application/GoodsReceiptService.php',
+    6 => 'Integracion/FormularioIntegracion.php',
+    7 => 'Inventario/Aprobaciones.php',
+    8 => 'Inventario/Esquemas.php',
+    9 => 'Realtime/PublishChangesListener.php',
   ),
   'negocio-sin-sql' => 
   array (

@@ -54,6 +54,11 @@ final class ErrorDominio extends \RuntimeException
         return new self(MotivoError::NoAutenticado, $detalle);
     }
 
+    public static function demasiadosIntentos(string $detalle): self
+    {
+        return new self(MotivoError::DemasiadosIntentos, $detalle);
+    }
+
     public static function yaNoExiste(string $detalle): self
     {
         return new self(MotivoError::YaNoExiste, $detalle);

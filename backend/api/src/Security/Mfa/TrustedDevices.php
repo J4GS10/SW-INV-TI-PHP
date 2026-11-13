@@ -9,13 +9,10 @@ use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Dominio\Usuario;
 use App\Security\Mfa\Infrastructure\TrustedDeviceStore;
-use Symfony\Component\HttpFoundation\Cookie;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 
 /**
  * "Remember this device": after a valid MFA code the browser gets a random token
- * (HttpOnly cookie, only sent to the sign-in routes). With it, the password still
+ * (the delivery layer keeps it in an HttpOnly cookie that only travels to the sign-in routes). With it, the password still
  * opens the session but the MFA code is not asked again until it expires.
  *
  * Only the token's SHA-256 is stored. A device stops being trusted when it
@@ -24,9 +21,6 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class TrustedDevices
 {
-    public const string COOKIE = 'inv_mfa_device';
-    private const string PATH = '/api/v1/login';
-
     public function __construct(private TrustedDeviceStore $store, private Ajustes $settings)
     {
     }
@@ -36,29 +30,27 @@ final readonly class TrustedDevices
         return $this->settings->mfaRecordarDias > 0;
     }
 
-    /** Remembers the browser and sets its cookie on the response. */
-    public function remember(Usuario $user, Response $response, ?string $ip, ?string $device): void
+    /**
+     * Remembers the browser.
+     *
+     * @return array{token: string, expires: \DateTimeImmutable}|null the mark the browser must keep and until when; null when the feature is off
+     */
+    public function remember(Usuario $user, ?string $ip, ?string $device): ?array
     {
         if (!$this->enabled()) {
-            return;
+            return null;
         }
         $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
         $now = Reloj::ahora();
         $expires = $now->modify('+'.$this->settings->mfaRecordarDias.' days');
         $this->store->add($user->id, hash('sha256', $token), $this->stamp($user), null === $device ? null : mb_substr($device, 0, 120), $ip, $now, $expires);
-        $response->headers->setCookie(Cookie::create(self::COOKIE)
-            ->withValue($token)
-            ->withExpires($expires->getTimestamp())
-            ->withPath(self::PATH)
-            ->withSecure($this->settings->esProduccion())
-            ->withHttpOnly(true)
-            ->withSameSite(Cookie::SAMESITE_STRICT));
+
+        return ['token' => $token, 'expires' => $expires];
     }
 
-    /** Is the request's cookie a live trusted device of this account? Marks its use. */
-    public function isTrusted(Usuario $user, Request $request): bool
+    /** Is that mark a live trusted device of this account? Marks its use. */
+    public function isTrusted(Usuario $user, string $token): bool
     {
-        $token = (string) $request->cookies->get(self::COOKIE, '');
         if (!$this->enabled() || '' === $token) {
             return false;
         }

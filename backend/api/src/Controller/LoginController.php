@@ -4,32 +4,22 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Autenticacion\AccesoCuenta;
 use App\Autenticacion\AutoservicioContrasena;
 use App\Autenticacion\CierreDeSesion;
-use App\Autenticacion\DosFactores;
-use App\Autenticacion\InicioSesion;
-use App\Autenticacion\IntentosFallidos;
-use App\Config\Ajustes;
+use App\Autenticacion\Domain\DesafioSegundoFactor;
+use App\Autenticacion\Domain\SesionAbierta;
 use App\Dominio\Ident;
-use App\Dominio\Reloj;
 use App\Http\ClienteHttp;
+use App\Http\CookiesSesion;
 use App\Http\Entrada;
-use App\Http\ErrorApi;
 use App\Http\ErrorValidacion;
 use App\Http\Limite;
 use App\ProfilePhoto\Domain\ProfilePhoto;
 use App\ProfilePhoto\Infrastructure\ProfilePhotoRepository;
-use App\Repositorio\GobiernoRepositorio;
 use App\Repositorio\SesionRepositorio;
-use App\Repositorio\UsuarioRepositorio;
 use App\Seguridad\Autenticado;
-use App\Seguridad\BloqueoCuenta;
-use App\Seguridad\Contrasenas;
-use App\Seguridad\PoliticaSesion;
-use App\Seguridad\Tokens;
-use App\Security\Mfa\TrustedDevices;
 use App\Seguridad\UsuarioActual;
-use App\Db\Transaccion;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -45,20 +35,11 @@ final readonly class LoginController
     private const string MENSAJE_RESET = 'Si la cuenta existe, se enviaron instrucciones al correo registrado.';
 
     public function __construct(
-        private Transaccion $transaccion,
-        private UsuarioRepositorio $usuarios,
-        private GobiernoRepositorio $gobierno,
-        private SesionRepositorio $sesiones,
-        private IntentosFallidos $intentos,
-        private BloqueoCuenta $bloqueo,
-        private PoliticaSesion $politica,
-        private Tokens $tokens,
-        private InicioSesion $inicio,
+        private AccesoCuenta $acceso,
         private CierreDeSesion $cierreDeSesion,
-        private DosFactores $dosFactores,
         private AutoservicioContrasena $contrasenas,
-        private Ajustes $ajustes,
-        private TrustedDevices $equipos,
+        private CookiesSesion $cookies,
+        private SesionRepositorio $sesiones,
         private ProfilePhotoRepository $fotos,
     ) {
     }
@@ -68,7 +49,6 @@ final readonly class LoginController
     #[Limite(ajuste: 'limiteLogin')]
     public function accessToken(Request $request): Response
     {
-        [$ip, $ua] = [ClienteHttp::ip($request), ClienteHttp::userAgent($request)];
         $form = $request->request->all();
         ErrorValidacion::exigirCampos($form, 'username', 'password');
         if (isset($form['grant_type']) && 'password' !== $form['grant_type']) {
@@ -77,82 +57,19 @@ final readonly class LoginController
                 'msg' => "String should match pattern '^password$'", 'input' => $form['grant_type'],
             ]]);
         }
-        $username = (string) $form['username'];
-        $password = (string) $form['password'];
-
-        // Un nombre más largo que la columna (50) no puede existir: no se consulta la base.
-        $usuario = mb_strlen($username) > 50 ? null : $this->usuarios->porUsername($username);
-        // Usuario inexistente: mismo costo de CPU y mismo mensaje que una contraseña errónea.
-        if (null === $usuario) {
-            Contrasenas::verificarSenuelo();
-            $this->gobierno->registrarAuditoria('LOGIN_FAILED', 'INV_USUARIO',
-                ['username' => mb_substr($username, 0, 64), 'reason' => 'user_not_found'], null, $ip, $ua);
-            throw new ErrorApi(400, 'INCORRECT_USERNAME_OR_PASSWORD');
-        }
-
-        $ahora = Reloj::ahora();
-        $this->bloqueo->liberarSiVencido($usuario, $ahora);
-        $bloqueada = $this->bloqueo->estaBloqueada($usuario, $ahora, $ip);
-        // La contraseña se verifica ANTES de revelar el bloqueo: con una errónea la
-        // respuesta es la de un usuario inexistente (no se enumeran cuentas bloqueándolas).
-        $passwordOk = Contrasenas::verificar($password, $usuario->passwordHash);
-
-        if ($bloqueada) {
-            $this->intentos->sinIntento($usuario, 'account_locked', $ip, $ua);
-            throw new ErrorApi($passwordOk ? 429 : 400, $passwordOk ? 'ACCOUNT_LOCKED' : 'INCORRECT_USERNAME_OR_PASSWORD');
-        }
-        if (!$passwordOk) {
-            $motivo = null === $usuario->passwordHash || '' === $usuario->passwordHash ? 'password_login_disabled' : 'bad_password';
-            $this->intentos->registrar($usuario, $ahora, $motivo, 'password', $ip, $ua);
-            throw new ErrorApi(400, 'INCORRECT_USERNAME_OR_PASSWORD');
-        }
-        if (!$usuario->activo) {
-            $this->intentos->sinIntento($usuario, 'inactive_user', $ip, $ua);
-            throw new ErrorApi(400, 'INACTIVE_USER');
-        }
-
-        // Contraseña correcta: rehash si toca (bcrypt → argon2id). Los intentos se limpian
-        // solo al completar el login: con 2FA, limpiarlos aquí permitiría repetir la
-        // contraseña para seguir probando códigos del segundo factor.
-        if (Contrasenas::necesitaRehash((string) $usuario->passwordHash)) {
-            $usuario->passwordHash = Contrasenas::hashear($password);
-        }
-
-        // Equipo recordado tras un código válido: la contraseña basta hasta que venza.
-        $recordado = $usuario->dosFactoresHabilitado && $this->equipos->isTrusted($usuario, $request);
-        if ($usuario->dosFactoresHabilitado && !$recordado) {
-            $this->transaccion->ejecutar(function () use ($usuario, $ip, $ua): void {
-                $this->usuarios->guardarEstadoAcceso($usuario);
-                $this->gobierno->registrarAuditoria('2FA_CHALLENGE', 'INV_USUARIO',
-                    ['username' => $usuario->username, 'metodo' => $usuario->dosFactoresMetodo], $usuario->id, $ip, $ua);
-            });
-            if ('EMAIL' === $usuario->dosFactoresMetodo) {
-                $this->dosFactores->emitirCodigoCorreo($usuario);
-            }
-
-            return InicioSesion::sinCache(new JsonResponse([
+        $resultado = $this->acceso->conContrasena((string) $form['username'], (string) $form['password'], CookiesSesion::equipo($request),
+            ClienteHttp::ip($request), ClienteHttp::userAgent($request));
+        if ($resultado instanceof DesafioSegundoFactor) {
+            return CookiesSesion::sinCache(new JsonResponse([
                 'requires_2fa' => true,
-                'method' => $usuario->dosFactoresMetodo,
-                'challenge_token' => $this->tokens->crearDesafio2fa($usuario->username, $usuario->passwordHash),
+                'method' => $resultado->metodo,
+                'challenge_token' => $resultado->token,
                 // Días que se puede recordar este equipo al ingresar el código (0 = no se ofrece).
-                'remember_days' => $this->ajustes->mfaRecordarDias,
+                'remember_days' => $resultado->diasRecordar,
             ]));
         }
 
-        $this->bloqueo->limpiar($usuario, $ip);
-        $usuario->ultimoLogin = $ahora;
-        $respuesta = new JsonResponse();
-        $sesion = $this->transaccion->ejecutar(function () use ($usuario, $ip, $ua, $respuesta, $recordado): array {
-            $this->usuarios->guardarEstadoAcceso($usuario);
-            $this->gobierno->registrarAuditoria('LOGIN_SUCCESS', 'INV_USUARIO',
-                ['username' => $usuario->username, 'rol' => $usuario->rol, ...($recordado ? ['2fa' => 'trusted_device'] : [])],
-                $usuario->id, $ip, $ua);
-
-            return $this->inicio->iniciar($usuario, $this->politica->claims($usuario), $recordado ? '2fa' : 'password', $ip, $ua, $respuesta);
-        });
-        $this->inicio->avisarDispositivo($usuario, $sesion['dispositivo_nuevo'], $ip);
-
-        return InicioSesion::sinCache($respuesta->setData($this->inicio->respuestaTokens($usuario, $sesion['claims'])));
+        return $this->conSesion($resultado);
     }
 
     /**
@@ -163,65 +80,14 @@ final readonly class LoginController
     #[Limite(ajuste: 'limiteLogin')]
     public function verificar2fa(Request $request): Response
     {
-        [$ip, $ua] = [ClienteHttp::ip($request), ClienteHttp::userAgent($request)];
         $entrada = Entrada::json($request);
         $desafioToken = $entrada->texto('challenge_token', min: 10);
         $codigo = $entrada->texto('code', min: 4, max: 20);
         $recordar = true === $entrada->logico('remember_device');
         $entrada->validar();
 
-        $invalido = new ErrorApi(401, 'INVALID_OR_EXPIRED_2FA_CHALLENGE');
-        $desafio = $this->tokens->decodificarDesafio((string) $desafioToken) ?? throw $invalido;
-        $usuario = $this->usuarios->porUsername((string) $desafio['sub']);
-        if (null === $usuario || !$usuario->activo || !$usuario->dosFactoresHabilitado) {
-            throw $invalido;
-        }
-        // El desafío sirve una sola vez y solo con la contraseña con que se emitió.
-        if (!hash_equals($this->tokens->huellaPassword($usuario->passwordHash), (string) ($desafio['pwf'] ?? ''))
-            || null !== $this->gobierno->revocadoEn((string) $desafio['jti'])) {
-            throw $invalido;
-        }
-        $ahora = Reloj::ahora();
-        if ($this->bloqueo->estaBloqueada($usuario, $ahora, $ip)) {
-            throw new ErrorApi(429, 'ACCOUNT_LOCKED');
-        }
-        if ($this->dosFactores->totpYaUsado($usuario, (string) $codigo)) {
-            // Un código válido ya usado (otra pestaña, doble clic) no suma al bloqueo.
-            throw new ErrorApi(400, 'TOTP_ALREADY_USED');
-        }
-        if (!$this->dosFactores->verificarLogin($usuario, (string) $codigo)) {
-            // Los códigos fallidos cuentan para el bloqueo igual que las contraseñas.
-            $bloqueadaAhora = $this->intentos->registrar($usuario, $ahora, 'bad_2fa_code', '2fa', $ip, $ua);
-            throw $bloqueadaAhora ? new ErrorApi(429, 'ACCOUNT_LOCKED') : new ErrorApi(400, 'INVALID_2FA_CODE');
-        }
-
-        $viaSso = 'sso' === ($desafio['amr'] ?? null);
-        $respuesta = new JsonResponse();
-        $sesion = $this->transaccion->ejecutar(function () use ($usuario, $desafio, $ahora, $viaSso, $ip, $ua, $respuesta, $invalido): array {
-            // Dos verificaciones simultáneas con el mismo desafío: solo una abre sesión.
-            if (!$this->gobierno->revocarJtiUnaVez((string) $desafio['jti'], '2fa', Tokens::expira($desafio), $usuario->id)) {
-                throw $invalido;
-            }
-            $this->bloqueo->limpiar($usuario, $ip);
-            $usuario->ultimoLogin = $ahora;
-            $this->usuarios->guardarEstadoAcceso($usuario);
-            $this->gobierno->registrarAuditoria('LOGIN_SUCCESS', 'INV_USUARIO', [
-                'username' => $usuario->username, 'rol' => $usuario->rol, '2fa' => $usuario->dosFactoresMetodo,
-                ...($viaSso ? ['sso' => true] : []),
-            ], $usuario->id, $ip, $ua);
-
-            return $this->inicio->iniciar($usuario, $this->politica->claims($usuario, $viaSso), $viaSso ? 'sso' : '2fa', $ip, $ua, $respuesta);
-        });
-        if ($recordar && $this->equipos->enabled()) {
-            $this->transaccion->ejecutar(function () use ($usuario, $respuesta, $ip, $ua): void {
-                $this->equipos->remember($usuario, $respuesta, $ip, SesionRepositorio::etiquetaDispositivo($ua));
-                $this->gobierno->registrarAuditoria('MFA_DEVICE_REMEMBERED', 'INV_USUARIO',
-                    ['username' => $usuario->username, 'dias' => $this->ajustes->mfaRecordarDias], $usuario->id, $ip, $ua);
-            });
-        }
-        $this->inicio->avisarDispositivo($usuario, $sesion['dispositivo_nuevo'], $ip);
-
-        return InicioSesion::sinCache($respuesta->setData($this->inicio->respuestaTokens($usuario, $sesion['claims'])));
+        return $this->conSesion($this->acceso->conSegundoFactor((string) $desafioToken, (string) $codigo, $recordar,
+            ClienteHttp::ip($request), ClienteHttp::userAgent($request)));
     }
 
     /**
@@ -233,71 +99,12 @@ final readonly class LoginController
     #[Limite(ajuste: 'limiteRefresh', clave: Limite::CLAVE_REFRESH)]
     public function refresh(Request $request): Response
     {
-        [$ip, $ua] = [ClienteHttp::ip($request), ClienteHttp::userAgent($request)];
         $entrada = Entrada::json($request);
         $delCuerpo = $entrada->texto('refresh_token', opcional: true);
         $entrada->validar();
-        $token = $delCuerpo ?: $request->cookies->get(InicioSesion::COOKIE_REFRESH);
-        if (!\is_string($token) || '' === $token) {
-            throw new ErrorApi(401, 'MISSING_REFRESH_TOKEN');
-        }
-        $payload = $this->tokens->decodificar($token, 'refresh');
-        $jti = (string) ($payload['jti'] ?? '');
-        if ('' === $jti) {
-            throw new ErrorApi(401, 'COULD_NOT_VALIDATE_CREDENTIALS');
-        }
-        $usuario = $this->usuarios->porUsername((string) $payload['sub']);
-        if (null === $usuario || !$usuario->activo) {
-            throw new ErrorApi(401, 'USER_INACTIVE_OR_NOT_FOUND');
-        }
-        $ahora = Reloj::ahora();
-        if ($usuario->bloqueoAdministrativoVigente($ahora)) {
-            throw new ErrorApi(401, 'ACCOUNT_LOCKED');
-        }
-        $authTime = (int) ($payload['auth_time'] ?? $payload['iat'] ?? 0);
-        if ($authTime > 0 && $ahora->getTimestamp() - $authTime > $this->ajustes->sesionMaxHoras * 3600 + 60) {
-            throw new ErrorApi(401, 'SESSION_EXPIRED');
-        }
-        $emitido = Tokens::emitidoEn($payload);
-        if (null !== $emitido && $this->gobierno->revocadoGlobalmente($usuario->id, $emitido)) {
-            throw new ErrorApi(401, 'TOKEN_REVOKED');
-        }
-        // Sesión cerrada individualmente (o expirada): el refresh deja de valer.
-        $sid = isset($payload['sid']) ? (string) $payload['sid'] : null;
-        $sesion = null === $sid ? null : $this->sesiones->obtener($sid);
-        if (null !== $sid && (!SesionRepositorio::activa($sesion) || $sesion['usuario'] !== $usuario->id)) {
-            throw new ErrorApi(401, 'TOKEN_REVOKED');
-        }
 
-        $viaSso = 'sso' === ($payload['amr'] ?? null);
-        $respuesta = new JsonResponse();
-        $resultado = $this->transaccion->ejecutar(function () use ($usuario, $payload, $jti, $sesion, $ahora, $authTime, $viaSso, $ip, $ua, $respuesta): ?array {
-            if (!$this->gobierno->revocarJtiUnaVez($jti, 'refresh', Tokens::expira($payload), $usuario->id)) {
-                $previa = $this->gobierno->revocadoEn($jti) ?? $ahora;
-                if ($ahora->getTimestamp() - $previa->getTimestamp() > $this->ajustes->graciaReusoRefreshSegundos) {
-                    $this->gobierno->revocarTodo($usuario->id, $ahora->modify('+'.($this->ajustes->refreshDias + 1).' days'));
-                    $this->gobierno->registrarAuditoria('REFRESH_TOKEN_REUSE', 'INV_USUARIO',
-                        ['username' => $usuario->username, 'jti' => $jti], $usuario->id, $ip, $ua);
-                }
-
-                return null;
-            }
-            // Token anterior al registro de sesiones: se registra ahora.
-            $sesionId = $sesion['id'] ?? $this->sesiones->abrir($usuario->id, $ip, $ua, $viaSso ? 'sso' : 'password')['id'];
-            // Con el inicio de la sesión: la que empezó antes de omitir el MFA sigue sin pedirlo.
-            $claims = [...$this->politica->claims($usuario, $viaSso, $sesion['creada'] ?? null), 'sid' => Ident::aTexto($sesionId)];
-            $nuevo = $this->tokens->crearRefresh($usuario->username, $usuario->rol, $authTime > 0 ? $authTime : null, $claims);
-            $this->sesiones->tocar($sesionId, Tokens::jtiSinVerificar($nuevo), $ip);
-            $this->inicio->fijarCookie($respuesta, $nuevo, $usuario->id);
-
-            return $claims;
-        });
-        if (null === $resultado) {
-            // Carrera perdida o refresh robado y reusado.
-            throw new ErrorApi(401, 'TOKEN_REVOKED');
-        }
-
-        return InicioSesion::sinCache($respuesta->setData($this->inicio->respuestaTokens($usuario, $resultado)));
+        return $this->conSesion($this->acceso->renovar($delCuerpo ?: CookiesSesion::refresh($request),
+            ClienteHttp::ip($request), ClienteHttp::userAgent($request)));
     }
 
     /**
@@ -316,8 +123,8 @@ final readonly class LoginController
         $entrada->validar();
 
         $candidatos = [];
-        $refresh = $delCuerpo ?: $request->cookies->get(InicioSesion::COOKIE_REFRESH);
-        if (\is_string($refresh) && '' !== $refresh) {
+        $refresh = $delCuerpo ?: CookiesSesion::refresh($request);
+        if ('' !== $refresh) {
             $candidatos[] = [$refresh, 'refresh'];
         }
         if (1 === preg_match('/^Bearer\s+(\S+)$/i', (string) $request->headers->get('Authorization', ''), $m)) {
@@ -327,7 +134,7 @@ final readonly class LoginController
         $this->cierreDeSesion->actual($candidatos, $ip, $ua);
 
         $respuesta = new Response(null, 204);
-        $this->inicio->borrarCookie($respuesta);
+        $this->cookies->cerrar($respuesta);
 
         return $respuesta;
     }
@@ -341,7 +148,7 @@ final readonly class LoginController
         $u = $actual->usuario();
         $this->cierreDeSesion->todas($u, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
         $respuesta = new Response(null, 204);
-        $this->inicio->borrarCookie($respuesta);
+        $this->cookies->cerrar($respuesta);
 
         return $respuesta;
     }
@@ -439,5 +246,17 @@ final readonly class LoginController
         $this->contrasenas->cambiar($actual->usuario(), (string) $actualPassword, (string) $nueva, ClienteHttp::ip($request), ClienteHttp::userAgent($request));
 
         return new Response(null, 204);
+    }
+
+    /** La respuesta de una sesión abierta o renovada: el access en el cuerpo y el refresh (y la marca del equipo) en sus cookies. */
+    private function conSesion(SesionAbierta $sesion): Response
+    {
+        $respuesta = new JsonResponse($sesion->cuerpo);
+        $this->cookies->abrir($respuesta, $sesion->refresh, $sesion->usuarioId);
+        if (null !== $sesion->marcaEquipo && null !== $sesion->marcaExpira) {
+            $this->cookies->recordarEquipo($respuesta, $sesion->marcaEquipo, $sesion->marcaExpira);
+        }
+
+        return CookiesSesion::sinCache($respuesta);
     }
 }

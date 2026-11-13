@@ -23,8 +23,6 @@ use Symfony\Component\HttpKernel\KernelEvents;
 #[AsEventListener(event: KernelEvents::CONTROLLER, priority: 16)]
 final readonly class LimiteListener
 {
-    public const string COOKIE_REFRESH = 'rtk';
-
     public function __construct(private Limitador $limitador, private Tokens $tokens, private Ajustes $ajustes)
     {
     }
@@ -69,7 +67,7 @@ final readonly class LimiteListener
      */
     private function claveRefresh(Request $request): string
     {
-        $token = $request->cookies->get(self::COOKIE_REFRESH);
+        $token = $request->cookies->get(\App\Http\CookiesSesion::REFRESH);
         if (\is_string($token) && '' !== $token) {
             $payload = $this->tokens->payloadValido($token, 'refresh');
             if (null !== $payload) {

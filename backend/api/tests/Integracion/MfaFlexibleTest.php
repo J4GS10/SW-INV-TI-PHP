@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integracion;
 
-use App\Security\Mfa\TrustedDevices;
+use App\Http\CookiesSesion;
 use App\Seguridad\Tokens;
 use App\Seguridad\Totp;
 use App\Tests\Soporte\DatosPrueba as D;
@@ -89,7 +89,7 @@ final class MfaFlexibleTest extends WebTestCase
         $r = $this->post('/api/v1/login/2fa/verify', ['challenge_token' => $desafio['challenge_token'],
             'code' => Totp::codigoEn(self::SECRETO, time()), 'remember_device' => true]);
         self::assertSame(200, $r['estado']);
-        self::assertNotNull($this->cliente->getCookieJar()->get(TrustedDevices::COOKIE, '/api/v1/login'), 'El navegador recibe su marca.');
+        self::assertNotNull($this->cliente->getCookieJar()->get(CookiesSesion::EQUIPO, '/api/v1/login'), 'El navegador recibe su marca.');
 
         $directo = $this->login($u['username'])['json'];
         self::assertArrayHasKey('access_token', $directo, 'Con el equipo recordado basta la contraseña.');

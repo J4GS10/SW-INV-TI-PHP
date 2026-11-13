@@ -53,6 +53,7 @@ final readonly class ErroresListener
             MotivoError::YaNoExiste => 410,
             MotivoError::DemasiadoGrande => 413,
             MotivoError::NoProcesable => 422,
+            MotivoError::DemasiadosIntentos => 429,
             MotivoError::Interno => 500,
             MotivoError::ServicioExterno => 502,
             MotivoError::NoDisponible => 503,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Autenticacion\InicioSesion;
+use App\Http\CookiesSesion;
 use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
@@ -45,7 +46,7 @@ final readonly class MfaAccessController
         $result = $this->skip->execute($this->current->usuario(), $this->current->payload(),
             ClienteHttp::ip($request), ClienteHttp::userAgent($request));
 
-        return InicioSesion::sinCache(new JsonResponse($this->signIn->respuestaTokens($result['user'], $result['claims'])));
+        return CookiesSesion::sinCache(new JsonResponse($this->signIn->respuestaTokens($result['user'], $result['claims'])));
     }
 
     #[Route('/org/usuarios/{id}/mfa-exemption', methods: ['PUT'])]
