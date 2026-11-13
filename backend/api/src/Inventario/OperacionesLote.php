@@ -29,6 +29,7 @@ final readonly class OperacionesLote
         private DatosMovimientos $datos,
         private Activos $activos,
         private Movimientos $movimientos,
+        private ReglasCustodia $custodia,
         private InstalacionesDeSoftware $software,
         private GobiernoRepositorio $gobierno,
         private Transaccion $transaccion,
@@ -57,7 +58,7 @@ final readonly class OperacionesLote
 
     private function tipoAsignacion(): int
     {
-        $t = $this->datos->tipoDeMovimiento(Movimientos::ASIGNACION);
+        $t = $this->datos->tipoDeMovimiento(TiposMovimiento::ASIGNACION);
 
         return false === $t ? throw ErrorDominio::interno('SYSTEM_CONFIG_ERROR_MISSING_MOVEMENT_TYPE') : (int) $t;
     }
@@ -82,8 +83,8 @@ final readonly class OperacionesLote
             }
             $tipo = $this->tipoAsignacion();
             // El motivo se valida como asignación; las transferencias lo llevan solo si aplica.
-            $d = [...$d, ...$this->movimientos->conMotivo($d, 'ASIGNACION')];
-            $motivoTransferencia = $this->movimientos->aplica($d['MMO_Motivo'], 'TRANSFERENCIA') ? $d['MMO_Motivo'] : null;
+            $d = [...$d, ...$this->custodia->conMotivo($d, 'ASIGNACION')];
+            $motivoTransferencia = $this->custodia->aplica($d['MMO_Motivo'], 'TRANSFERENCIA') ? $d['MMO_Motivo'] : null;
             $observacion = implode(' · ', array_filter([null === $d['ticket'] ? null : "Ticket {$d['ticket']}", $d['MOV_Observacion']])) ?: null;
             $items = [];
             foreach ($d['activos'] as $a) {
@@ -134,7 +135,7 @@ final readonly class OperacionesLote
         return $this->transaccion->ejecutar(function () use ($d, $usuario, $ip): array {
             $this->activos->bloquearEnOrden($d['activos']);
             $codigos = $this->codigos($d['activos']);
-            $d = [...$d, ...$this->movimientos->conMotivo($d, 'DEVOLUCION')];
+            $d = [...$d, ...$this->custodia->conMotivo($d, 'DEVOLUCION')];
             $items = [];
             foreach ($d['activos'] as $a) {
                 try {

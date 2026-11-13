@@ -19,7 +19,6 @@ use App\Inventario\EstadosActivo;
 use App\Inventario\Infrastructure\Kardex;
 use App\Inventario\ReglasClase;
 use App\Inventario\Infrastructure\Secuencias;
-use App\Inventario\Software;
 use App\Inventario\Solicitudes;
 use App\Inventario\Valoracion;
 use App\Repositorio\GobiernoRepositorio;

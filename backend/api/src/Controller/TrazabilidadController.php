@@ -28,6 +28,9 @@ final readonly class TrazabilidadController
 {
     public function __construct(
         private Movimientos $movimientos,
+        private \App\Inventario\TiposMovimiento $tiposMovimiento,
+        private \App\Inventario\SalidaDePersona $salidas,
+        private \App\Inventario\InstalacionEnArea $instalacionEnArea,
         private OperacionesLote $lote,
         private UsuarioActual $actual,
     ) {
@@ -43,13 +46,13 @@ final readonly class TrazabilidadController
     #[Route('/tipos', methods: ['GET'])]
     public function tipos(): JsonResponse
     {
-        return new JsonResponse($this->movimientos->tipos());
+        return new JsonResponse($this->tiposMovimiento->tipos());
     }
 
     #[Route('/tipos/{id}', methods: ['GET'])]
     public function tipo(int $id): JsonResponse
     {
-        return new JsonResponse($this->movimientos->tipo($id));
+        return new JsonResponse($this->tiposMovimiento->tipo($id));
     }
 
     #[Route('/tipos', methods: ['POST'])]
@@ -60,7 +63,7 @@ final readonly class TrazabilidadController
         [, $nombre] = $e->campo(Campo::texto('TMO_Nombre', true, 3, 50), true);
         $e->validar();
 
-        return new JsonResponse($this->movimientos->crearTipo((string) $nombre, $this->usuario(), ClienteHttp::ip($request)), 201);
+        return new JsonResponse($this->tiposMovimiento->crearTipo((string) $nombre, $this->usuario(), ClienteHttp::ip($request)), 201);
     }
 
     #[Route('/tipos/{id}', methods: ['PATCH'])]
@@ -71,14 +74,14 @@ final readonly class TrazabilidadController
         [$hay, $nombre] = $e->campo(Campo::texto('TMO_Nombre', min: 3, max: 50), false);
         $e->validar();
 
-        return new JsonResponse($this->movimientos->cambiarTipo($id, $hay ? ['TMO_Nombre' => $nombre] : [], $this->usuario(), ClienteHttp::ip($request)));
+        return new JsonResponse($this->tiposMovimiento->cambiarTipo($id, $hay ? ['TMO_Nombre' => $nombre] : [], $this->usuario(), ClienteHttp::ip($request)));
     }
 
     #[Route('/tipos/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarTipo(int $id, Request $request): Response
     {
-        $this->movimientos->eliminarTipo($id, $this->usuario(), ClienteHttp::ip($request));
+        $this->tiposMovimiento->eliminarTipo($id, $this->usuario(), ClienteHttp::ip($request));
 
         return new Response(status: 204);
     }
@@ -169,7 +172,7 @@ final readonly class TrazabilidadController
         $e->validar();
         $u = $this->actual->usuario();
 
-        return new JsonResponse($this->movimientos->offboarding($persona, !$hay || null === $desactivar || true === $desactivar, $u->id, $u->rol, ClienteHttp::ip($request)));
+        return new JsonResponse($this->salidas->offboarding($persona, !$hay || null === $desactivar || true === $desactivar, $u->id, $u->rol, ClienteHttp::ip($request)));
     }
 
     // ---------------- Equipos compartidos ----------------
@@ -177,7 +180,7 @@ final readonly class TrazabilidadController
     #[Route('/instalacion/{activo}', methods: ['GET'])]
     public function estadoInstalacion(Request $request): JsonResponse
     {
-        return new JsonResponse($this->movimientos->estadoInstalacion(Entrada::uuidDeRuta($request, 'activo')));
+        return new JsonResponse($this->instalacionEnArea->estadoInstalacion(Entrada::uuidDeRuta($request, 'activo')));
     }
 
     #[Route('/instalar-area', methods: ['POST'])]
@@ -191,7 +194,7 @@ final readonly class TrazabilidadController
         }
         $e->validar();
 
-        return new JsonResponse($this->movimientos->instalarEnArea($d, $this->usuario(), ClienteHttp::ip($request)));
+        return new JsonResponse($this->instalacionEnArea->instalarEnArea($d, $this->usuario(), ClienteHttp::ip($request)));
     }
 
     #[Route('/retirar-area', methods: ['POST'])]
@@ -206,7 +209,7 @@ final readonly class TrazabilidadController
         $d['condicion'] = $e->patron('condicion', '^(BUENO|CON_DANO)$');
         $e->validar();
 
-        return new JsonResponse($this->movimientos->retirarDeArea($d, $this->usuario(), ClienteHttp::ip($request)));
+        return new JsonResponse($this->instalacionEnArea->retirarDeArea($d, $this->usuario(), ClienteHttp::ip($request)));
     }
 
     // ---------------- Lotes ----------------

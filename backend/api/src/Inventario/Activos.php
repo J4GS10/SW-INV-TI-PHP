@@ -12,7 +12,6 @@ use App\Inventario\Infrastructure\Secuencias;
 use App\Crud\Esquema;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
-use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;

@@ -4,19 +4,11 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
-use App\Inventario\Infrastructure\Kardex;
-use App\Inventario\Infrastructure\CredencialesStore;
-use App\Inventario\Infrastructure\DatosActivos;
-use App\Inventario\Infrastructure\Instalaciones;
 use App\Inventario\Infrastructure\SoftwareStore;
 use App\Catalogo\CatalogoGenerico;
-use App\Crud\Esquema;
 use App\Db\Transaccion;
-use App\Dominio\Ident;
-use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
-use App\Seguridad\CifradoCampos;
 
 /** Catálogo de software y de tipos de licencia: qué programas existen y bajo qué modalidades se licencian. */
 final readonly class Software
@@ -29,10 +21,6 @@ final readonly class Software
         private \App\Db\LogicalDelete $borrado,
     ) {
     }
-
-    // =====================================================================
-    // Tipos de licencia y software
-    // =====================================================================
 
     /** @return list<array<string, mixed>> */
     public function tipos(): array
