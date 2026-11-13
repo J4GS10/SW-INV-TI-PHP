@@ -12,12 +12,11 @@ use App\Http\ClienteHttp;
 use App\Http\Entrada;
 use App\Http\Limite;
 use App\Repositorio\BitacoraRepositorio;
-use App\Repositorio\GobiernoRepositorio;
 use App\Seguridad\Alcance;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
 use App\Tareas\Infrastructure\PurgaSeguridad;
-use Doctrine\DBAL\Connection;
+use App\Organizacion\ConfiguracionGlobal;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
@@ -32,12 +31,9 @@ final readonly class GobiernoController
 {
     private const string COLOR = '^#([0-9a-fA-F]{3}){1,2}$';
     private const int LOGO_MAX_BYTES = 2097152;
-    private const array COLUMNAS_CONFIG = ['SYS_Configuracion', 'SYS_Nombre_Empresa', 'SYS_Logo_URL', 'SYS_Color_Primario',
-        'SYS_Color_Secundario', 'SYS_Color_Fondo', 'SYS_Idioma_Defecto', 'SYS_Codigo_Formulario', 'SYS_Ciudad', 'SYS_Logo_Tamano'];
-
     public function __construct(
-        private Connection $conexion,
-        private GobiernoRepositorio $gobierno,
+        private ConfiguracionGlobal $configuracion,
+        private \App\Correo\Infrastructure\ColaCorreos $cola,
         private BitacoraRepositorio $bitacora,
         private UsuarioActual $actual,
     ) {
@@ -54,7 +50,7 @@ final readonly class GobiernoController
     #[Limite('300/minute')]
     public function config(): JsonResponse
     {
-        return new JsonResponse($this->leerConfig());
+        return new JsonResponse($this->configuracion->leer());
     }
 
     /** Sube el logo: se normaliza a PNG, así no se guarda ni se sirve otra cosa que una imagen. */
@@ -67,15 +63,7 @@ final readonly class GobiernoController
             throw new \App\Http\ErrorApi(413, 'FILE_TOO_LARGE');
         }
         $logo = \App\Documentos\Logo::desdeBytes($subida->contenido) ?? throw new \App\Http\ErrorApi(400, 'LOGO_MUST_BE_AN_IMAGE');
-        $config = $this->conexion->transactional(function () use ($logo, $request): array {
-            $this->asegurarConfig();
-            $url = '/api/v1/gov/config/logo?v='.time();
-            $this->conexion->executeStatement('UPDATE "SYS_CONFIGURACION" SET "SYS_Logo_Image" = :i, "SYS_Logo_URL" = :u WHERE "SYS_Configuracion" = 1',
-                ['i' => $logo->png, 'u' => $url], ['i' => \Doctrine\DBAL\ParameterType::LARGE_OBJECT]);
-            $this->gobierno->registrarAuditoria('UPDATE', 'SYS_CONFIGURACION', ['cambios' => ['SYS_Logo_URL' => $url]], $this->actual->usuario()->id, ClienteHttp::ip($request));
-
-            return $this->leerConfig();
-        });
+        $config = $this->configuracion->cambiarLogo($logo->png, '/api/v1/gov/config/logo?v='.time(), $this->actual->usuario()->id, ClienteHttp::ip($request));
 
         return new JsonResponse($config);
     }
@@ -85,10 +73,7 @@ final readonly class GobiernoController
     #[Limite('300/minute')]
     public function logo(): \Symfony\Component\HttpFoundation\Response
     {
-        $png = $this->conexion->fetchOne('SELECT "SYS_Logo_Image" FROM "SYS_CONFIGURACION" WHERE "SYS_Configuracion" = 1');
-        if (false === $png || null === $png) {
-            throw new \App\Http\ErrorApi(404, 'LOGO_NOT_FOUND');
-        }
+        $png = $this->configuracion->logo();
 
         return new \Symfony\Component\HttpFoundation\Response((string) $png, 200, ['Content-Type' => 'image/png', 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'public, max-age=300']);
     }
@@ -115,17 +100,7 @@ final readonly class GobiernoController
         $e->validar();
         $cambios = array_filter($valores, static fn (string $columna): bool => $e->presente($columna), \ARRAY_FILTER_USE_KEY);
 
-        $config = $this->conexion->transactional(function () use ($cambios, $request): array {
-            $this->asegurarConfig();
-            if ([] !== $cambios) {
-                $sets = implode(', ', array_map(static fn (string $c): string => "\"{$c}\" = :{$c}", array_keys($cambios)));
-                $this->conexion->executeStatement('UPDATE "SYS_CONFIGURACION" SET '.$sets.' WHERE "SYS_Configuracion" = 1', $cambios);
-            }
-            $this->gobierno->registrarAuditoria('UPDATE', 'SYS_CONFIGURACION', ['cambios' => $cambios],
-                $this->actual->usuario()->id, ClienteHttp::ip($request));
-
-            return $this->leerConfig();
-        });
+        $config = $this->configuracion->cambiar($cambios, $this->actual->usuario()->id, ClienteHttp::ip($request));
 
         return new JsonResponse($config);
     }
@@ -147,17 +122,14 @@ final readonly class GobiernoController
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function cola(): JsonResponse
     {
-        $conteos = $this->conexion->fetchAllKeyValue('SELECT "EOB_Estado", COUNT(*) FROM "SYS_EMAIL_OUTBOX" GROUP BY "EOB_Estado"');
-        $antiguo = $this->conexion->fetchOne("SELECT MIN(\"EOB_Creado_En\") FROM \"SYS_EMAIL_OUTBOX\" WHERE \"EOB_Estado\" = 'PENDIENTE'");
-        $fallidos = $this->conexion->fetchAllAssociative(
-            'SELECT "EOB_Id", "EOB_Plantilla", "EOB_Asunto", "EOB_Para", "EOB_Intentos", "EOB_Ultimo_Error", "EOB_Creado_En" '
-            ."FROM \"SYS_EMAIL_OUTBOX\" WHERE \"EOB_Estado\" = 'FALLIDO' ORDER BY \"EOB_Creado_En\" DESC FETCH FIRST 50 ROWS ONLY");
+        $conteos = $this->cola->conteosPorEstado();
+        $fallidos = $this->cola->ultimosFallidos(50);
 
         return new JsonResponse([
             'pendientes' => (int) ($conteos['PENDIENTE'] ?? 0),
             'enviados' => (int) ($conteos['ENVIADO'] ?? 0),
             'fallidos' => (int) ($conteos['FALLIDO'] ?? 0),
-            'pendiente_mas_antiguo' => Reloj::iso(Reloj::desdeBd(false === $antiguo ? null : $antiguo)),
+            'pendiente_mas_antiguo' => Reloj::iso(Reloj::desdeBd($this->cola->pendienteMasAntiguo())),
             'ultimos_fallidos' => array_map(static fn (array $f): array => [
                 'id' => Ident::aTexto((string) $f['EOB_Id']),
                 'plantilla' => $f['EOB_Plantilla'],
@@ -178,15 +150,8 @@ final readonly class GobiernoController
         $e = Entrada::consulta($request);
         [, $id] = $e->campo(new Campo('outbox_id', Campo::UUID), false);
         $e->validar();
-        $sql = "UPDATE \"SYS_EMAIL_OUTBOX\" SET \"EOB_Estado\" = 'PENDIENTE', \"EOB_Intentos\" = 0, \"EOB_Proximo_Intento\" = :ahora "
-            ."WHERE \"EOB_Estado\" = 'FALLIDO'";
-        $p = ['ahora' => Reloj::aBd(Reloj::ahora())];
-        if (null !== $id) {
-            $sql .= ' AND "EOB_Id" = :id';
-            $p['id'] = Ident::aHex((string) $id);
-        }
 
-        return new JsonResponse(['reencolados' => $this->conexion->executeStatement($sql, $p)]);
+        return new JsonResponse(['reencolados' => $this->cola->reencolarFallidos(null === $id ? null : Ident::aHex((string) $id), Reloj::ahora())]);
     }
 
     // ================= AUDITORÍA =================
@@ -249,27 +214,5 @@ final readonly class GobiernoController
         $e->validar();
 
         return [$desde instanceof \DateTimeImmutable ? $desde : null, $hasta instanceof \DateTimeImmutable ? $hasta : null];
-    }
-
-    /** Fila única (id 1); se crea vacía la primera vez, como el backend anterior. */
-    private function asegurarConfig(): void
-    {
-        try {
-            $this->conexion->executeStatement('MERGE INTO "SYS_CONFIGURACION" t USING (SELECT 1 AS id FROM DUAL) s '
-                .'ON (t."SYS_Configuracion" = s.id) WHEN NOT MATCHED THEN INSERT ("SYS_Configuracion") VALUES (1)');
-        } catch (\Doctrine\DBAL\Exception\UniqueConstraintViolationException) {
-            // Otra petición la creó a la vez.
-        }
-    }
-
-    /** @return array<string, mixed> */
-    private function leerConfig(): array
-    {
-        $this->asegurarConfig();
-        $fila = $this->conexion->fetchAssociative('SELECT "'.implode('", "', self::COLUMNAS_CONFIG).'" FROM "SYS_CONFIGURACION" WHERE "SYS_Configuracion" = 1');
-        $fila = false === $fila ? [] : $fila;
-        $fila['SYS_Configuracion'] = 1;
-
-        return $fila;
     }
 }

@@ -41,7 +41,7 @@ final class ErroresOracleTest extends TestCase
         $evento = new ExceptionEvent($this->createStub(HttpKernelInterface::class), Request::create('/api/v1/login/access-token'),
             HttpKernelInterface::MAIN_REQUEST, new DriverException($delDriver, null));
 
-        (new ErroresListener(new NullLogger(), $this->createStub(Connection::class)))($evento);
+        (new ErroresListener(new NullLogger(), new \App\Db\DiagnosticoBd($this->createStub(Connection::class))))($evento);
 
         $respuesta = $evento->getResponse();
         self::assertNotNull($respuesta);
@@ -58,7 +58,7 @@ final class ErroresOracleTest extends TestCase
         $evento = new ExceptionEvent($this->createStub(HttpKernelInterface::class), Request::create('/api/v1/core/activos'),
             HttpKernelInterface::MAIN_REQUEST, new DriverException($delDriver, null));
 
-        (new ErroresListener(new NullLogger(), $conexion))($evento);
+        (new ErroresListener(new NullLogger(), new \App\Db\DiagnosticoBd($conexion)))($evento);
 
         $respuesta = $evento->getResponse();
         self::assertNotNull($respuesta);

@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace App\Http;
 
 use App\Dominio\Reloj;
-use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
-use Doctrine\DBAL\ParameterType;
+use App\Db\ClavesIdempotencia;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -31,7 +29,7 @@ final readonly class Idempotencia
     /** Más que el tiempo máximo de una petición (30 s): una reserva así de vieja ya no tiene dueño vivo. */
     public const int PENDIENTE_ABANDONADA_SEGUNDOS = 120;
 
-    public function __construct(private Connection $conexion)
+    public function __construct(private ClavesIdempotencia $claves)
     {
     }
 
@@ -50,23 +48,12 @@ final readonly class Idempotencia
         $p = ['clave' => $clave, 'ruta' => mb_substr($request->getPathInfo(), 0, 200), 'hash' => '' === $cuerpo ? 'empty' : hash('sha256', $cuerpo), 'usuario' => $usuario];
 
         for ($intento = 0; $intento < 2; ++$intento) {
-            $fila = $this->conexion->fetchAssociative(
-                'SELECT "IDK_Endpoint", "IDK_Usuario", "IDK_Request_Hash", "IDK_Estado", "IDK_Response_Status", '
-                .'"IDK_Response_Body", "IDK_Creada_En" FROM "SYS_IDEMPOTENCY_KEY" WHERE "IDK_Key" = :k',
-                ['k' => $clave],
-            );
+            $fila = $this->claves->buscar($clave);
             if (false === $fila) {
-                try {
-                    $this->conexion->executeStatement(
-                        'INSERT INTO "SYS_IDEMPOTENCY_KEY" ("IDK_Key", "IDK_Endpoint", "IDK_Usuario", "IDK_Request_Hash", '
-                        ."\"IDK_Estado\", \"IDK_Response_Status\", \"IDK_Creada_En\") VALUES (:k, :ruta, :u, :h, 'PENDING', 202, :ahora)",
-                        ['k' => $clave, 'ruta' => $p['ruta'], 'u' => $usuario, 'h' => $p['hash'], 'ahora' => Reloj::aBd(Reloj::ahora())],
-                    );
-
+                if ($this->claves->reservar($clave, $p['ruta'], $usuario, $p['hash'])) {
                     return $p;
-                } catch (UniqueConstraintViolationException) {
-                    continue; // otra petición ganó la reserva: se relee su estado
                 }
+                continue; // otra petición ganó la reserva: se relee su estado
             }
             if ((string) $fila['IDK_Usuario'] !== $usuario || $fila['IDK_Endpoint'] !== $p['ruta']) {
                 throw new ErrorApi(409, 'IDEMPOTENCY_KEY_CONFLICT_DIFFERENT_OWNER');
@@ -97,12 +84,7 @@ final readonly class Idempotencia
      */
     public function completar(array $p, int $estado, ?string $cuerpo): void
     {
-        $this->conexion->executeStatement(
-            "UPDATE \"SYS_IDEMPOTENCY_KEY\" SET \"IDK_Estado\" = 'COMPLETED', \"IDK_Response_Status\" = :estado, "
-            .'"IDK_Response_Body" = :cuerpo, "IDK_Creada_En" = :ahora WHERE "IDK_Key" = :k AND "IDK_Usuario" = :u',
-            ['estado' => $estado, 'cuerpo' => $cuerpo, 'ahora' => Reloj::aBd(Reloj::ahora()), 'k' => $p['clave'], 'u' => $p['usuario']],
-            ['cuerpo' => ParameterType::LARGE_OBJECT],
-        );
+        $this->claves->completar($p['clave'], $p['usuario'], $estado, $cuerpo);
     }
 
     /**
@@ -112,10 +94,7 @@ final readonly class Idempotencia
      */
     public function liberar(array $p): void
     {
-        $this->conexion->executeStatement(
-            "DELETE FROM \"SYS_IDEMPOTENCY_KEY\" WHERE \"IDK_Key\" = :k AND \"IDK_Estado\" = 'PENDING' AND \"IDK_Usuario\" = :u",
-            ['k' => $p['clave'], 'u' => $p['usuario']],
-        );
+        $this->claves->liberar($p['clave'], $p['usuario']);
     }
 
     /**
@@ -124,11 +103,6 @@ final readonly class Idempotencia
      */
     private function tomarAbandonada(string $clave): bool
     {
-        $limite = Reloj::ahora()->modify('-'.self::PENDIENTE_ABANDONADA_SEGUNDOS.' seconds');
-
-        return 1 === $this->conexion->executeStatement(
-            "UPDATE \"SYS_IDEMPOTENCY_KEY\" SET \"IDK_Creada_En\" = :ahora WHERE \"IDK_Key\" = :k AND \"IDK_Estado\" = 'PENDING' AND \"IDK_Creada_En\" < :limite",
-            ['k' => $clave, 'limite' => Reloj::aBd($limite), 'ahora' => Reloj::aBd(Reloj::ahora())],
-        );
+        return $this->claves->retomar($clave, Reloj::ahora()->modify('-'.self::PENDIENTE_ABANDONADA_SEGUNDOS.' seconds'));
     }
 }

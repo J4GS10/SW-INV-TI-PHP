@@ -14,9 +14,8 @@ use App\Crud\Operaciones;
 use App\Dominio\Roles;
 use App\Http\Entrada;
 use App\Http\ErrorApi;
-use App\Seguridad\Alcance;
 use App\Seguridad\Autenticado;
-use Doctrine\DBAL\Connection;
+use App\Catalogo\Infrastructure\CatalogoTecnicoStore;
 use App\Db\RecordInUse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -37,8 +36,8 @@ final readonly class CatalogoTecnicoController
     public function __construct(
         private Operaciones $crud,
         private PlantillaEspecificaciones $plantilla,
-        private Alcance $alcance,
-        private Connection $conexion,
+        private CatalogoTecnicoStore $datos,
+        private \App\Db\Transaccion $transaccion,
     ) {
     }
 
@@ -49,12 +48,12 @@ final readonly class CatalogoTecnicoController
     public function crearTipo(Request $r): JsonResponse
     {
         $d = $this->creacion(T::tipoActivo(), $r);
-        if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Nombre" = :n', ['n' => $d['TAC_Nombre']])) {
+        if ($this->datos->existeTipoDeActivoLlamado($d['TAC_Nombre'])) {
             throw new ErrorApi(400, 'ASSET_TYPE_ALREADY_EXISTS');
         }
         // Sin clase indicada se deduce del nombre.
         $d['TAC_Clase'] ??= ClasesActivo::porNombre($d['TAC_Nombre']);
-        $tipo = $this->conexion->transactional(function () use ($d, $r): array {
+        $tipo = $this->transaccion->ejecutar(function () use ($d, $r): array {
             $id = $this->crud->repositorio->insertar(T::tipoActivo(), $d);
             $this->plantilla->aplicar((int) $id);
             $this->crud->auditar('CREATE', 'INV_TIPO_ACTIVO', ['nombre' => $d['TAC_Nombre']], $r);
@@ -112,12 +111,9 @@ final readonly class CatalogoTecnicoController
                 throw new ErrorApi(404, 'ASSET_TYPE_NOT_FOUND');
             }
         }
-        $this->conexion->transactional(function () use ($id, $tipo, $componentes, $r): void {
-            $antes = $this->componentesDe($id);
-            $this->conexion->executeStatement('DELETE FROM "INV_TIPO_COMPONENTE" WHERE "TAC_Padre" = :p', ['p' => $id]);
-            foreach ($componentes as $c) {
-                $this->conexion->executeStatement('INSERT INTO "INV_TIPO_COMPONENTE" ("TAC_Padre", "TAC_Componente") VALUES (:p, :c)', ['p' => $id, 'c' => $c]);
-            }
+        $this->transaccion->ejecutar(function () use ($id, $tipo, $componentes, $r): void {
+            $antes = $this->datos->componentesDe($id);
+            $this->datos->reemplazarComponentes($id, $componentes);
             $this->crud->auditar('UPDATE', 'INV_TIPO_COMPONENTE', ['tipo' => $tipo['TAC_Nombre'], 'antes' => $antes, 'despues' => $componentes], $r);
         });
 
@@ -137,7 +133,7 @@ final readonly class CatalogoTecnicoController
         $id = Entrada::enteroDeRuta($r);
         $cambios = $this->cambios(T::tipoActivo(), $r);
         $this->crud->obtenerO404(T::tipoActivo(), $id, 'ASSET_TYPE_NOT_FOUND');
-        $tipo = $this->conexion->transactional(function () use ($id, $cambios, $r): array {
+        $tipo = $this->transaccion->ejecutar(function () use ($id, $cambios, $r): array {
             $this->crud->repositorio->actualizar(T::tipoActivo(), $id, $cambios);
             if (!empty($cambios['TAC_Clase'])) {
                 $this->plantilla->aplicar($id);
@@ -164,7 +160,7 @@ final readonly class CatalogoTecnicoController
     public function crearMarca(Request $r): JsonResponse
     {
         $d = $this->creacion(T::marca(), $r);
-        if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_MARCA" WHERE "MAR_Nombre" = :n', ['n' => $d['MAR_Nombre']])) {
+        if ($this->datos->existeMarcaLlamada($d['MAR_Nombre'])) {
             throw new ErrorApi(400, 'BRAND_ALREADY_EXISTS');
         }
 
@@ -272,23 +268,7 @@ final readonly class CatalogoTecnicoController
         [$hayLimite, $limite] = $q->campo(Campo::entero('limit', minimo: 1, maximo: 1000), false);
         [, $tipo] = $q->campo(Campo::entero('tipo_id'), false);
         $q->validar();
-        $donde = ['1 = 1'];
-        $parametros = [];
-        if (null !== $tipo) {
-            $donde[] = '(m."TAC_Tipo_Activo" = :t OR m."TAC_Tipo_Activo" IS NULL)';
-            $parametros['t'] = $tipo;
-        }
-        if (null !== $texto && '' !== $texto) {
-            // Comodines del usuario escapados: búsqueda literal.
-            $parametros['q'] = '%'.addcslashes(mb_strtolower($texto), '\\%_').'%';
-            $donde[] = "(LOWER(m.\"MOD_Nombre\") LIKE :q ESCAPE '\\' OR LOWER(ma.\"MAR_Nombre\") LIKE :q ESCAPE '\\')";
-        }
-        $filas = $this->conexion->fetchAllAssociative(
-            'SELECT m."MOD_Modelo", m."MOD_Nombre", m."MAR_Marca", ma."MAR_Nombre", m."TCN_Tipo_Conexion", m."TAC_Tipo_Activo", '
-            .'m."MOD_Anio_Lanzamiento" FROM "INV_MODELO" m JOIN "INV_MARCA" ma ON ma."MAR_Marca" = m."MAR_Marca" WHERE '
-            .implode(' AND ', $donde).' ORDER BY ma."MAR_Nombre", m."MOD_Nombre" FETCH FIRST '.($hayLimite && null !== $limite ? (int) $limite : 500).' ROWS ONLY',
-            $parametros,
-        );
+        $filas = $this->datos->modelosConMarca($tipo, $texto, $hayLimite && null !== $limite ? (int) $limite : 500);
         $entero = static fn (mixed $v): ?int => null === $v ? null : (int) $v;
 
         return new JsonResponse(array_map(static fn (array $f): array => [
@@ -324,13 +304,8 @@ final readonly class CatalogoTecnicoController
     {
         $modelo = $this->crud->obtenerO404(T::modelo(), Entrada::enteroDeRuta($r), 'MODEL_NOT_FOUND');
         $marca = $this->crud->repositorio->obtener(T::marca(), $modelo['MAR_Marca']);
-        [$filtro, $parametros] = $this->alcance->lectura('INV_ACTIVO', 'a');
-        $tipoId = $this->conexion->fetchOne(
-            'SELECT a."TAC_Tipo_Activo" FROM "INV_ACTIVO" a WHERE a."MOD_Modelo" = :m AND '.$filtro
-            .' GROUP BY a."TAC_Tipo_Activo" ORDER BY COUNT(*) DESC FETCH FIRST 1 ROWS ONLY',
-            ['m' => $modelo['MOD_Modelo'], ...$parametros],
-        );
-        $tipo = false === $tipoId || null === $tipoId ? null : $this->crud->repositorio->obtener(T::tipoActivo(), (int) $tipoId);
+        $tipoId = $this->datos->tipoMasUsadoDeModelo($modelo['MOD_Modelo']);
+        $tipo = null === $tipoId ? null : $this->crud->repositorio->obtener(T::tipoActivo(), $tipoId);
 
         return new JsonResponse([
             'marca' => null === $marca ? null : ['MAR_Marca' => $marca['MAR_Marca'], 'nombre' => $marca['MAR_Nombre']],
@@ -442,10 +417,7 @@ final readonly class CatalogoTecnicoController
     /** @return list<int> */
     private function componentesDe(int $tipo): array
     {
-        return array_map('intval', $this->conexion->fetchFirstColumn(
-            'SELECT "TAC_Componente" FROM "INV_TIPO_COMPONENTE" WHERE "TAC_Padre" = :p ORDER BY "TAC_Componente"',
-            ['p' => $tipo],
-        ));
+        return $this->datos->componentesDe($tipo);
     }
 
     private static function delSistema(?string $nombre): bool

@@ -20,7 +20,7 @@ use App\Organizacion\Infrastructure\Sugerencias;
 use App\Seguridad\Alcance;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
-use Doctrine\DBAL\Connection;
+use App\Organizacion\Infrastructure\OrganizacionStore;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -43,7 +43,9 @@ final readonly class OrganizacionController
         private Sugerencias $sugerencias,
         private Alcance $alcance,
         private UsuarioActual $actual,
-        private Connection $conexion,
+        private OrganizacionStore $datos,
+        private \App\Organizacion\Infrastructure\CuentasStore $cuentas,
+        private \App\Db\Transaccion $transaccion,
     ) {
     }
 
@@ -51,11 +53,7 @@ final readonly class OrganizacionController
     #[Route('/sedes', methods: ['GET'])]
     public function sedes(): JsonResponse
     {
-        [$filtro, $parametros] = $this->alcance->filtroSede('s."SED_Sede"');
-        $filas = $this->conexion->fetchAllAssociative(
-            'SELECT s."SED_Sede", s."SED_Nombre", m."MUN_Nombre", pa."PAI_Nombre" FROM "INV_SEDE" s '
-            .'LEFT JOIN "INV_MUNICIPIO" m ON m."MUN_Municipio" = s."MUN_Municipio" LEFT JOIN "INV_ESTADO" e ON e."EST_Estado" = m."EST_Estado" '
-            .'LEFT JOIN "INV_PAIS" pa ON pa."PAI_Pais" = e."PAI_Pais" WHERE '.$filtro.' ORDER BY s."SED_Nombre"', $parametros);
+        $filas = $this->datos->sedesVisibles();
 
         return new JsonResponse(array_map(static fn (array $f): array => ['SED_Sede' => (int) $f['SED_Sede'], 'SED_Nombre' => $f['SED_Nombre'],
             'ubicacion' => implode(', ', array_filter([$f['MUN_Nombre'], $f['PAI_Nombre']]))], $filas));
@@ -69,20 +67,10 @@ final readonly class OrganizacionController
     #[Limite('10/minute')]
     public function resumenDepartamentos(): JsonResponse
     {
-        [$sedes, $parSedes] = $this->alcance->filtroSede('p."SED_Sede"');
-        [$mov, $parMov] = $this->alcance->lectura('INV_MOVIMIENTO', 'm');
-        [$per, $parPer] = $this->alcance->lectura('INV_PERSONA', 'p');
-        [$act, $parAct] = $this->alcance->lectura('INV_ACTIVO', 'a');
-        $personas = $this->conexion->fetchAllKeyValue('SELECT p."DEP_Departamento", COUNT(*) FROM "INV_PERSONA" p WHERE p."PER_Estado" = 1 AND '.$sedes.' AND '.$per.' GROUP BY p."DEP_Departamento"', [...$parSedes, ...$parPer]);
-        $activos = $this->conexion->fetchAllKeyValue(
-            'SELECT p."DEP_Departamento", COUNT(DISTINCT m."ACT_Activo") FROM "INV_PERSONA" p JOIN "INV_MOVIMIENTO" m ON m."PER_Persona" = p."PER_Persona" '
-            .'WHERE m."MOV_Fecha_Devolucion" IS NULL AND '.$mov.' AND '.$per.' GROUP BY p."DEP_Departamento"', [...$parMov, ...$parPer]);
+        $personas = $this->datos->personasActivasPorDepartamento();
+        $activos = $this->datos->activosAsignadosPorDepartamento();
         $porTipo = [];
-        foreach ($this->conexion->fetchAllNumeric(
-            'SELECT p."DEP_Departamento", t."TAC_Nombre", COUNT(DISTINCT m."ACT_Activo") FROM "INV_PERSONA" p '
-            .'JOIN "INV_MOVIMIENTO" m ON m."PER_Persona" = p."PER_Persona" JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" '
-            .'JOIN "INV_TIPO_ACTIVO" t ON t."TAC_Tipo_Activo" = a."TAC_Tipo_Activo" WHERE m."MOV_Fecha_Devolucion" IS NULL AND '.$mov.' AND '.$per.' AND '.$act
-            .' GROUP BY p."DEP_Departamento", t."TAC_Nombre"', [...$parMov, ...$parPer, ...$parAct]) as [$dep, $tipo, $n]) {
+        foreach ($this->datos->activosAsignadosPorDepartamentoYTipo() as [$dep, $tipo, $n]) {
             $porTipo[(int) $dep][$tipo] = (int) $n;
         }
 
@@ -90,7 +78,7 @@ final readonly class OrganizacionController
             'DEP_Departamento' => (int) $d['DEP_Departamento'], 'DEP_Nombre' => $d['DEP_Nombre'], 'DEP_Codigo_Costos' => $d['DEP_Codigo_Costos'],
             'DEP_Activo' => 1 === (int) $d['DEP_Activo'], 'personas_activas' => (int) ($personas[$d['DEP_Departamento']] ?? 0),
             'activos_asignados' => (int) ($activos[$d['DEP_Departamento']] ?? 0), 'por_tipo' => (object) ($porTipo[(int) $d['DEP_Departamento']] ?? []),
-        ], $this->conexion->fetchAllAssociative('SELECT * FROM "INV_DEPARTAMENTO" ORDER BY "DEP_Nombre"')));
+        ], $this->datos->departamentos()));
     }
 
     /** Personas activas del departamento con los activos que tienen asignados. */
@@ -100,23 +88,11 @@ final readonly class OrganizacionController
     public function detalleDepartamento(Request $r): JsonResponse
     {
         $id = Entrada::enteroDeRuta($r);
-        $dep = $this->conexion->fetchAssociative('SELECT * FROM "INV_DEPARTAMENTO" WHERE "DEP_Departamento" = :d', ['d' => $id]) ?: throw new ErrorApi(404, 'DEPARTMENT_NOT_FOUND');
-        [$sedes, $parSedes] = $this->alcance->filtroSede('p."SED_Sede"');
-        [$per, $parPer] = $this->alcance->lectura('INV_PERSONA', 'p');
-        [$mov, $parMov] = $this->alcance->lectura('INV_MOVIMIENTO', 'm');
-        $personas = $this->conexion->fetchAllAssociative(
-            'SELECT p.* FROM "INV_PERSONA" p WHERE p."DEP_Departamento" = :d AND p."PER_Estado" = 1 AND '.$sedes.' AND '.$per.' ORDER BY p."PER_Primer_Apellido"',
-            ['d' => $id, ...$parSedes, ...$parPer]);
+        $dep = $this->datos->departamento($id) ?: throw new ErrorApi(404, 'DEPARTMENT_NOT_FOUND');
+        $personas = $this->datos->personasActivasDe($id);
         $porPersona = [];
         if ([] !== $personas) {
-            foreach ($this->conexion->fetchAllAssociative(
-                'SELECT m."MOV_Movimiento", m."PER_Persona", m."MOV_Fecha_Asignacion", a."ACT_Activo", a."ACT_Codigo_Interno", a."ACT_Hostname", '
-                .'a."ACT_Serie_Fabricante", t."TAC_Nombre", mo."MOD_Nombre", ma."MAR_Nombre", ar."ARE_Nombre" FROM "INV_MOVIMIENTO" m '
-                .'LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" LEFT JOIN "INV_TIPO_ACTIVO" t ON t."TAC_Tipo_Activo" = a."TAC_Tipo_Activo" '
-                .'LEFT JOIN "INV_MODELO" mo ON mo."MOD_Modelo" = a."MOD_Modelo" LEFT JOIN "INV_MARCA" ma ON ma."MAR_Marca" = mo."MAR_Marca" '
-                .'LEFT JOIN "INV_AREA" ar ON ar."ARE_Area" = m."ARE_Area" WHERE m."MOV_Fecha_Devolucion" IS NULL AND '.$mov
-                .' AND m."PER_Persona" IN (SELECT p."PER_Persona" FROM "INV_PERSONA" p WHERE p."DEP_Departamento" = :d AND p."PER_Estado" = 1 AND '.$sedes.' AND '.$per.')',
-                ['d' => $id, ...$parSedes, ...$parPer, ...$parMov]) as $m) {
+            foreach ($this->datos->custodiasDe($id) as $m) {
                 $porPersona[$m['PER_Persona']][] = [
                     'MOV_Movimiento' => Ident::aTexto((string) $m['MOV_Movimiento']),
                     'MOV_Fecha_Asignacion' => Reloj::iso(Reloj::desdeBd($m['MOV_Fecha_Asignacion'])),
@@ -159,7 +135,7 @@ final readonly class OrganizacionController
     public function crearDepartamento(Request $r): JsonResponse
     {
         $d = $this->creacion(E::departamento(), $r, ['DEP_Nombre', 'DEP_Codigo_Costos', 'DEP_Descripcion']);
-        if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_DEPARTAMENTO" WHERE "DEP_Nombre" = :n', ['n' => $d['DEP_Nombre']])) {
+        if ($this->datos->existeDepartamentoLlamado($d['DEP_Nombre'])) {
             throw new ErrorApi(400, 'DEPARTMENT_ALREADY_EXISTS');
         }
 
@@ -281,7 +257,7 @@ final readonly class OrganizacionController
         $d['SED_Sede'] = $this->alcance->exigirSede($d['SED_Sede'], false);
         $this->validarJefe($d['PER_Jefe']);
         // El correo es único en toda la empresa, no solo en el alcance.
-        if ($this->alcance->elevado(fn (): bool => false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_PERSONA" WHERE "PER_Email_Corporativo" = :c', ['c' => $d['PER_Email_Corporativo']]))) {
+        if ($this->alcance->elevado(fn (): bool => $this->datos->existeCorreo($d['PER_Email_Corporativo']))) {
             throw new ErrorApi(400, 'EMAIL_ALREADY_EXISTS');
         }
         $persona = $this->crud->crear(E::persona(), [...$d, 'PER_Estado' => 1], $r, [
@@ -324,10 +300,10 @@ final readonly class OrganizacionController
         $id = Entrada::uuidDeRuta($r);
         $persona = $this->personaVisible($id);
         $this->alcance->exigirPropio($persona['SED_Sede']);
-        if (false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_USUARIO" WHERE "PER_Persona" = :p', ['p' => $id])) {
+        if ($this->cuentas->personaTieneCuenta($id)) {
             throw new ErrorApi(409, 'CANNOT_DELETE_PERSON_HAS_USER_ACCOUNT');
         }
-        $this->conexion->transactional(function () use ($id, $persona, $r): void {
+        $this->transaccion->ejecutar(function () use ($id, $persona, $r): void {
             $this->crud->repositorio->actualizar(E::persona(), $id, ['PER_Estado' => 0]);
             $this->crud->auditar('DELETE_LOGIC', 'INV_PERSONA', ['id' => Ident::aTexto($id), 'email' => $persona['PER_Email_Corporativo']], $r, $persona['SED_Sede']);
         });

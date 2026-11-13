@@ -42,13 +42,6 @@ return array (
   ),
   'entrega-sin-sql' => 
   array (
-    0 => 'Controller/CatalogoTecnicoController.php',
-    1 => 'Controller/CatalogosController.php',
-    2 => 'Controller/GobiernoController.php',
-    3 => 'Controller/OrganizacionController.php',
-    4 => 'Controller/SaludController.php',
-    5 => 'EventListener/ErroresListener.php',
-    6 => 'Http/Idempotencia.php',
   ),
   'dominio-puro' => 
   array (

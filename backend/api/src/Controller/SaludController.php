@@ -9,7 +9,7 @@ use App\Config\Ajustes;
 use App\Correo\MetricasCorreo;
 use App\Integracion\FuenteIntegracion;
 use App\Seguridad\CacheAuth;
-use Doctrine\DBAL\Connection;
+use App\Db\SondaBd;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -22,7 +22,7 @@ use Symfony\Component\Routing\Attribute\Route;
 final readonly class SaludController
 {
     public function __construct(
-        private Connection $conexion,
+        private SondaBd $bd,
         private Ajustes $ajustes,
         private CacheAuth $redis,
         private Almacenes $almacenes,
@@ -94,12 +94,8 @@ final readonly class SaludController
     public function metricas(): Response
     {
         try {
-            $activos = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_ACTIVO"');
-            $usuarios = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_USUARIO" WHERE "USU_Estado" = 1');
-            $revocados = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "SYS_TOKEN_REVOCADO"');
-            $cola = $this->conexion->fetchAllKeyValue('SELECT "EOB_Estado", COUNT(*) FROM "SYS_EMAIL_OUTBOX" GROUP BY "EOB_Estado"');
+            ['activos' => $activos, 'usuarios' => $usuarios, 'revocados' => $revocados, 'cola' => $cola] = $this->bd->conteos();
         } catch (\Throwable $e) {
-            $this->conexion->close();
             $this->logger->warning('metrics.query_failed', ['error' => mb_substr($e->getMessage(), 0, 300)]);
 
             return new JsonResponse(['status' => 'metrics_unavailable'], 503);
@@ -138,16 +134,11 @@ final readonly class SaludController
 
     private function baseDisponible(): bool
     {
-        try {
-            $this->conexion->fetchOne('SELECT 1 FROM DUAL');
-
-            return true;
-        } catch (\Throwable $e) {
-            // Una conexión rota se descarta: la siguiente petición abre otra.
-            $this->conexion->close();
-            $this->logger->warning('health.db_failed', ['error' => mb_substr($e->getMessage(), 0, 300)]);
-
-            return false;
+        $fallo = $this->bd->fallo();
+        if (null !== $fallo) {
+            $this->logger->warning('health.db_failed', ['error' => mb_substr($fallo, 0, 300)]);
         }
+
+        return null === $fallo;
     }
 }

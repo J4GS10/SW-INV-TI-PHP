@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace App\EventListener;
 
-use App\Db\ErroresOracle;
-use App\Db\Unicidad;
+use App\Db\DiagnosticoBd;
+use App\Db\FalloBd;
+use App\Db\TipoFalloBd;
 use App\Dominio\ErrorDominio;
 use App\Dominio\MotivoError;
 use App\Http\ErrorApi;
 use App\Http\ErrorValidacion;
-use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception as ExcepcionDbal;
-use Doctrine\DBAL\Exception\ConnectionException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -34,7 +32,7 @@ use Symfony\Component\HttpKernel\KernelEvents;
 #[AsEventListener(event: KernelEvents::EXCEPTION)]
 final readonly class ErroresListener
 {
-    public function __construct(private LoggerInterface $logger, private Connection $conexion)
+    public function __construct(private LoggerInterface $logger, private DiagnosticoBd $baseDeDatos)
     {
     }
 
@@ -64,6 +62,7 @@ final readonly class ErroresListener
     {
         $e = $event->getThrowable();
         $ruta = $event->getRequest()->getPathInfo();
+        $fallo = $this->baseDeDatos->de($e);
 
         $respuesta = match (true) {
             $e instanceof ErrorApi => new JsonResponse(['detail' => $e->cuerpo ?? $e->detalle], $e->estado, $e->cabeceras),
@@ -71,7 +70,7 @@ final readonly class ErroresListener
                 MotivoError::NoAutenticado === $e->motivo ? ['WWW-Authenticate' => 'Bearer'] : []),
             $e instanceof ErrorValidacion => new JsonResponse(['detail' => 'VALIDATION_ERROR', 'errors' => $e->errores], 422),
             $e instanceof \App\Db\RecordInUse => new JsonResponse(['detail' => 'RECORD_IN_USE'], 409),
-            $e instanceof ExcepcionDbal => $this->deBaseDeDatos($e, $ruta),
+            null !== $fallo => $this->deBaseDeDatos($fallo, $ruta),
             $e instanceof HttpExceptionInterface => new JsonResponse(
                 ['detail' => match ($e->getStatusCode()) {
                     404 => 'Not Found',
@@ -90,41 +89,21 @@ final readonly class ErroresListener
         $event->setResponse($respuesta);
     }
 
-    private function deBaseDeDatos(ExcepcionDbal $e, string $ruta): JsonResponse
+    private function deBaseDeDatos(FalloBd $fallo, string $ruta): JsonResponse
     {
-        $codigo = ErroresOracle::codigo($e);
-        if ($e instanceof ConnectionException || ErroresOracle::esDeConexion($codigo)) {
-            // En modo worker la conexión sobrevive a la petición: rota, se descarta y la siguiente abre otra.
-            $this->conexion->close();
-            $this->logger->warning('db.connection_lost', ['path' => $ruta, 'ora' => $codigo]);
-
-            return new JsonResponse(['detail' => 'DATABASE_UNAVAILABLE'], 503, ['Retry-After' => '5']);
-        }
-        if (ErroresOracle::esFueraDeAlcance($codigo)) {
-            $this->logger->warning('rls.denied', ['path' => $ruta, 'ora' => $codigo]);
-
-            return new JsonResponse(['detail' => 'SEDE_OUT_OF_SCOPE'], 403);
-        }
-        if (ErroresOracle::esBorradoFisico($codigo)) {
-            $this->logger->error('db.physical_delete_refused', ['path' => $ruta, 'ora' => $codigo]);
-
-            return new JsonResponse(['detail' => 'PHYSICAL_DELETE_FORBIDDEN'], 409);
-        }
-        if (ErroresOracle::esDeDatos($codigo)) {
-            $this->logger->warning('db.data_error', ['path' => $ruta, 'ora' => $codigo]);
-
-            return new JsonResponse(['detail' => 'INVALID_PARAMETER_VALUE'], 422);
-        }
-        if (ErroresOracle::esDeIntegridad($codigo)) {
-            $this->logger->warning('db.integrity_error', ['path' => $ruta, 'ora' => $codigo]);
-
+        [$grave, $evento, $detalle, $estado] = match ($fallo->tipo) {
+            TipoFalloBd::Conexion => [false, 'db.connection_lost', 'DATABASE_UNAVAILABLE', 503],
+            TipoFalloBd::FueraDeAlcance => [false, 'rls.denied', 'SEDE_OUT_OF_SCOPE', 403],
+            TipoFalloBd::BorradoFisico => [true, 'db.physical_delete_refused', 'PHYSICAL_DELETE_FORBIDDEN', 409],
+            TipoFalloBd::Datos => [false, 'db.data_error', 'INVALID_PARAMETER_VALUE', 422],
             // Un duplicado conocido se informa con su código (p. ej. BRAND_ALREADY_EXISTS).
-            return new JsonResponse(['detail' => Unicidad::codigo($e) ?? 'INTEGRITY_CONSTRAINT_VIOLATED'], 409);
-        }
+            TipoFalloBd::Integridad => [false, 'db.integrity_error', $fallo->duplicado ?? 'INTEGRITY_CONSTRAINT_VIOLATED', 409],
+            TipoFalloBd::Otro => [true, 'db.error', 'DATABASE_ERROR', 500],
+        };
         // Sin el SQL ni sus parámetros: pueden traer datos personales.
-        $mensaje = $e->getPrevious()?->getMessage() ?? $e->getMessage();
-        $this->logger->error('db.error', ['path' => $ruta, 'ora' => $codigo, 'error' => mb_substr(strtok($mensaje, "\n") ?: '', 0, 300)]);
+        $contexto = ['path' => $ruta, 'ora' => $fallo->codigo, ...(TipoFalloBd::Otro === $fallo->tipo ? ['error' => $fallo->mensaje] : [])];
+        $grave ? $this->logger->error($evento, $contexto) : $this->logger->warning($evento, $contexto);
 
-        return new JsonResponse(['detail' => 'DATABASE_ERROR'], 500);
+        return new JsonResponse(['detail' => $detalle], $estado, TipoFalloBd::Conexion === $fallo->tipo ? ['Retry-After' => '5'] : []);
     }
 }

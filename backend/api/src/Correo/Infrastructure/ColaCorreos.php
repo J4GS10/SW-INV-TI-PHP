@@ -116,4 +116,39 @@ final readonly class ColaCorreos
             ['ahora' => Reloj::aBd(Reloj::ahora()), 'pendiente' => CorreoEnCola::PENDIENTE],
         );
     }
+
+    /** @return array<string, int> state => how many e-mails of the queue are in it */
+    public function conteosPorEstado(): array
+    {
+        return array_map('intval', $this->conexion->fetchAllKeyValue('SELECT "EOB_Estado", COUNT(*) FROM "SYS_EMAIL_OUTBOX" GROUP BY "EOB_Estado"'));
+    }
+
+    /** @return mixed when the oldest e-mail still waiting was queued; null when none waits */
+    public function pendienteMasAntiguo(): mixed
+    {
+        $fecha = $this->conexion->fetchOne("SELECT MIN(\"EOB_Creado_En\") FROM \"SYS_EMAIL_OUTBOX\" WHERE \"EOB_Estado\" = 'PENDIENTE'");
+
+        return false === $fecha ? null : $fecha;
+    }
+
+    /** @return list<array<string, mixed>> the last e-mails that could not be delivered, newest first */
+    public function ultimosFallidos(int $cuantos): array
+    {
+        return $this->conexion->fetchAllAssociative(
+            'SELECT "EOB_Id", "EOB_Plantilla", "EOB_Asunto", "EOB_Para", "EOB_Intentos", "EOB_Ultimo_Error", "EOB_Creado_En" '
+            ."FROM \"SYS_EMAIL_OUTBOX\" WHERE \"EOB_Estado\" = 'FALLIDO' ORDER BY \"EOB_Creado_En\" DESC FETCH FIRST ".$cuantos.' ROWS ONLY');
+    }
+
+    /** Puts back in the queue one failed e-mail (or, without `$id`, all of them); returns how many. The worker takes them on its next poll. */
+    public function reencolarFallidos(?string $id, \DateTimeImmutable $ahora): int
+    {
+        $sql = "UPDATE \"SYS_EMAIL_OUTBOX\" SET \"EOB_Estado\" = 'PENDIENTE', \"EOB_Intentos\" = 0, \"EOB_Proximo_Intento\" = :ahora WHERE \"EOB_Estado\" = 'FALLIDO'";
+        $parametros = ['ahora' => Reloj::aBd($ahora)];
+        if (null !== $id) {
+            $sql .= ' AND "EOB_Id" = :id';
+            $parametros['id'] = $id;
+        }
+
+        return (int) $this->conexion->executeStatement($sql, $parametros);
+    }
 }

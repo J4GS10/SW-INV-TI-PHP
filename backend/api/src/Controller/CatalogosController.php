@@ -12,7 +12,7 @@ use App\Dominio\Roles;
 use App\Http\Entrada;
 use App\Http\ErrorApi;
 use App\Seguridad\Autenticado;
-use Doctrine\DBAL\Connection;
+use App\Catalogo\Infrastructure\CatalogoTecnicoStore;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,7 +30,9 @@ final readonly class CatalogosController
     public function __construct(
         private CatalogoGenerico $catalogos,
         private Operaciones $crud,
-        private Connection $conexion,
+        private CatalogoTecnicoStore $datos,
+        private \App\Inventario\Infrastructure\DatosActivos $activos,
+        private \App\Db\Transaccion $transaccion,
         private \App\Catalogo\SpecificationRules $specificationRules,
         private \App\Db\LogicalDelete $borrado,
     ) {
@@ -91,7 +93,7 @@ final readonly class CatalogosController
                 'valores' => array_values(array_filter(array_map(trim(...), $valores), static fn (string $v): bool => '' !== $v))];
         }
         $entrada->validar();
-        if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $tipo])) {
+        if (!$this->datos->existeTipoDeActivo($tipo)) {
             throw new ErrorApi(404, 'ASSET_TYPE_NOT_FOUND');
         }
         $ids = array_column($items, 'TES_Tipo_Especificacion');
@@ -99,19 +101,15 @@ final readonly class CatalogosController
             throw new ErrorApi(422, 'DUPLICATED_SPECIFICATION');
         }
         foreach ($ids as $id) {
-            if (false === $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ESPECIFICACION" WHERE "TES_Tipo_Especificacion" = :e', ['e' => $id])) {
+            if (!$this->activos->existeTipoEspecificacion($id)) {
                 throw new ErrorApi(404, 'SPECIFICATION_TYPE_NOT_FOUND');
             }
         }
-        $this->conexion->transactional(function () use ($tipo, $items, $r): void {
+        $this->transaccion->ejecutar(function () use ($tipo, $items, $r): void {
             $this->specificationRules->removeOptionsOfType($tipo);
-            $this->conexion->executeStatement('DELETE FROM "INV_ESPECIFICACION_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $tipo]);
+            $this->datos->quitarEspecificacionesDeTipo($tipo);
             foreach ($items as $orden => $item) {
-                $this->conexion->executeStatement(
-                    'INSERT INTO "INV_ESPECIFICACION_TIPO_ACTIVO" ("TAC_Tipo_Activo", "TES_Tipo_Especificacion", "ETA_Obligatoria", '
-                    .'"ETA_Orden") VALUES (:t, :e, :o, :r)',
-                    ['t' => $tipo, 'e' => $item['TES_Tipo_Especificacion'], 'o' => $item['obligatoria'] ? 1 : 0, 'r' => ($orden + 1) * 10],
-                );
+                $this->datos->agregarEspecificacionATipo($tipo, $item['TES_Tipo_Especificacion'], $item['obligatoria'], ($orden + 1) * 10);
                 $this->specificationRules->replaceOptions($tipo, $item['TES_Tipo_Especificacion'], $item['valores']);
             }
             $this->crud->auditar('UPDATE', 'INV_ESPECIFICACION_TIPO_ACTIVO', ['tipo' => $tipo, 'especificaciones' => $items], $r);
@@ -125,7 +123,7 @@ final readonly class CatalogosController
     #[Route('/kits', methods: ['GET'], priority: 10)]
     public function listarKits(): JsonResponse
     {
-        $ids = $this->conexion->fetchFirstColumn('SELECT "KIT_Kit" FROM "INV_KIT_ESTANDAR" ORDER BY "KIT_Nombre", "KIT_Kit"');
+        $ids = $this->datos->idsDeKits();
 
         return new JsonResponse(array_map(fn ($id): array => (array) $this->kit((int) $id), $ids));
     }
@@ -136,12 +134,9 @@ final readonly class CatalogosController
     {
         $datos = $this->datosKit($r);
         $this->validarKit($datos);
-        $id = $this->conexion->transactional(function () use ($datos, $r): int {
-            $id = (int) \App\Db\InsercionOracle::insertar($this->conexion, 'INV_KIT_ESTANDAR', [
-                'KIT_Nombre' => $datos['KIT_Nombre'], 'CAR_Cargo' => $datos['CAR_Cargo'], 'DEP_Departamento' => $datos['DEP_Departamento'],
-                'KIT_Activo' => $datos['KIT_Activo'] ? 1 : 0,
-            ], 'KIT_Kit');
-            $this->guardarItems($id, $datos['items']);
+        $id = $this->transaccion->ejecutar(function () use ($datos, $r): int {
+            $id = $this->datos->crearKit($datos['KIT_Nombre'], $datos['CAR_Cargo'], $datos['DEP_Departamento'], (bool) $datos['KIT_Activo']);
+            $this->datos->reemplazarItemsDeKit($id, $datos['items']);
             $this->crud->auditar('CREATE', 'INV_KIT_ESTANDAR', ['id' => $id, ...$datos], $r);
 
             return $id;
@@ -158,13 +153,9 @@ final readonly class CatalogosController
         $datos = $this->datosKit($r);
         $this->kit($id) ?? throw new ErrorApi(404, 'STANDARD_KIT_NOT_FOUND');
         $this->validarKit($datos, $id);
-        $this->conexion->transactional(function () use ($id, $datos, $r): void {
-            $this->conexion->executeStatement(
-                'UPDATE "INV_KIT_ESTANDAR" SET "KIT_Nombre" = :n, "CAR_Cargo" = :c, "DEP_Departamento" = :d, "KIT_Activo" = :a WHERE "KIT_Kit" = :id',
-                ['n' => $datos['KIT_Nombre'], 'c' => $datos['CAR_Cargo'], 'd' => $datos['DEP_Departamento'], 'a' => $datos['KIT_Activo'] ? 1 : 0, 'id' => $id],
-            );
-            $this->conexion->executeStatement('DELETE FROM "INV_KIT_ESTANDAR_ITEM" WHERE "KIT_Kit" = :id', ['id' => $id]);
-            $this->guardarItems($id, $datos['items']);
+        $this->transaccion->ejecutar(function () use ($id, $datos, $r): void {
+            $this->datos->actualizarKit($id, $datos['KIT_Nombre'], $datos['CAR_Cargo'], $datos['DEP_Departamento'], (bool) $datos['KIT_Activo']);
+            $this->datos->reemplazarItemsDeKit($id, $datos['items']);
             $this->crud->auditar('UPDATE', 'INV_KIT_ESTANDAR', ['id' => $id, ...$datos], $r);
         });
 
@@ -177,7 +168,7 @@ final readonly class CatalogosController
     {
         $id = Entrada::enteroDeRuta($r, 'kit');
         $kit = $this->kit($id) ?? throw new ErrorApi(404, 'STANDARD_KIT_NOT_FOUND');
-        $this->conexion->transactional(function () use ($id, $kit, $r): void {
+        $this->transaccion->ejecutar(function () use ($id, $kit, $r): void {
             // El kit se archiva; su composición queda en la auditoría (los renglones son vínculos y se quitan con él).
             $this->borrado->archive('INV_KIT_ESTANDAR', 'KIT_Kit', $id);
             $this->crud->auditar('DELETE', 'INV_KIT_ESTANDAR', ['id' => $id, 'nombre' => $kit['KIT_Nombre'], 'items' => $kit['items'] ?? []], $r);
@@ -289,13 +280,7 @@ final readonly class CatalogosController
     /** @return list<array<string, mixed>> */
     private function filasEspecificaciones(?int $tipo = null): array
     {
-        return $this->conexion->fetchAllAssociative(
-            'SELECT e."TAC_Tipo_Activo", e."TES_Tipo_Especificacion", t."TES_Nombre", t."TES_Unidad_Medida", t."TES_Data_Type", t."TES_Min_Value", t."TES_Max_Value", e."ETA_Obligatoria", '
-            .'e."ETA_Orden" FROM "INV_ESPECIFICACION_TIPO_ACTIVO" e '
-            .'LEFT JOIN "INV_TIPO_ESPECIFICACION" t ON t."TES_Tipo_Especificacion" = e."TES_Tipo_Especificacion" '
-            .(null === $tipo ? '' : 'WHERE e."TAC_Tipo_Activo" = :t ').'ORDER BY e."ETA_Orden", e."ETA_Especificacion_Tipo"',
-            null === $tipo ? [] : ['t' => $tipo],
-        );
+        return $this->datos->especificacionesPorTipo($tipo);
     }
 
     /**
@@ -320,12 +305,12 @@ final readonly class CatalogosController
     /** @return array<string, mixed>|null */
     private function kit(int $id): ?array
     {
-        $k = $this->conexion->fetchAssociative('SELECT * FROM "INV_KIT_ESTANDAR" WHERE "KIT_Kit" = :id', ['id' => $id]);
+        $k = $this->datos->kit($id);
         if (false === $k) {
             return null;
         }
         $entero = static fn (mixed $v): ?int => null === $v ? null : (int) $v;
-        $items = $this->conexion->fetchAllAssociative('SELECT * FROM "INV_KIT_ESTANDAR_ITEM" WHERE "KIT_Kit" = :id ORDER BY "KIT_Item"', ['id' => $id]);
+        $items = $this->datos->itemsDeKit($id);
 
         return [
             'KIT_Kit' => (int) $k['KIT_Kit'], 'KIT_Nombre' => $k['KIT_Nombre'], 'CAR_Cargo' => $entero($k['CAR_Cargo']),
@@ -373,34 +358,18 @@ final readonly class CatalogosController
         if ((null === $cargo) === (null === $departamento)) {
             throw new ErrorApi(422, 'STANDARD_KIT_NEEDS_POSITION_OR_DEPARTMENT');
         }
-        if (null !== $cargo && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_CARGO" WHERE "CAR_Cargo" = :c', ['c' => $cargo])) {
+        if (null !== $cargo && !$this->datos->existeCargo($cargo)) {
             throw new ErrorApi(404, 'POSITION_NOT_FOUND');
         }
-        if (null !== $departamento && false === $this->conexion->fetchOne('SELECT 1 FROM "INV_DEPARTAMENTO" WHERE "DEP_Departamento" = :d', ['d' => $departamento])) {
+        if (null !== $departamento && !$this->datos->existeDepartamento($departamento)) {
             throw new ErrorApi(404, 'DEPARTMENT_NOT_FOUND');
         }
         // Un solo kit activo por cargo o por departamento.
-        $columna = null !== $cargo ? 'CAR_Cargo' : 'DEP_Departamento';
-        $sql = "SELECT 1 FROM \"INV_KIT_ESTANDAR\" WHERE \"KIT_Activo\" = 1 AND \"{$columna}\" = :v".(null !== $excepto ? ' AND "KIT_Kit" <> :e' : '');
-        $parametros = ['v' => $cargo ?? $departamento, ...(null !== $excepto ? ['e' => $excepto] : [])];
-        if ($datos['KIT_Activo'] && false !== $this->conexion->fetchOne($sql, $parametros)) {
+        if ($datos['KIT_Activo'] && $this->datos->hayKitActivoPara($cargo, $departamento, $excepto)) {
             throw new ErrorApi(409, 'STANDARD_KIT_ALREADY_EXISTS');
         }
         if ([] === $datos['items']) {
             throw new ErrorApi(422, 'STANDARD_KIT_EMPTY');
-        }
-    }
-
-    /**
-     * @param list<array<string, mixed>> $items
-     */
-    private function guardarItems(int $kit, array $items): void
-    {
-        foreach ($items as $i) {
-            $this->conexion->executeStatement(
-                'INSERT INTO "INV_KIT_ESTANDAR_ITEM" ("KIT_Kit", "TAC_Tipo_Activo", "KIT_Cantidad", "LIC_Licencia") VALUES (:k, :t, :c, :l)',
-                ['k' => $kit, 't' => $i['TAC_Tipo_Activo'], 'c' => $i['KIT_Cantidad'], 'l' => $i['LIC_Licencia']],
-            );
         }
     }
 }
