@@ -23,24 +23,7 @@ use App\Seguridad\Alcance;
  */
 final readonly class Activos
 {
-    public const array COLUMNAS = ['ACT_Activo', 'ACT_Codigo_Interno', 'ACT_Serie_Fabricante', 'ACT_Hostname', 'ACT_Fecha_Compra',
-        'ACT_Fin_Garantia', 'ACT_Costo', 'ACT_Moneda', 'PRV_Proveedor', 'ACT_Factura', 'MOD_Modelo', 'TAC_Tipo_Activo',
-        'EOP_Estado_Operativo', 'ACT_Activo_Padre', 'SED_Sede', 'ARE_Area_Ubicacion', 'ACT_Baja_Motivo', 'ACT_Baja_Destino',
-        'ACT_Baja_Fecha', 'ACT_Baja_Documento', 'ACT_Baja_Observacion', 'ACT_Instalado', 'ACT_Responsable', 'ACT_Pending_Completion'];
     public const array MONEDAS = ['GTQ', 'USD', 'CHF'];
-    /** Columnas por las que se puede ordenar la búsqueda: lista cerrada, nunca texto del cliente en el SQL. */
-    private const array ORDEN_BUSQUEDA = ['code' => 'ACT_Codigo_Interno', 'serial' => 'ACT_Serie_Fabricante', 'host' => 'ACT_Hostname'];
-
-    /** Sin orden válido, el de siempre: lo más reciente primero. El código desempata para que la paginación sea estable. */
-    public static function ordenBusqueda(?string $columna, ?string $direccion): string
-    {
-        if (null === $columna || !isset(self::ORDEN_BUSQUEDA[$columna])) {
-            return 'a."ACT_Fecha_Compra" DESC, a."ACT_Codigo_Interno"';
-        }
-        $sentido = 'desc' === $direccion ? 'DESC' : 'ASC';
-
-        return 'a."'.self::ORDEN_BUSQUEDA[$columna].'" '.$sentido.' NULLS LAST, a."ACT_Codigo_Interno"';
-    }
 
     public function __construct(
         private ActivosStore $datos,
@@ -55,11 +38,6 @@ final readonly class Activos
         private Transaccion $transaccion,
         private \App\Catalogo\SpecificationRules $specificationRules,
     ) {
-    }
-
-    public static function select(string $alias = 'a'): string
-    {
-        return implode(', ', array_map(static fn (string $c): string => "{$alias}.\"{$c}\"", self::COLUMNAS));
     }
 
     // =================================================================

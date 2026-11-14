@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Inventario\Infrastructure;
 
 use App\Dominio\Reloj;
-use App\Inventario\Activos;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
@@ -127,7 +126,7 @@ final readonly class FaltantesStore
     /** @return array<string, mixed>|false the asset row, whatever its site */
     public function activo(mixed $activo): array|false
     {
-        return $this->conexion->fetchAssociative('SELECT '.Activos::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :a', ['a' => $activo]);
+        return $this->conexion->fetchAssociative('SELECT '.ActivosStore::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :a', ['a' => $activo]);
     }
 
     public function existeArea(int $area): bool

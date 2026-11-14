@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Repositorio;
 
+use App\Inventario\Infrastructure\ActivosStore;
 use App\Db\InsercionOracle;
-use App\Inventario\Activos;
 use App\Inventario\Puertos\ReclasificacionDatos;
 use Doctrine\DBAL\Connection;
 
@@ -26,7 +26,7 @@ final readonly class ReclasificacionOracle implements ReclasificacionDatos
     public function activosVigentes(int $tipo, ?int $sede, int $estadoBaja): array
     {
         $parametros = ['t' => $tipo, 'baja' => $estadoBaja];
-        $sql = 'SELECT '.Activos::select().' FROM "INV_ACTIVO" a WHERE a."TAC_Tipo_Activo" = :t AND a."EOP_Estado_Operativo" <> :baja';
+        $sql = 'SELECT '.ActivosStore::select().' FROM "INV_ACTIVO" a WHERE a."TAC_Tipo_Activo" = :t AND a."EOP_Estado_Operativo" <> :baja';
         if (null !== $sede) {
             $sql .= ' AND a."SED_Sede" = :s';
             $parametros['s'] = $sede;

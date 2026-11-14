@@ -301,16 +301,15 @@ final readonly class Kardex
     }
 
     /**
-     * Eventos de la condición SQL dada (más recientes primero), sin alcance adicional.
-     *
-     * @param array<string, mixed> $parametros
+     * Instalaciones y retiros de componentes en un equipo (más recientes primero), sin alcance adicional.
      *
      * @return list<array<string, mixed>>
      */
-    public function donde(string $condicion, array $parametros): array
+    public function historialDeComponentes(string $equipo): array
     {
         return array_map(self::aApi(...), $this->conexion->fetchAllAssociative(
-            'SELECT '.self::COLUMNAS.' FROM "INV_KARDEX" k WHERE '.$condicion.' ORDER BY k."KDX_Fecha" DESC, k."KDX_Evento" DESC', $parametros));
+            'SELECT '.self::COLUMNAS." FROM \"INV_KARDEX\" k WHERE k.\"KDX_Tipo\" IN ('COMPONENTE_INSTALADO', 'COMPONENTE_RETIRADO') "
+            .'AND (k."KDX_Destino_Activo" = :e OR k."KDX_Origen_Activo" = :e) ORDER BY k."KDX_Fecha" DESC, k."KDX_Evento" DESC', ['e' => $equipo]));
     }
 
     /**

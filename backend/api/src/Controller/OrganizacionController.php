@@ -8,8 +8,6 @@ use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Crud\Esquema;
 use App\Crud\Operaciones;
-use App\Dominio\Ident;
-use App\Dominio\Reloj;
 use App\Dominio\Roles;
 use App\Http\ClienteHttp;
 use App\Validacion\Entrada;
@@ -18,7 +16,6 @@ use App\Http\Limite;
 use App\Organizacion\Entidades as E;
 use App\Organizacion\Identidades;
 use App\Organizacion\Infrastructure\Sugerencias;
-use App\Seguridad\Alcance;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
 use App\Organizacion\Infrastructure\OrganizacionStore;
@@ -42,11 +39,10 @@ final readonly class OrganizacionController
         private Operaciones $crud,
         private Identidades $identidades,
         private Sugerencias $sugerencias,
-        private Alcance $alcance,
-        private UsuarioActual $actual,
         private OrganizacionStore $datos,
-        private \App\Organizacion\Infrastructure\CuentasStore $cuentas,
-        private \App\Db\Transaccion $transaccion,
+        private UsuarioActual $actual,
+        private \App\Organizacion\Departamentos $departamentos,
+        private \App\Organizacion\Personas $padron,
     ) {
     }
 
@@ -68,18 +64,7 @@ final readonly class OrganizacionController
     #[Limite('10/minute')]
     public function resumenDepartamentos(): JsonResponse
     {
-        $personas = $this->datos->personasActivasPorDepartamento();
-        $activos = $this->datos->activosAsignadosPorDepartamento();
-        $porTipo = [];
-        foreach ($this->datos->activosAsignadosPorDepartamentoYTipo() as [$dep, $tipo, $n]) {
-            $porTipo[(int) $dep][$tipo] = (int) $n;
-        }
-
-        return new JsonResponse(array_map(static fn (array $d): array => [
-            'DEP_Departamento' => (int) $d['DEP_Departamento'], 'DEP_Nombre' => $d['DEP_Nombre'], 'DEP_Codigo_Costos' => $d['DEP_Codigo_Costos'],
-            'DEP_Activo' => 1 === (int) $d['DEP_Activo'], 'personas_activas' => (int) ($personas[$d['DEP_Departamento']] ?? 0),
-            'activos_asignados' => (int) ($activos[$d['DEP_Departamento']] ?? 0), 'por_tipo' => (object) ($porTipo[(int) $d['DEP_Departamento']] ?? []),
-        ], $this->datos->departamentos()));
+        return new JsonResponse($this->departamentos->resumen());
     }
 
     /** Personas activas del departamento con los activos que tienen asignados. */
@@ -88,33 +73,7 @@ final readonly class OrganizacionController
     #[Limite('10/minute')]
     public function detalleDepartamento(Request $r): JsonResponse
     {
-        $id = Peticion::enteroDeRuta($r);
-        $dep = $this->datos->departamento($id) ?: throw new ErrorApi(404, 'DEPARTMENT_NOT_FOUND');
-        $personas = $this->datos->personasActivasDe($id);
-        $porPersona = [];
-        if ([] !== $personas) {
-            foreach ($this->datos->custodiasDe($id) as $m) {
-                $porPersona[$m['PER_Persona']][] = [
-                    'MOV_Movimiento' => Ident::aTexto((string) $m['MOV_Movimiento']),
-                    'MOV_Fecha_Asignacion' => Reloj::iso(Reloj::desdeBd($m['MOV_Fecha_Asignacion'])),
-                    'activo' => null === $m['ACT_Activo'] ? null : ['ACT_Activo' => Ident::aTexto((string) $m['ACT_Activo']), 'ACT_Codigo_Interno' => $m['ACT_Codigo_Interno'],
-                        'ACT_Hostname' => $m['ACT_Hostname'], 'ACT_Serie_Fabricante' => $m['ACT_Serie_Fabricante'], 'tipo' => $m['TAC_Nombre'],
-                        'modelo' => $m['MOD_Nombre'], 'marca' => $m['MAR_Nombre']],
-                    'area' => $m['ARE_Nombre'],
-                ];
-            }
-        }
-
-        return new JsonResponse([
-            'DEP_Departamento' => (int) $dep['DEP_Departamento'], 'DEP_Nombre' => $dep['DEP_Nombre'], 'DEP_Codigo_Costos' => $dep['DEP_Codigo_Costos'],
-            'DEP_Descripcion' => $dep['DEP_Descripcion'], 'DEP_Activo' => 1 === (int) $dep['DEP_Activo'],
-            'personas' => array_map(static fn (array $p): array => [
-                'PER_Persona' => Ident::aTexto((string) $p['PER_Persona']), 'nombre_completo' => "{$p['PER_Primer_Nombre']} {$p['PER_Primer_Apellido']}",
-                'PER_Email_Corporativo' => $p['PER_Email_Corporativo'], 'PER_Telefono' => $p['PER_Telefono'], 'PER_Estado' => 1 === (int) $p['PER_Estado'],
-                'activos_asignados' => $porPersona[$p['PER_Persona']] ?? [],
-            ], $personas),
-            'totales' => ['personas' => \count($personas), 'activos' => array_sum(array_map('count', $porPersona))],
-        ]);
+        return new JsonResponse($this->departamentos->detalle(Peticion::enteroDeRuta($r)));
     }
 
     #[Route('/departamentos', methods: ['GET'])]
@@ -136,11 +95,8 @@ final readonly class OrganizacionController
     public function crearDepartamento(Request $r): JsonResponse
     {
         $d = $this->creacion(E::departamento(), $r, ['DEP_Nombre', 'DEP_Codigo_Costos', 'DEP_Descripcion']);
-        if ($this->datos->existeDepartamentoLlamado($d['DEP_Nombre'])) {
-            throw new ErrorApi(400, 'DEPARTMENT_ALREADY_EXISTS');
-        }
 
-        return new JsonResponse($this->crud->crear(E::departamento(), [...$d, 'DEP_Activo' => 1], ClienteHttp::origen($r), ['nombre' => $d['DEP_Nombre']]), 201);
+        return new JsonResponse($this->departamentos->crear($d, ClienteHttp::origen($r)), 201);
     }
 
     #[Route('/departamentos/{id}', methods: ['PATCH'])]
@@ -149,19 +105,15 @@ final readonly class OrganizacionController
     {
         $id = Peticion::enteroDeRuta($r);
         $cambios = $this->cambios(E::departamento(), $r);
-        $this->crud->obtenerO404(E::departamento(), $id, 'DEPARTMENT_NOT_FOUND');
 
-        return new JsonResponse($this->crud->actualizar(E::departamento(), $id, $cambios, ClienteHttp::origen($r)));
+        return new JsonResponse($this->departamentos->cambiar($id, $cambios, ClienteHttp::origen($r)));
     }
 
     #[Route('/departamentos/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarDepartamento(Request $r): Response
     {
-        $id = Peticion::enteroDeRuta($r);
-        $dep = $this->crud->obtenerO404(E::departamento(), $id, 'DEPARTMENT_NOT_FOUND');
-        $this->crud->sinHijos('INV_PERSONA', 'DEP_Departamento', $id, 'CANNOT_DELETE_DEPARTMENT_HAS_PERSONS');
-        $this->crud->eliminar(E::departamento(), $id, ClienteHttp::origen($r), ['id' => $id, 'nombre' => $dep['DEP_Nombre']]);
+        $this->departamentos->eliminar(Peticion::enteroDeRuta($r), ClienteHttp::origen($r));
 
         return new Response(null, 204);
     }
@@ -230,7 +182,7 @@ final readonly class OrganizacionController
     #[Limite('20/minute')]
     public function listarPersonas(): JsonResponse
     {
-        return new JsonResponse($this->personas('1 = 1'));
+        return new JsonResponse($this->padron->listar());
     }
 
     /** Personas sin usuario asignado. */
@@ -239,14 +191,14 @@ final readonly class OrganizacionController
     #[Limite('20/minute')]
     public function personasDisponibles(): JsonResponse
     {
-        return new JsonResponse($this->personas('NOT EXISTS (SELECT 1 FROM "INV_USUARIO" u WHERE u."PER_Persona" = t."PER_Persona")'));
+        return new JsonResponse($this->padron->listar(sinCuenta: true));
     }
 
     #[Route('/personas/{id}', methods: ['GET'])]
     #[Autenticado(roles: self::PERSONAS)]
     public function obtenerPersona(Request $r): JsonResponse
     {
-        return new JsonResponse($this->personaVisible(Peticion::uuidDeRuta($r)));
+        return new JsonResponse($this->padron->visible(Peticion::uuidDeRuta($r)));
     }
 
     #[Route('/personas', methods: ['POST'])]
@@ -254,18 +206,8 @@ final readonly class OrganizacionController
     public function crearPersona(Request $r): JsonResponse
     {
         $d = $this->creacion(E::persona(), $r, array_values(array_diff(array_keys(E::persona()->campos), ['PER_Estado'])));
-        $d['PER_Email_Corporativo'] = mb_strtolower((string) $d['PER_Email_Corporativo']);
-        $d['SED_Sede'] = $this->alcance->exigirSede($d['SED_Sede'], false);
-        $this->validarJefe($d['PER_Jefe']);
-        // El correo es único en toda la empresa, no solo en el alcance.
-        if ($this->alcance->elevado(fn (): bool => $this->datos->existeCorreo($d['PER_Email_Corporativo']))) {
-            throw new ErrorApi(400, 'EMAIL_ALREADY_EXISTS');
-        }
-        $persona = $this->crud->crear(E::persona(), [...$d, 'PER_Estado' => 1], ClienteHttp::origen($r), [
-            'email' => $d['PER_Email_Corporativo'], 'nombre' => "{$d['PER_Primer_Nombre']} {$d['PER_Primer_Apellido']}", 'sede' => $d['SED_Sede'],
-        ], $d['SED_Sede']);
 
-        return new JsonResponse($persona, 201);
+        return new JsonResponse($this->padron->crear($d, ClienteHttp::origen($r)), 201);
     }
 
     #[Route('/personas/{id}', methods: ['PATCH'])]
@@ -274,23 +216,8 @@ final readonly class OrganizacionController
     {
         $id = Peticion::uuidDeRuta($r);
         $cambios = $this->cambios(E::persona(), $r);
-        $persona = $this->personaVisible($id);
-        // Solo personas de las sedes del alcance (no las visibles solo por historial).
-        $this->alcance->exigirPropio($persona['SED_Sede']);
-        if (\array_key_exists('SED_Sede', $cambios)) {
-            $cambios['SED_Sede'] = $this->alcance->exigirSede($cambios['SED_Sede'], false);
-        }
-        if (isset($cambios['PER_Email_Corporativo'])) {
-            $cambios['PER_Email_Corporativo'] = mb_strtolower((string) $cambios['PER_Email_Corporativo']);
-        }
-        if (null !== ($cambios['PER_Jefe'] ?? null) && $cambios['PER_Jefe'] === $id) {
-            throw new ErrorApi(400, 'PERSON_CANNOT_BE_OWN_MANAGER');
-        }
-        $this->validarJefe($cambios['PER_Jefe'] ?? null);
-        $sede = \array_key_exists('SED_Sede', $cambios) ? $cambios['SED_Sede'] : $persona['SED_Sede'];
 
-        return new JsonResponse($this->crud->actualizar(E::persona(), $id, $cambios, ClienteHttp::origen($r),
-            ['id' => Ident::aTexto($id), 'cambios' => (object) $cambios], $sede));
+        return new JsonResponse($this->padron->cambiar($id, $cambios, ClienteHttp::origen($r)));
     }
 
     /** Baja lógica (preserva el historial). */
@@ -298,16 +225,7 @@ final readonly class OrganizacionController
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarPersona(Request $r): Response
     {
-        $id = Peticion::uuidDeRuta($r);
-        $persona = $this->personaVisible($id);
-        $this->alcance->exigirPropio($persona['SED_Sede']);
-        if ($this->cuentas->personaTieneCuenta($id)) {
-            throw new ErrorApi(409, 'CANNOT_DELETE_PERSON_HAS_USER_ACCOUNT');
-        }
-        $this->transaccion->ejecutar(function () use ($id, $persona, $r): void {
-            $this->crud->repositorio->actualizar(E::persona(), $id, ['PER_Estado' => 0]);
-            $this->crud->auditar('DELETE_LOGIC', 'INV_PERSONA', ['id' => Ident::aTexto($id), 'email' => $persona['PER_Email_Corporativo']], ClienteHttp::origen($r), $persona['SED_Sede']);
-        });
+        $this->padron->eliminar(Peticion::uuidDeRuta($r), ClienteHttp::origen($r));
 
         return new Response(null, 204);
     }
@@ -475,43 +393,6 @@ final readonly class OrganizacionController
     }
 
     // ================= apoyo =================
-
-    /** @return list<array<string, mixed>> */
-    private function personas(string $condicion): array
-    {
-        [$sedes, $parSedes] = $this->alcance->filtroSede('t."SED_Sede"');
-        [$per, $parPer] = $this->alcance->lectura('INV_PERSONA', 't');
-
-        return $this->crud->repositorio->listar(E::persona(), "{$condicion} AND {$sedes} AND {$per}", [...$parSedes, ...$parPer], 't."PER_Primer_Apellido", t."PER_Primer_Nombre", t."PER_Persona"');
-    }
-
-    /**
-
-     * Persona visible para el usuario (también por el historial de un activo) o 404.
-
-     *
-
-     * @return array<string, mixed>
-
-     */
-    private function personaVisible(string $id): array
-    {
-        [$per, $parPer] = $this->alcance->lectura('INV_PERSONA', 't');
-
-        return $this->crud->repositorio->listar(E::persona(), 't."PER_Persona" = :id AND '.$per, ['id' => $id, ...$parPer])[0]
-            ?? throw new ErrorApi(404, 'PERSON_NOT_FOUND');
-    }
-
-    private function validarJefe(?string $jefe): void
-    {
-        if (null !== $jefe) {
-            try {
-                $this->personaVisible(Ident::aHex($jefe));
-            } catch (ErrorApi) {
-                throw new ErrorApi(404, 'MANAGER_NOT_FOUND');
-            }
-        }
-    }
 
     /** @return array<string, mixed> */
     private function cambiosUsuario(Request $r): array

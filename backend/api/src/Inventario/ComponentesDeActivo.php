@@ -45,8 +45,7 @@ final readonly class ComponentesDeActivo
             'actuales' => array_map(static fn (array $c): array => ['ACT_Activo' => Ident::aTexto((string) $c['ACT_Activo']),
                 'ACT_Codigo_Interno' => $c['ACT_Codigo_Interno'], 'ACT_Serie_Fabricante' => $c['ACT_Serie_Fabricante'],
                 'TAC_Tipo_Activo' => (int) $c['TAC_Tipo_Activo'], 'MOD_Modelo' => (int) $c['MOD_Modelo']], $this->componentesDe($equipo)),
-            'historial' => $this->kardex->donde("k.\"KDX_Tipo\" IN ('COMPONENTE_INSTALADO', 'COMPONENTE_RETIRADO') "
-                .'AND (k."KDX_Destino_Activo" = :e OR k."KDX_Origen_Activo" = :e)', ['e' => $equipo]),
+            'historial' => $this->kardex->historialDeComponentes($equipo),
         ];
     }
 

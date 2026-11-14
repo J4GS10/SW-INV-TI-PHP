@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Organizacion\Infrastructure;
 
+use App\Crud\Infrastructure\RepositorioEntidad;
+use App\Organizacion\Entidades;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
 
@@ -13,7 +15,7 @@ use Doctrine\DBAL\Connection;
  */
 final readonly class OrganizacionStore
 {
-    public function __construct(private Connection $conexion, private Alcance $alcance)
+    public function __construct(private Connection $conexion, private Alcance $alcance, private RepositorioEntidad $entidades)
     {
     }
 
@@ -112,5 +114,28 @@ final readonly class OrganizacionStore
             .'LEFT JOIN "INV_AREA" ar ON ar."ARE_Area" = m."ARE_Area" WHERE m."MOV_Fecha_Devolucion" IS NULL AND '.$mov
             .' AND m."PER_Persona" IN (SELECT p."PER_Persona" FROM "INV_PERSONA" p WHERE p."DEP_Departamento" = :d AND p."PER_Estado" = 1 AND '.$sedes.' AND '.$per.')',
             ['d' => $departamento, ...$parSedes, ...$parPer, ...$parMov]);
+    }
+
+    /**
+     * The people of the sites in scope, by surname; with `$sinCuenta`, only those who have no user account.
+     *
+     * @return list<array<string, mixed>> in the format of the person entity
+     */
+    public function personasDelAlcance(bool $sinCuenta): array
+    {
+        [$sedes, $parSedes] = $this->alcance->filtroSede('t."SED_Sede"');
+        [$per, $parPer] = $this->alcance->lectura('INV_PERSONA', 't');
+        $condicion = $sinCuenta ? 'NOT EXISTS (SELECT 1 FROM "INV_USUARIO" u WHERE u."PER_Persona" = t."PER_Persona")' : '1 = 1';
+
+        return $this->entidades->listar(Entidades::persona(), "{$condicion} AND {$sedes} AND {$per}", [...$parSedes, ...$parPer],
+            't."PER_Primer_Apellido", t."PER_Primer_Nombre", t."PER_Persona"');
+    }
+
+    /** @return array<string, mixed>|null the person in the format of its entity, if the current user may see it (also through the history of an asset) */
+    public function personaVisible(string $id): ?array
+    {
+        [$per, $parPer] = $this->alcance->lectura('INV_PERSONA', 't');
+
+        return $this->entidades->listar(Entidades::persona(), 't."PER_Persona" = :id AND '.$per, ['id' => $id, ...$parPer])[0] ?? null;
     }
 }

@@ -6,7 +6,6 @@ namespace App\Inventario\Infrastructure;
 
 use App\Db\InsercionOracle;
 use App\Dominio\Reloj;
-use App\Inventario\Activos;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
@@ -104,13 +103,13 @@ final readonly class MantenimientosStore
     {
         [$alcance, $parametros] = $this->alcance->lectura('INV_ACTIVO', 'a');
 
-        return $this->conexion->fetchAssociative('SELECT '.Activos::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id AND '.$alcance.' FOR UPDATE', [...$parametros, 'id' => $activo]);
+        return $this->conexion->fetchAssociative('SELECT '.ActivosStore::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :id AND '.$alcance.' FOR UPDATE', [...$parametros, 'id' => $activo]);
     }
 
     /** @return array<string, mixed>|false the asset row, whatever its site */
     public function activo(mixed $activo): array|false
     {
-        return $this->conexion->fetchAssociative('SELECT '.Activos::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :a', ['a' => $activo]);
+        return $this->conexion->fetchAssociative('SELECT '.ActivosStore::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo" = :a', ['a' => $activo]);
     }
 
     public function cambiarEstadoDeActivo(mixed $activo, int $estado): void
