@@ -274,6 +274,13 @@ sequenceDiagram
 
 Si algo falla, la API responde un **código**, no un texto: `{"detail": "SERIAL_NUMBER_ALREADY_EXISTS"}`. El frontend lo traduce con `api_errors.<CÓDIGO>` de `src/locales/*.json`. Por eso los códigos no se cambian sin actualizar las traducciones.
 
+Los listados que crecen (ingresos, movimientos, mantenimiento y auditoría) se paginan en el servidor y nunca se cortan sin avisar:
+
+- **Petición:** `skip`, `limit` (hasta 200), `sort` (la clave de una columna) y `sort_dir` (`asc` o `desc`), más los filtros propios de cada listado.
+- **Respuesta:** `{"total": <filas que coinciden>, "items": [...]}`.
+- **Orden:** cada almacén acepta solo las columnas de su lista cerrada (`Db\OrdenSql`) y desempata por una clave única, para que las páginas no repitan ni salten filas.
+- **Pantallas:** las piezas comunes son `useServerPaging` y `useDebouncedValue`; la búsqueda espera a que se deje de escribir.
+
 ## 6. Seguridad
 
 ### Inicio de sesión
@@ -584,8 +591,9 @@ Todo corre en Docker: en el equipo solo hace falta Docker y Git Bash.
 
 | Nivel | Dónde | Cuenta |
 |---|---|---|
-| Backend, unitarias e integración | `backend/api/tests/` | Más de 270, con Oracle real |
-| Frontend | `frontend/src/**/*.test.*` | 41 |
+| Backend, unitarias e integración | `backend/api/tests/` | 108 unitarias y más de 210 de integración sobre la base de producción, con respaldo y vuelta exacta (`herramientas/pruebas_produccion.sh`) |
+| Frontend | `frontend/src/**/*.test.*` | 42 |
+| Navegador | `backend/herramientas/qa/e2e` | Playwright en Chromium, Firefox, WebKit y móvil, en la misma ventana sobre producción (`herramientas/qa/e2e.sh`) |
 | Funcionales | `docs/PRUEBAS_POR_ROL.md` | En producción, por rol |
 | Resistencia | `backend/herramientas/resistencia.sh` | Concurrencia y durabilidad |
 

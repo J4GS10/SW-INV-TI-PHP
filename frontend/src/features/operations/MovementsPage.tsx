@@ -28,6 +28,8 @@ import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import { useSearchParams } from 'react-router-dom';
 import { useAccionPagina, useWorkspace } from '../../context/workspace-context';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { useServerPaging } from '../../hooks/useServerPaging';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 const SELECTION_COLUMN = new Set(['select']);
 
 export const MovementsPage = () => {
@@ -35,6 +37,8 @@ export const MovementsPage = () => {
     const { canOperate, canExport } = usePermissions();
     const { enqueueSnackbar } = useSnackbar();
     const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
+    const [total, setTotal] = useState(0);
+    const [tiposMovimiento, setTiposMovimiento] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [devolucion, setDevolucion] = useState<Movimiento | null>(null);
@@ -62,11 +66,20 @@ export const MovementsPage = () => {
     }>({ open: false, id: null, codigo: '' });
     // Las actas salen en el idioma de la interfaz (el diálogo de descargo permite elegir otro).
     const documentLanguage = normalizeLanguage(i18n.resolvedLanguage ?? i18n.language);
+    // La búsqueda se refleja en la URL al escribir; al servidor va cuando se deja de escribir.
+    const busqueda = useDebouncedValue(searchTerm.trim());
+    const { pedido, tabla } = useServerPaging(`${busqueda}|${tipoFiltro}|${estadoFiltro}`);
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await movementService.getMovements();
-            setMovimientos(data);
+            const data = await movementService.getMovements({
+                ...pedido,
+                q: busqueda || undefined,
+                tipo: tipoFiltro === 'all' ? undefined : tipoFiltro,
+                estado: estadoFiltro === 'all' ? undefined : estadoFiltro,
+            });
+            setMovimientos(data.items);
+            setTotal(data.total);
         }
         catch (error) {
             console.error(error);
@@ -75,7 +88,13 @@ export const MovementsPage = () => {
         finally {
             setLoading(false);
         }
-    }, [enqueueSnackbar, t]);
+    }, [pedido, busqueda, tipoFiltro, estadoFiltro, enqueueSnackbar, t]);
+    // Los tipos del filtro salen del catálogo: la página visible no los trae todos.
+    useEffect(() => {
+        movementService.getTiposMovimiento()
+            .then((tipos) => setTiposMovimiento(tipos.map((tp) => tp.TMO_Nombre).sort()))
+            .catch(() => setTiposMovimiento([]));
+    }, []);
     useLiveRefresh(loadData);
     useEffect(() => {
         loadData();
@@ -88,22 +107,8 @@ export const MovementsPage = () => {
             setParam('entrega', '');
         }
     }, [params, canOperate, abrirEntrega, loadData, setParam]);
-    // Tipos de movimiento presentes (para el filtro de bitácora).
-    const tiposPresentes = Array.from(new Set(movimientos.map((m) => m.tipo_movimiento?.TMO_Nombre).filter(Boolean) as string[])).sort();
-    // --- LÓGICA DE FILTRADO (búsqueda + tipo + estado del movimiento) ---
-    const filteredMovs = movimientos.filter(m => {
-        const search = searchTerm.toLowerCase();
-        const codigo = m.activo?.ACT_Codigo_Interno?.toLowerCase() || '';
-        const persona = m.persona
-            ? `${m.persona.PER_Primer_Nombre} ${m.persona.PER_Primer_Apellido}`.toLowerCase()
-            : '';
-        const matchSearch = codigo.includes(search) || persona.includes(search);
-        const matchTipo = tipoFiltro === 'all' || m.tipo_movimiento?.TMO_Nombre === tipoFiltro;
-        const vigente = !m.MOV_Fecha_Devolucion;
-        const matchEstado = estadoFiltro === 'all'
-            || (estadoFiltro === 'vigente' ? vigente : !vigente);
-        return matchSearch && matchTipo && matchEstado;
-    });
+    // Búsqueda, tipo y estado los aplica el servidor: lo que llega es la página que corresponde.
+    const filteredMovs = movimientos;
     const activeFilters = [
         searchTerm.trim(),
         tipoFiltro !== 'all',
@@ -188,7 +193,7 @@ export const MovementsPage = () => {
     return (<Box>
       <PageHeader help="movements"
         title={t('operations.title')}
-        badge={filteredMovs.length}
+        badge={total}
         actions={<>
           {canExport && <ExportMenuButton onExport={(lang) => downloadCsv(`/export/movimientos.csv?${new URLSearchParams(Object.entries({ q: searchTerm.trim(), tipo: tipoFiltro === 'all' ? '' : tipoFiltro, estado: estadoFiltro === 'all' ? '' : estadoFiltro }).filter(([, v]) => v !== '')).toString()}`, 'movimientos.csv', lang)}/>}
           {canOperate && (<Tooltip title={t('handover.loan_help')} describeChild><Button variant="outlined" startIcon={<SwapHorizIcon />} onClick={() => setIsDialogOpen(true)}>
@@ -206,7 +211,7 @@ export const MovementsPage = () => {
             <InputLabel id="mov-filtro-tipo">{t('operations.filter_type')}</InputLabel>
             <Select labelId="mov-filtro-tipo" label={t('operations.filter_type')} value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)}>
               <MenuItem value="all">{t('common.all')}</MenuItem>
-              {tiposPresentes.map((tp) => (<MenuItem key={tp} value={tp}>{movementTypeLabel(t, tp)}</MenuItem>))}
+              {tiposMovimiento.map((tp) => (<MenuItem key={tp} value={tp}>{movementTypeLabel(t, tp)}</MenuItem>))}
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 } }}>
@@ -240,14 +245,16 @@ export const MovementsPage = () => {
                 padding: 'checkbox',
                 label: (<Checkbox color="primary" indeterminate={selected.length > 0 && selected.length < filteredMovs.length} checked={filteredMovs.length > 0 && selected.length === filteredMovs.length} onChange={handleSelectAllClick} inputProps={{ 'aria-label': t('common.select_all') }}/>),
             },
-            { key: 'date', label: t('operations.table.date'), sortValue: (r) => r.MOV_Fecha_Asignacion },
-            { key: 'type', label: t('operations.table.type'), sortValue: (r) => movementTypeLabel(t, r.tipo_movimiento?.TMO_Nombre) },
-            { key: 'asset', label: t('operations.table.asset'), sortValue: (r) => r.activo?.ACT_Codigo_Interno },
-            { key: 'responsible', label: t('operations.table.responsible'), sortValue: (r) => (r.persona ? `${r.persona.PER_Primer_Nombre} ${r.persona.PER_Primer_Apellido}` : null) },
-            { key: 'status', label: t('operations.table.status'), sortValue: (r) => (r.MOV_Fecha_Devolucion ? 1 : 0) },
+            { key: 'date', label: t('operations.table.date'), serverSortable: true },
+            { key: 'type', label: t('operations.table.type'), serverSortable: true },
+            { key: 'asset', label: t('operations.table.asset'), serverSortable: true },
+            { key: 'responsible', label: t('operations.table.responsible'), serverSortable: true },
+            { key: 'status', label: t('operations.table.status'), serverSortable: true },
             { key: 'doc', label: t('operations.table.doc'), align: 'right' },
         ]}
         rows={filteredMovs}
+        total={total}
+        {...tabla}
         loading={loading}
         renderRow={(row) => {
             const isItemSelected = isSelected(row.MOV_Movimiento);

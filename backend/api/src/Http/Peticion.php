@@ -8,6 +8,7 @@ use App\Adjuntos\Subida;
 use App\Crud\Campo;
 use App\Dominio\ErrorDominio;
 use App\Dominio\Ident;
+use App\Dominio\Listado;
 use App\Validacion\Entrada;
 use App\Validacion\ErrorValidacion;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -94,6 +95,21 @@ final class Peticion
         $e->validar();
 
         return [$hay && null !== $saltar ? (int) $saltar : 0, $hayLimite && null !== $limite ? (int) $limite : $defecto];
+    }
+
+    /**
+     * Una página de un listado: `skip`, `limit` (hasta `$maximo`), `sort` (la clave de una columna; cada listado
+     * acepta las suyas e ignora las demás) y `sort_dir` (`asc` o `desc`). Los filtros propios se leen aparte.
+     */
+    public static function listado(Request $request, int $maximo = 200, int $defecto = 50): Listado
+    {
+        [$saltar, $limite] = self::paginacion($request, $maximo, $defecto);
+        $e = self::consulta($request);
+        [, $orden] = $e->campo(Campo::texto('sort', max: 40), false);
+        [, $sentido] = $e->campo(new Campo('sort_dir', opciones: ['asc', 'desc']), false);
+        $e->validar();
+
+        return new Listado($saltar, $limite, null === $orden ? null : (string) $orden, 'desc' === $sentido);
     }
 
     /** El cuerpo JSON ya decodificado, tal como llegó (null si no es JSON): para citarlo en un error de validación. */

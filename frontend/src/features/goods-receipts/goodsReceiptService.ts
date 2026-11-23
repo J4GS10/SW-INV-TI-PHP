@@ -1,4 +1,5 @@
 import client from '../../api/axios';
+import type { Pagina, PedidoPagina } from '../../types/paging';
 
 export type GoodsReceiptStatus = 'REGISTERED' | 'PENDING_APPROVAL' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 export type LineType = 'ASSET' | 'CONSUMABLE' | 'LICENSE' | 'OTHER';
@@ -133,7 +134,9 @@ export const statusColor = (status: GoodsReceiptStatus) => {
 const BASE = '/goods-receipts';
 
 export const goodsReceiptService = {
-  list: async (status?: GoodsReceiptStatus) => (await client.get<GoodsReceipt[]>(BASE, { params: { status } })).data,
+  /** Una página de ingresos, filtrada (`status`, `q`: código, documento o proveedor) y ordenada en el servidor. */
+  list: async (pedido: PedidoPagina & { status?: GoodsReceiptStatus; q?: string }) =>
+    (await client.get<Pagina<GoodsReceipt>>(BASE, { params: pedido })).data,
   get: async (id: number) => (await client.get<GoodsReceipt>(`${BASE}/${id}`)).data,
   formContext: async () => (await client.get<{ site_id: number | null; received_date: string; supplier_id: number | null; currency: string }>(`${BASE}/form-context`)).data,
   // La llave evita un ingreso duplicado por doble clic o reintento de red.

@@ -3,6 +3,13 @@ import {
   DetalleCreate, DetalleMantenimiento, Mantenimiento, MantenimientoCreate,
   TipoMantenimiento, TipoMantenimientoCreate,
 } from '../../types/maintenance';
+import type { Pagina, PedidoPagina } from '../../types/paging';
+
+/** Filtros del listado de tickets; los aplica el servidor. */
+export interface FiltrosMantenimiento {
+  q?: string;
+  estado?: 'abierto' | 'cerrado';
+}
 
 export interface MantenimientoCierre {
   MAN_Costo_Total: number;
@@ -23,8 +30,9 @@ export const maintenanceService = {
   },
 
   // TICKETS
-  getAll: async (): Promise<Mantenimiento[]> =>
-    (await client.get<Mantenimiento[]>('/mantenimiento/')).data,
+  /** Una página de tickets, filtrada y ordenada en el servidor. */
+  list: async (pedido: PedidoPagina & FiltrosMantenimiento): Promise<Pagina<Mantenimiento>> =>
+    (await client.get<Pagina<Mantenimiento>>('/mantenimiento/', { params: pedido })).data,
   getById: async (id: string): Promise<Mantenimiento> =>
     (await client.get<Mantenimiento>(`/mantenimiento/${id}`)).data,
   create: async (data: MantenimientoCreate): Promise<Mantenimiento> =>

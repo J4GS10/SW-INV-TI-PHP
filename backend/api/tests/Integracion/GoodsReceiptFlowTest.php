@@ -165,6 +165,23 @@ final class GoodsReceiptFlowTest extends PruebaApi
 
         $outsider = $this->tokenDe(D::crearUsuario(['rol' => 'COMPRAS', 'sedes' => [D::crearSede('Otra '.D::sufijo())]]));
         self::assertSame([404, 'GOODS_RECEIPT_NOT_FOUND'], $this->detalle('GET', "/api/v1/goods-receipts/{$receipt['id']}", token: $outsider));
+        self::assertSame(['total' => 0, 'items' => []], $this->ok(200, 'GET', '/api/v1/goods-receipts?q='.rawurlencode($document), token: $outsider), 'Ni en el listado.');
+    }
+
+    public function testTheListIsPagedAndFilteredOnTheServer(): void
+    {
+        $prefix = 'P-'.D::sufijo();
+        $first = $this->register($prefix.'-1');
+        $second = $this->register($prefix.'-2');
+        $base = '/api/v1/goods-receipts?q='.rawurlencode($prefix);
+
+        $page = $this->ok(200, 'GET', $base.'&limit=1', token: $this->purchasing);
+        self::assertSame([2, [$second['id']]], [$page['total'], array_column($page['items'], 'id')], 'Newest first, with the total of every match.');
+        self::assertSame([$first['id']], array_column($this->ok(200, 'GET', $base.'&limit=1&skip=1', token: $this->purchasing)['items'], 'id'));
+        self::assertSame([$first['id'], $second['id']], array_column($this->ok(200, 'GET', $base.'&sort=document', token: $this->purchasing)['items'], 'id'));
+        self::assertSame(2, $this->ok(200, 'GET', $base.'&status=REGISTERED', token: $this->purchasing)['total']);
+        self::assertSame(0, $this->ok(200, 'GET', $base.'&status=CONFIRMED', token: $this->purchasing)['total']);
+        self::assertSame(422, $this->pedir('GET', $base.'&status=LOST', token: $this->purchasing)[0]);
     }
 
     public function testATechnicianCreatesAMissingModelWithoutDuplicates(): void

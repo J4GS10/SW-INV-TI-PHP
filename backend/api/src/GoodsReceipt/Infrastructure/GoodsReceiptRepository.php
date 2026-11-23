@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\GoodsReceipt\Infrastructure;
 
 use App\Db\InsercionOracle;
+use App\Db\OrdenSql;
+use App\Dominio\Listado;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
 
@@ -13,6 +15,12 @@ final readonly class GoodsReceiptRepository
 {
     private const string HEADER = 'SELECT g.*, p."PRV_Nombre" AS SUPPLIER_NAME, s."SED_Nombre" AS SITE_NAME, TO_CHAR(g.GRC_RECEIVED_DATE, \'YYYY-MM-DD\') AS RECEIVED_DATE '
         .'FROM PUR_GOODS_RECEIPT g JOIN "INV_PROVEEDOR" p ON p."PRV_Proveedor" = g.GRC_PRV_SUPPLIER JOIN "INV_SEDE" s ON s."SED_Sede" = g.GRC_SED_SITE ';
+
+    /** Columns the receipt list can be sorted by (public key => SQL). */
+    private const array SORT = [
+        'code' => 'g.GRC_CODE', 'supplier' => 'p."PRV_Nombre"', 'document' => 'g.GRC_DOCUMENT_NUMBER',
+        'date' => 'g.GRC_RECEIVED_DATE', 'site' => 's."SED_Nombre"', 'status' => 'g.GRC_STATUS',
+    ];
 
     public function __construct(private Connection $connection, private Alcance $scope)
     {
@@ -34,16 +42,29 @@ final readonly class GoodsReceiptRepository
         return $row;
     }
 
-    /** @return list<array<string, mixed>> */
-    public function list(?string $status, int $limit): array
+    /**
+     * A page of the receipts within the user's scope, and how many match in all. `$text` looks in the code, the
+     * supplier's document number and the supplier's name.
+     *
+     * @return array{0: int, 1: list<array<string, mixed>>}
+     */
+    public function search(?string $status, ?string $text, Listado $page): array
     {
         [$where, $params] = $this->scope->lectura('PUR_GOODS_RECEIPT', 'g');
         if (null !== $status) {
             $where .= ' AND g.GRC_STATUS = :status';
             $params['status'] = $status;
         }
+        if (null !== $text && '' !== trim($text)) {
+            $where .= ' AND (UPPER(g.GRC_CODE) LIKE :q ESCAPE \'\\\' OR UPPER(g.GRC_DOCUMENT_NUMBER) LIKE :q ESCAPE \'\\\' OR UPPER(p."PRV_Nombre") LIKE :q ESCAPE \'\\\')';
+            $params['q'] = '%'.mb_strtoupper(addcslashes(trim($text), '%_\\')).'%';
+        }
+        $from = 'FROM PUR_GOODS_RECEIPT g JOIN "INV_PROVEEDOR" p ON p."PRV_Proveedor" = g.GRC_PRV_SUPPLIER WHERE '.$where;
+        $total = (int) $this->connection->fetchOne('SELECT COUNT(*) '.$from, $params);
+        $rows = 0 === $total ? [] : $this->connection->fetchAllAssociative(self::HEADER.'WHERE '.$where
+            .OrdenSql::de(self::SORT, $page, 'g.GRC_GOODS_RECEIPT DESC', 'g.GRC_GOODS_RECEIPT'), [...$params, ...OrdenSql::parametros($page)]);
 
-        return $this->connection->fetchAllAssociative(self::HEADER.'WHERE '.$where.' ORDER BY g.GRC_GOODS_RECEIPT DESC FETCH FIRST '.$limit.' ROWS ONLY', $params);
+        return [$total, $rows];
     }
 
     /** @return list<array<string, mixed>> */

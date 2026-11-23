@@ -11,6 +11,7 @@ use App\Inventario\Infrastructure\MovimientosStore;
 use App\Correo\Notificador;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
+use App\Dominio\Listado;
 use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
@@ -66,10 +67,16 @@ final readonly class Movimientos
         ];
     }
 
-    /** @return list<array<string, mixed>> */
-    public function listar(int $saltar, int $limite): array
+    /**
+     * @param array{q?: ?string, tipo?: ?string, estado?: ?string} $filtros
+     *
+     * @return array{total: int, items: list<array<string, mixed>>} a page of the visible movements and how many match
+     */
+    public function listar(array $filtros, Listado $listado): array
     {
-        return array_map(self::aApi(...), $this->datos->pagina($saltar, $limite));
+        [$total, $filas] = $this->datos->buscar($filtros, $listado);
+
+        return ['total' => $total, 'items' => array_map(self::aApi(...), $filas)];
     }
 
     /** @return list<array<string, mixed>> */

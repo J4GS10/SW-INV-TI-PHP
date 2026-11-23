@@ -14,6 +14,7 @@ use App\Correo\Notificador;
 use App\Crud\Esquema;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
+use App\Dominio\Listado;
 use App\Dominio\Reloj;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\ConsultasComunes;
@@ -140,16 +141,22 @@ final readonly class Mantenimientos
             'AMA_Accion' => null === $d['AMA_Accion'] ? null : (int) $d['AMA_Accion'], 'DMA_Detalle_Mant' => (int) $d['DMA_Detalle_Mant']];
     }
 
-    /** @return list<array<string, mixed>> */
-    public function listar(): array
+    /**
+     * @param array{q?: ?string, estado?: ?string} $filtros
+     *
+     * @return array{total: int, items: list<array<string, mixed>>} a page of the visible tickets and how many match
+     */
+    public function listar(array $filtros, Listado $listado): array
     {
-        return array_map($this->aApi(...), $this->datos->tickets());
+        [$total, $filas] = $this->datos->buscar($filtros, $listado);
+
+        return ['total' => $total, 'items' => array_map($this->aApi(...), $filas)];
     }
 
     /** @return array<string, mixed> */
     public function uno(string $id): array
     {
-        $fila = $this->datos->tickets($id)[0] ?? throw ErrorDominio::noEncontrado('MAINTENANCE_TICKET_NOT_FOUND');
+        $fila = $this->datos->ticket($id) ?: throw ErrorDominio::noEncontrado('MAINTENANCE_TICKET_NOT_FOUND');
 
         return $this->aApi($fila);
     }

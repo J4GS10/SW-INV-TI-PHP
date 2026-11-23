@@ -11,6 +11,7 @@ use App\Dominio\Ident;
 use App\Dominio\Roles;
 use App\GoodsReceipt\Application\GoodsReceiptAct;
 use App\GoodsReceipt\Application\GoodsReceiptService;
+use App\GoodsReceipt\Domain\GoodsReceiptStatus;
 use App\Http\ClienteHttp;
 use App\Validacion\Entrada;
 use App\Http\ErrorApi;
@@ -53,12 +54,17 @@ final readonly class GoodsReceiptController
         return $body;
     }
 
+    /** Paginado en el servidor: `skip`, `limit`, `sort`, `sort_dir` y los filtros `status` y `q` (código, documento o proveedor). */
     #[Route('', methods: ['GET'])]
     public function index(Request $request): JsonResponse
     {
-        $status = $request->query->get('status');
+        $page = Peticion::listado($request);
+        $e = Peticion::consulta($request);
+        [, $status] = $e->campo(new Campo('status', opciones: array_column(GoodsReceiptStatus::cases(), 'value')), false);
+        [, $text] = $e->campo(Campo::texto('q', max: 100), false);
+        $e->validar();
 
-        return new JsonResponse($this->service->list(null === $status ? null : (string) $status));
+        return new JsonResponse($this->service->list(null === $status ? null : (string) $status, null === $text ? null : (string) $text, $page));
     }
 
     #[Route('', methods: ['POST'])]

@@ -88,12 +88,18 @@ final readonly class TrazabilidadController
 
     // ---------------- Movimientos ----------------
 
+    /** Bitácora paginada en el servidor: `skip`, `limit`, `sort`, `sort_dir` y los filtros `q`, `tipo` y `estado` (`vigente` o `cerrado`). */
     #[Route('/movimientos', methods: ['GET'])]
     public function listar(Request $request): JsonResponse
     {
-        [$saltar, $limite] = Peticion::paginacion($request);
+        $listado = Peticion::listado($request);
+        $e = Peticion::consulta($request);
+        [, $q] = $e->campo(Campo::texto('q', max: 100), false);
+        [, $tipo] = $e->campo(Campo::texto('tipo', max: 100), false);
+        [, $estado] = $e->campo(new Campo('estado', opciones: ['vigente', 'cerrado']), false);
+        $e->validar();
 
-        return new JsonResponse($this->movimientos->listar($saltar, $limite));
+        return new JsonResponse($this->movimientos->listar(['q' => $q, 'tipo' => $tipo, 'estado' => $estado], $listado));
     }
 
     /** Asigna (o presta) un activo. Admite `Idempotency-Key`. */

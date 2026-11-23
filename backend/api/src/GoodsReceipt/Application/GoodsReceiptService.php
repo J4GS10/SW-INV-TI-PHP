@@ -8,6 +8,7 @@ use App\Correo\Notificador;
 use App\GoodsReceipt\Infrastructure\ReceivedInventoryStore;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
+use App\Dominio\Listado;
 use App\Dominio\Reloj;
 use App\GoodsReceipt\Domain\GoodsReceiptStatus;
 use App\GoodsReceipt\Domain\SpecificationValue;
@@ -328,10 +329,12 @@ final readonly class GoodsReceiptService
         ];
     }
 
-    /** @return list<array<string, mixed>> */
-    public function list(?string $status): array
+    /** @return array{total: int, items: list<array<string, mixed>>} a page of the receipts within the user's scope and how many match */
+    public function list(?string $status, ?string $text, Listado $page): array
     {
-        return array_map(self::headerToApi(...), $this->receipts->list($status, 200));
+        [$total, $rows] = $this->receipts->search($status, $text, $page);
+
+        return ['total' => $total, 'items' => array_map(self::headerToApi(...), $rows)];
     }
 
     /** @return list<array<string, mixed>> */

@@ -75,11 +75,18 @@ final readonly class MantenimientoController
         return new Response(status: 204);
     }
 
+    /** Paginado en el servidor: `skip`, `limit`, `sort`, `sort_dir` y los filtros `q` y `estado` (`abierto` o `cerrado`). */
     #[Route('/', methods: ['GET'])]
     #[Route('', methods: ['GET'])]
-    public function listar(): JsonResponse
+    public function listar(Request $request): JsonResponse
     {
-        return new JsonResponse($this->mantenimientos->listar());
+        $listado = Peticion::listado($request);
+        $e = Peticion::consulta($request);
+        [, $q] = $e->campo(Campo::texto('q', max: 100), false);
+        [, $estado] = $e->campo(new Campo('estado', opciones: ['abierto', 'cerrado']), false);
+        $e->validar();
+
+        return new JsonResponse($this->mantenimientos->listar(['q' => $q, 'estado' => $estado], $listado));
     }
 
     #[Route('/{ticket}', methods: ['GET'], requirements: ['ticket' => '[0-9a-fA-F-]{32,36}'])]

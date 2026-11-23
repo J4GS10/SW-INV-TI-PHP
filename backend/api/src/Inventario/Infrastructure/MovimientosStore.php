@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Inventario\Infrastructure;
 
 use App\Db\InsercionOracle;
+use App\Db\OrdenSql;
+use App\Dominio\Listado;
 use App\Dominio\Reloj;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
@@ -19,7 +21,12 @@ final readonly class MovimientosStore
         .'t."TMO_Nombre", ar."ARE_Nombre"';
     private const string JOINS = 'LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = m."PER_Persona" '
         .'LEFT JOIN "INV_TIPO_MOVIMIENTO" t ON t."TMO_Tipo_Movimiento" = m."TMO_Tipo_Movimiento" LEFT JOIN "INV_AREA" ar ON ar."ARE_Area" = m."ARE_Area"';
-    private const string VIGENTES_DE_PERSONA = 'm."PER_Persona" = :p AND m."MOV_Fecha_Devolucion" IS NULL';
+    /** Columns the movement list can be sorted by (public key => SQL). */
+    private const array ORDEN = [
+        'date' => 'm."MOV_Fecha_Asignacion"', 'status' => 'm."MOV_Fecha_Devolucion"', 'asset' => 'a."ACT_Codigo_Interno"',
+        'responsible' => 'p."PER_Primer_Apellido"', 'type' => 't."TMO_Nombre"',
+    ];
+    private const string VIGENTES_DE_PERSONA ='m."PER_Persona" = :p AND m."MOV_Fecha_Devolucion" IS NULL';
 
     public function __construct(private Connection $conexion, private Alcance $alcance)
     {
@@ -77,10 +84,39 @@ final readonly class MovimientosStore
 
     // ---- Reading movements ----
 
-    /** @return list<array<string, mixed>> a page of the visible movements, newest first */
-    public function pagina(int $saltar, int $limite): array
+    /**
+     * A page of the visible movements that match, and how many match in all. `q` looks in the asset code and serial
+     * and in the person's name; `tipo` is a movement type name; `estado` is `vigente` (not returned) or `cerrado`.
+     *
+     * @param array{q?: ?string, tipo?: ?string, estado?: ?string} $filtros
+     *
+     * @return array{0: int, 1: list<array<string, mixed>>}
+     */
+    public function buscar(array $filtros, Listado $listado): array
     {
-        return $this->consultar('1 = 1', ['saltar' => $saltar, 'limite' => $limite], ' OFFSET :saltar ROWS FETCH NEXT :limite ROWS ONLY');
+        [$alcance, $pa] = $this->alcance->lectura('INV_MOVIMIENTO', 'm');
+        $donde = [$alcance];
+        $p = $pa;
+        if (null !== ($filtros['tipo'] ?? null)) {
+            $donde[] = 't."TMO_Nombre" = :tipo';
+            $p['tipo'] = $filtros['tipo'];
+        }
+        if ('vigente' === ($filtros['estado'] ?? null)) {
+            $donde[] = 'm."MOV_Fecha_Devolucion" IS NULL';
+        } elseif ('cerrado' === ($filtros['estado'] ?? null)) {
+            $donde[] = 'm."MOV_Fecha_Devolucion" IS NOT NULL';
+        }
+        if (null !== ($filtros['q'] ?? null) && '' !== trim((string) $filtros['q'])) {
+            $donde[] = '(UPPER(a."ACT_Codigo_Interno") LIKE :q ESCAPE \'\\\' OR UPPER(a."ACT_Serie_Fabricante") LIKE :q ESCAPE \'\\\' '
+                .'OR UPPER(p."PER_Primer_Nombre" || \' \' || p."PER_Primer_Apellido") LIKE :q ESCAPE \'\\\')';
+            $p['q'] = '%'.mb_strtoupper(addcslashes(trim((string) $filtros['q']), '%_\\')).'%';
+        }
+        $sql = ' FROM "INV_MOVIMIENTO" m '.self::JOINS.' WHERE '.implode(' AND ', $donde);
+        $total = (int) $this->conexion->fetchOne('SELECT COUNT(*)'.$sql, $p);
+        $filas = 0 === $total ? [] : $this->conexion->fetchAllAssociative('SELECT '.self::COLUMNAS.$sql
+            .OrdenSql::de(self::ORDEN, $listado, 'm."MOV_Fecha_Asignacion" DESC', 'm."MOV_Movimiento"'), [...$p, ...OrdenSql::parametros($listado)]);
+
+        return [$total, $filas];
     }
 
     /** @return list<array<string, mixed>> the visible movements of an asset, newest first */
@@ -100,12 +136,12 @@ final readonly class MovimientosStore
      *
      * @return list<array<string, mixed>>
      */
-    private function consultar(string $donde, array $parametros, string $pagina = ''): array
+    private function consultar(string $donde, array $parametros): array
     {
         [$alcance, $pa] = $this->alcance->lectura('INV_MOVIMIENTO', 'm');
 
         return $this->conexion->fetchAllAssociative('SELECT '.self::COLUMNAS.' FROM "INV_MOVIMIENTO" m '.self::JOINS.' WHERE '.$donde.' AND '.$alcance
-            .' ORDER BY m."MOV_Fecha_Asignacion" DESC, m."MOV_Movimiento"'.$pagina, [...$parametros, ...$pa]);
+            .' ORDER BY m."MOV_Fecha_Asignacion" DESC, m."MOV_Movimiento"', [...$parametros, ...$pa]);
     }
 
     /** @return array<string, mixed>|false the movement with its asset, person, type and area, whatever its site */

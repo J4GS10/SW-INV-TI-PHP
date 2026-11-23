@@ -171,7 +171,36 @@ final class TrazabilidadTest extends PruebaApi
         $salida = D::conexion()->fetchAssociative("SELECT \"KDX_Costo\", \"KDX_Moneda\" FROM \"INV_KARDEX\" WHERE \"ACT_Activo\" = :a AND \"KDX_Tipo\" = 'MANTENIMIENTO_SALIDA'",
             ['a' => str_replace('-', '', $a)]);
         self::assertSame([370.0, 'USD'], [(float) $salida['KDX_Costo'], $salida['KDX_Moneda']]);
-        self::assertContains($t['MAN_Mantenimiento'], array_column($this->ok(200, 'GET', '/api/v1/mantenimiento/'), 'MAN_Mantenimiento'));
+        // El listado se pagina y filtra en el servidor, con el total de lo que coincide.
+        $codigo = rawurlencode((string) D::conexion()->fetchOne('SELECT "ACT_Codigo_Interno" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => str_replace('-', '', $a)]));
+        $lista = $this->ok(200, 'GET', "/api/v1/mantenimiento/?estado=cerrado&q={$codigo}&limit=1");
+        self::assertSame([1, [$t['MAN_Mantenimiento']]], [$lista['total'], array_column($lista['items'], 'MAN_Mantenimiento')]);
+        self::assertSame(['total' => 0, 'items' => []], $this->ok(200, 'GET', "/api/v1/mantenimiento/?estado=abierto&q={$codigo}"));
+        self::assertSame(422, $this->pedir('GET', '/api/v1/mantenimiento/?estado=pendiente')[0]);
+    }
+
+    public function testLaBitacoraDeMovimientosSePaginaFiltraYOrdenaEnElServidor(): void
+    {
+        $nombre = 'Pagina'.D::sufijo();
+        $persona = D::crearPersona($this->sede, $nombre);
+        [$a1, $a2] = [$this->activo(), $this->activo()];
+        $m1 = $this->asignar($a1, $persona)['MOV_Movimiento'];
+        $m2 = $this->asignar($a2, $persona)['MOV_Movimiento'];
+        $base = '/api/v1/trazabilidad/movimientos?q='.rawurlencode($nombre);
+
+        $primera = $this->ok(200, 'GET', $base.'&limit=1');
+        $segunda = $this->ok(200, 'GET', $base.'&limit=1&skip=1');
+        self::assertSame([2, 2], [$primera['total'], $segunda['total']], 'El total es el de todo lo que coincide, no el de la página.');
+        self::assertSame([$m2, $m1], [$primera['items'][0]['MOV_Movimiento'], $segunda['items'][0]['MOV_Movimiento']], 'Lo más reciente primero, sin repetir entre páginas.');
+        self::assertSame(2, $this->ok(200, 'GET', $base.'&estado=vigente')['total']);
+        self::assertSame(['total' => 0, 'items' => []], $this->ok(200, 'GET', $base.'&estado=cerrado'));
+
+        $codigos = array_column(array_column($this->ok(200, 'GET', $base.'&sort=asset&sort_dir=desc')['items'], 'activo'), 'ACT_Codigo_Interno');
+        $esperado = $codigos;
+        rsort($esperado, SORT_STRING);
+        self::assertSame($esperado, $codigos, 'Ordena por la columna pedida en el servidor.');
+        self::assertSame(422, $this->pedir('GET', $base.'&sort_dir=arriba')[0]);
+        self::assertSame(422, $this->pedir('GET', $base.'&estado=abierto')[0], 'Cada listado acepta solo sus estados.');
     }
 
     public function testOffboardingAtomicoEIdempotente(): void

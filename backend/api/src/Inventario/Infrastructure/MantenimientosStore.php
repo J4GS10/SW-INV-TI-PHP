@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Inventario\Infrastructure;
 
 use App\Db\InsercionOracle;
+use App\Db\OrdenSql;
+use App\Dominio\Listado;
 use App\Dominio\Reloj;
 use App\Seguridad\Alcance;
 use Doctrine\DBAL\Connection;
@@ -14,6 +16,16 @@ use Doctrine\DBAL\ParameterType;
 final readonly class MantenimientosStore
 {
     private const string DETALLE = '"DMA_Detalle_Mant", "DMA_Accion_Realizada", "DMA_Costo_Item", "AMA_Accion"';
+    private const string UNIONES = 'LEFT JOIN "INV_TIPO_MANTENIMIENTO" t ON t."TMA_Tipo_Mantenimiento" = m."TMA_Tipo_Mantenimiento" '
+        .'LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = m."PER_Persona_Solicita"';
+    /** A ticket with its type, asset and requester. */
+    private const string TICKET = 'm.*, t."TMA_Nombre", a."ACT_Codigo_Interno", a."ACT_Hostname", p."PER_Primer_Nombre", p."PER_Primer_Apellido", '
+        .'p."PER_Email_Corporativo" FROM "INV_MANTENIMIENTO" m '.self::UNIONES;
+    /** Columns the ticket list can be sorted by (public key => SQL). */
+    private const array ORDEN = [
+        'date' => 'm."MAN_Fecha_Ingreso"', 'status' => 'm."MAN_Fecha_Cierre"', 'asset' => 'a."ACT_Codigo_Interno"',
+        'type' => 't."TMA_Nombre"', 'cost' => 'm."MAN_Costo_Total"',
+    ];
 
     public function __construct(private Connection $conexion, private Alcance $alcance)
     {
@@ -47,21 +59,43 @@ final readonly class MantenimientosStore
         return false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_MANTENIMIENTO" WHERE "TMA_Tipo_Mantenimiento" = :id FETCH FIRST 1 ROWS ONLY', ['id' => $id]);
     }
 
-    /**
-     * The tickets the current user may see, newest first, with their type, asset and requester: the one asked for, or the last 50.
-     *
-     * @return list<array<string, mixed>>
-     */
-    public function tickets(?string $id = null): array
+    /** @return array<string, mixed>|false the ticket, if the current user may see it, with its type, asset and requester */
+    public function ticket(string $id): array|false
     {
         [$alcance, $parametros] = $this->alcance->lectura('INV_MANTENIMIENTO', 'm');
-        $donde = null === $id ? '1 = 1' : 'm."MAN_Mantenimiento" = :id';
 
-        return $this->conexion->fetchAllAssociative('SELECT m.*, t."TMA_Nombre", a."ACT_Codigo_Interno", a."ACT_Hostname", p."PER_Primer_Nombre", '
-            .'p."PER_Primer_Apellido", p."PER_Email_Corporativo" FROM "INV_MANTENIMIENTO" m LEFT JOIN "INV_TIPO_MANTENIMIENTO" t ON t."TMA_Tipo_Mantenimiento" = m."TMA_Tipo_Mantenimiento" '
-            .'LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = m."PER_Persona_Solicita" WHERE '
-            .$donde.' AND '.$alcance.' ORDER BY m."MAN_Fecha_Ingreso" DESC, m."MAN_Mantenimiento" FETCH FIRST '.(null === $id ? 50 : 1).' ROWS ONLY',
-            [...(null === $id ? [] : ['id' => $id]), ...$parametros]);
+        return $this->conexion->fetchAssociative('SELECT '.self::TICKET.' WHERE m."MAN_Mantenimiento" = :id AND '.$alcance, ['id' => $id, ...$parametros]);
+    }
+
+    /**
+     * A page of the tickets the current user may see, and how many match in all. `estado` is `abierto` or `cerrado`;
+     * `q` looks in the asset code and hostname and in the failure description.
+     *
+     * @param array{q?: ?string, estado?: ?string} $filtros
+     *
+     * @return array{0: int, 1: list<array<string, mixed>>}
+     */
+    public function buscar(array $filtros, Listado $listado): array
+    {
+        [$alcance, $p] = $this->alcance->lectura('INV_MANTENIMIENTO', 'm');
+        $donde = [$alcance];
+        if ('abierto' === ($filtros['estado'] ?? null)) {
+            $donde[] = 'm."MAN_Fecha_Cierre" IS NULL';
+        } elseif ('cerrado' === ($filtros['estado'] ?? null)) {
+            $donde[] = 'm."MAN_Fecha_Cierre" IS NOT NULL';
+        }
+        if (null !== ($filtros['q'] ?? null) && '' !== trim((string) $filtros['q'])) {
+            $donde[] = '(UPPER(a."ACT_Codigo_Interno") LIKE :q ESCAPE \'\\\' OR UPPER(a."ACT_Hostname") LIKE :q ESCAPE \'\\\' '
+                // The description is a CLOB: its first 2000 characters are enough to find a ticket, without a temporary LOB per row.
+                .'OR UPPER(DBMS_LOB.SUBSTR(m."MAN_Descripcion_Falla", 2000, 1)) LIKE :q ESCAPE \'\\\')';
+            $p['q'] = '%'.mb_strtoupper(addcslashes(trim((string) $filtros['q']), '%_\\')).'%';
+        }
+        $donde = ' WHERE '.implode(' AND ', $donde);
+        $total = (int) $this->conexion->fetchOne('SELECT COUNT(*) FROM "INV_MANTENIMIENTO" m '.self::UNIONES.$donde, $p);
+        $filas = 0 === $total ? [] : $this->conexion->fetchAllAssociative('SELECT '.self::TICKET.$donde
+            .OrdenSql::de(self::ORDEN, $listado, 'm."MAN_Fecha_Ingreso" DESC', 'm."MAN_Mantenimiento"'), [...$p, ...OrdenSql::parametros($listado)]);
+
+        return [$total, $filas];
     }
 
     /** @return list<array<string, mixed>> the work items of a ticket, oldest first */

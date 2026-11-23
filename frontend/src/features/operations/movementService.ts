@@ -5,6 +5,14 @@ import { Activo } from '../../types/inventory';
 import { PersonaResumen } from '../../types/users';
 import { Area } from '../../types/geo';
 import type { SupportedLanguage } from '../../types/language';
+import type { Pagina, PedidoPagina } from '../../types/paging';
+
+/** Filtros de la bitácora de movimientos; los aplica el servidor. */
+export interface FiltrosMovimientos {
+  q?: string;
+  tipo?: string;
+  estado?: 'vigente' | 'cerrado';
+}
 
 export interface InstalacionArea {
   ACT_Activo: string;
@@ -34,10 +42,9 @@ export const movementService = {
     (await client.post<EstadoInstalacion>('/trazabilidad/retirar-area', datos)).data,
 
   // --- LECTURA ---
-  getMovements: async (): Promise<Movimiento[]> => {
-    const response = await client.get<Movimiento[]>('/trazabilidad/movimientos');
-    return response.data;
-  },
+  /** Una página de la bitácora, filtrada y ordenada en el servidor. */
+  getMovements: async (pedido: PedidoPagina & FiltrosMovimientos): Promise<Pagina<Movimiento>> =>
+    (await client.get<Pagina<Movimiento>>('/trazabilidad/movimientos', { params: pedido })).data,
 
   getTiposMovimiento: (): Promise<TipoMovimiento[]> => apiCache.get('/trazabilidad/tipos', async () =>
     (await client.get<TipoMovimiento[]>('/trazabilidad/tipos')).data),
@@ -99,10 +106,4 @@ export const movementService = {
 
   getAreas: (): Promise<Array<Area & { ruta: string }>> => apiCache.get('/geo/areas/all', async () =>
     (await client.get<Array<Area & { ruta: string }>>('/geo/areas/all')).data),
-
-  // Paginación de movimientos
-  getMovementsPaged: async (skip = 0, limit = 50): Promise<Movimiento[]> => {
-    const response = await client.get<Movimiento[]>(`/trazabilidad/movimientos?skip=${skip}&limit=${limit}`);
-    return response.data;
-  },
 };
