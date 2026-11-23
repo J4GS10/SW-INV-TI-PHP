@@ -30,7 +30,6 @@
         "symfony/rate-limiter": "8.1.*",
         "symfony/runtime": "8.1.*",
         "symfony/scheduler": "8.1.*",
-        "symfony/uid": "8.1.*",
         "symfony/validator": "8.1.*",
         "symfony/yaml": "8.1.*",
         "twig/twig": "^3.30"
