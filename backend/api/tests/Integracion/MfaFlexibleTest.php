@@ -8,8 +8,11 @@ use App\Http\CookiesSesion;
 use App\Seguridad\Tokens;
 use App\Seguridad\Totp;
 use App\Tests\Soporte\DatosPrueba as D;
+use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Tester\CommandTester;
 
 /** MFA flexible: omitirlo solo en el primer ingreso, excepción del administrador del sistema y equipos recordados. */
 final class MfaFlexibleTest extends WebTestCase
@@ -126,7 +129,59 @@ final class MfaFlexibleTest extends WebTestCase
         self::assertSame(1, D::contar('SELECT COUNT(*) FROM SYS_TRUSTED_DEVICE WHERE TDV_ID = :id', ['id' => $id]));
     }
 
+    public function testElAccesoDeEmergenciaRecuperaUnSuperAdminDesdeElServidor(): void
+    {
+        $sa = D::crearUsuario(['rol' => 'SUPER_ADMIN', 'metodo_2fa' => 'TOTP', 'secreto_totp' => self::SECRETO]);
+        self::assertTrue($this->login($sa['username'])['json']['requires_2fa'] ?? false, 'Antes pide el código del teléfono perdido.');
+        D::conexion()->executeStatement('UPDATE "INV_USUARIO" SET "USU_Bloqueado_Hasta" = SYSTIMESTAMP + INTERVAL \'1\' HOUR WHERE "USU_Usuario" = :id', ['id' => $sa['id']]);
+        $consola = $this->consola();
+        $base = ['usuario' => $sa['username'], '--confirmar' => $sa['username'], '--operador' => 'Responsable de TI'];
+
+        self::assertSame(Command::INVALID, $consola->execute([...$base, '--confirmar' => 'otro', '--motivo' => 'Teléfono perdido']), 'Sin confirmar no hace nada.');
+        self::assertSame(Command::FAILURE, $consola->execute([...$base, '--motivo' => 'corto']), 'El motivo es obligatorio.');
+        self::assertStringContainsString('EMERGENCY_REASON_AND_OPERATOR_REQUIRED', $consola->getDisplay());
+        self::assertSame(1, D::contar('SELECT "USU_2FA_Habilitado" FROM "INV_USUARIO" WHERE "USU_Usuario" = :id', ['id' => $sa['id']]), 'Los intentos rechazados no cambian nada.');
+
+        self::assertSame(Command::SUCCESS, $consola->execute([...$base, '--motivo' => 'Teléfono y códigos de recuperación perdidos']));
+        self::assertSame(0, D::contar('SELECT COUNT(*) FROM "INV_USUARIO" WHERE "USU_Usuario" = :id AND ("USU_2FA_Habilitado" = 1 '
+            .'OR "USU_2FA_Secret" IS NOT NULL OR "USU_Bloqueado_Hasta" IS NOT NULL)', ['id' => $sa['id']]), 'Sin MFA ni bloqueo.');
+        self::assertSame(1, D::contar('SELECT COUNT(*) FROM "INV_AUDITORIA_SISTEMA" WHERE "AUD_Accion" = \'EMERGENCY_ACCESS_RESET\' '
+            .'AND DBMS_LOB.INSTR("AUD_Snapshot_JSON", :u) > 0 AND DBMS_LOB.INSTR("AUD_Snapshot_JSON", :o) > 0',
+            ['u' => $sa['username'], 'o' => 'Responsable de TI']), 'Queda en la auditoría, con quién lo hizo.');
+
+        $r = $this->login($sa['username']);
+        self::assertSame(200, $r['estado']);
+        self::assertArrayNotHasKey('requires_2fa', $r['json'], 'Ya no pide el código perdido.');
+        self::assertSame('MFA_ENROLLMENT_REQUIRED', $r['json']['restriction'], 'Y obliga a configurar un MFA nuevo.');
+    }
+
+    public function testElAccesoDeEmergenciaEsSoloParaSuperAdminYPuedeDarUnaClaveTemporal(): void
+    {
+        $admin = D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true, 'metodo_2fa' => 'TOTP', 'secreto_totp' => self::SECRETO]);
+        $consola = $this->consola();
+        $motivo = ['--motivo' => 'Prueba del acceso de emergencia', '--operador' => 'Responsable de TI'];
+        self::assertSame(Command::FAILURE, $consola->execute(['usuario' => $admin['username'], '--confirmar' => $admin['username'], ...$motivo]));
+        self::assertStringContainsString('EMERGENCY_ONLY_FOR_SUPER_ADMIN', $consola->getDisplay());
+        self::assertSame(1, D::contar('SELECT "USU_2FA_Habilitado" FROM "INV_USUARIO" WHERE "USU_Usuario" = :id', ['id' => $admin['id']]),
+            'Las demás cuentas las recupera un SUPER_ADMIN en la aplicación.');
+
+        $sa = D::crearUsuario(['rol' => 'SUPER_ADMIN']);
+        self::assertSame(Command::SUCCESS, $consola->execute(['usuario' => $sa['username'], '--confirmar' => $sa['username'], ...$motivo, '--contrasena-temporal' => true]));
+        self::assertSame(1, preg_match('/no se vuelve a mostrar\): (\S+)/', $consola->getDisplay(), $m));
+        self::assertSame(400, $this->login($sa['username'])['estado'], 'La clave anterior ya no sirve.');
+        $this->cliente->request('POST', '/api/v1/login/access-token', ['username' => $sa['username'], 'password' => $m[1]]);
+        $r = $this->respuesta();
+        self::assertSame(200, $r['estado']);
+        self::assertNotNull($r['json']['restriction'] ?? null, 'Entra restringido: primero cambia la clave y configura el MFA.');
+        self::assertSame(1, D::contar('SELECT "USU_Debe_Cambiar_Password" FROM "INV_USUARIO" WHERE "USU_Usuario" = :id', ['id' => $sa['id']]));
+    }
+
     // ---- apoyo ----
+
+    private function consola(): CommandTester
+    {
+        return new CommandTester((new Application(self::$kernel ?? throw new \LogicException('Kernel sin arrancar')))->find('app:acceso-emergencia'));
+    }
 
     /** @param array{username: string} $u */
     private function token(array $u): string

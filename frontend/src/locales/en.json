@@ -444,6 +444,7 @@
             "2FA_DISABLED": "Two-step verification disabled",
             "2FA_RECOVERY_REGENERATED": "Recovery codes regenerated",
             "2FA_RESET_BY_ADMIN": "Two-step verification reset by an administrator",
+            "EMERGENCY_ACCESS_RESET": "Emergency access from the server",
             "PASSWORD_RESET_BY_ADMIN": "Password reset by an administrator",
             "ACCOUNT_LOCKED": "Account locked after failed attempts",
             "ACCOUNT_UNLOCKED_BY_ADMIN": "Account unlocked by an administrator",

@@ -444,6 +444,7 @@
             "2FA_DISABLED": "Verificación en dos pasos desactivada",
             "2FA_RECOVERY_REGENERATED": "Códigos de recuperación regenerados",
             "2FA_RESET_BY_ADMIN": "Verificación en dos pasos restablecida por un administrador",
+            "EMERGENCY_ACCESS_RESET": "Acceso de emergencia desde el servidor",
             "PASSWORD_RESET_BY_ADMIN": "Contraseña restablecida por un administrador",
             "ACCOUNT_LOCKED": "Cuenta bloqueada por intentos fallidos",
             "ACCOUNT_UNLOCKED_BY_ADMIN": "Cuenta desbloqueada por un administrador",

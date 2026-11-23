@@ -52,6 +52,24 @@ En *Configuración*, use *Subir imagen* (PNG, JPG, WebP o GIF de hasta 2 MB). Ta
 - `BACKUP_REPLICA_DIR` apunta a otro disco (`D:`) de este equipo. Protege si falla el disco principal, no si se daña o se pierde el equipo.
 - Para restaurar: `CONFIRMAR=SI` con `deploy/backup/restaurar_db.sh <archivo.dmp>`; después se levantan `migrador`, `api_php` y `worker_php`.
 
+## Acceso de emergencia
+
+Se usa cuando nadie puede entrar como SUPER_ADMIN para restablecer un MFA: teléfono y códigos de recuperación perdidos, o todas esas cuentas bloqueadas. Cualquier otra cuenta la recupera un SUPER_ADMIN desde *Usuarios* (*Restablecer MFA*).
+
+- Para prevenirlo, tenga **dos cuentas SUPER_ADMIN** de personas distintas, cada una con su MFA y sus códigos de recuperación impresos y guardados fuera del equipo.
+- Si aun así se pierde el acceso, quien administra el equipo del sistema ejecuta:
+
+  ```
+  docker exec -it inventario-api_php-1 php bin/console app:acceso-emergencia <usuario> \
+      --confirmar=<usuario> --motivo="<por qué>" --operador="<quién lo ejecuta>"
+  ```
+
+- Quita el MFA, los códigos de recuperación, los equipos recordados, las sesiones abiertas y los bloqueos. En el siguiente ingreso el sistema obliga a configurar un MFA nuevo.
+- Con `--contrasena-temporal` emite además una contraseña temporal, que se muestra una sola vez y debe cambiarse al entrar. Úsela solo si también se perdió la clave.
+- Solo sirve para cuentas SUPER_ADMIN activas. El motivo (mínimo 10 caracteres) y el operador son obligatorios.
+- Queda en la *Auditoría del sistema* como `EMERGENCY_ACCESS_RESET`, con motivo y operador. Revise ese registro después de cada uso.
+- Solo puede ejecutarlo quien tiene acceso de administrador al equipo donde corre el sistema: proteja ese acceso como el de la propia base de datos.
+
 ## Alertas
 
 El worker revisa cada 5 minutos respaldos, réplica, disco, correos y tomas. Un problema aparece como aviso a los administradores y, si hay SMTP, por correo una vez al día. Queda en la auditoría al abrirse y al cerrarse.

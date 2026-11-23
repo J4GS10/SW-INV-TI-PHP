@@ -8,7 +8,7 @@ namespace App\Tests\Soporte;
  * The layers of the backend and what each one may depend on, read from the `use` statements and
  * the fully qualified names of every file under src/.
  *
- *   entrega   Controller, Http, EventListener, Kernel: HTTP in, HTTP out.
+ *   entrega   Controller, Http, EventListener, Consola, Kernel: HTTP or console in and out.
  *   datos     Repositorio, <módulo>/Infrastructure, Db, Esquema: SQL and the database.
  *   dominio   Dominio, <módulo>/Domain: values and rules with no framework.
  *   negocio   everything else: use cases.
@@ -31,7 +31,7 @@ final class Capas
     public static function capa(string $relativo): string
     {
         return match (true) {
-            1 === preg_match('~^(Controller|Http|EventListener)/|^Kernel\.php$~', $relativo) => 'entrega',
+            1 === preg_match('~^(Controller|Http|EventListener|Consola)/|^Kernel\.php$~', $relativo) => 'entrega',
             1 === preg_match('~^(Repositorio|Db|Esquema)/|/Infrastructure/~', $relativo) => 'datos',
             1 === preg_match('~^Dominio/|/Domain/~', $relativo) => 'dominio',
             default => 'negocio',

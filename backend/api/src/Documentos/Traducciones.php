@@ -97,6 +97,7 @@ final class Traducciones
             ['Códigos de recuperación regenerados', 'Recovery codes regenerated', 'Codici di recupero rigenerati', '2FA_RECOVERY_REGENERATED'],
             ['Verificación en dos pasos restablecida por un administrador', 'Two-step verification reset by an administrator',
                 'Verifica in due passaggi reimpostata da un amministratore', '2FA_RESET_BY_ADMIN'],
+            ['Acceso de emergencia desde el servidor', 'Emergency access from the server', 'Accesso di emergenza dal server', 'EMERGENCY_ACCESS_RESET'],
             ['Contraseña restablecida por un administrador', 'Password reset by an administrator', 'Password reimpostata da un amministratore',
                 'PASSWORD_RESET_BY_ADMIN'],
             ['Cuenta bloqueada por intentos fallidos', 'Account locked after failed attempts', 'Account bloccato per tentativi falliti', 'ACCOUNT_LOCKED'],

@@ -444,6 +444,7 @@
             "2FA_DISABLED": "Verifica in due passaggi disattivata",
             "2FA_RECOVERY_REGENERATED": "Codici di recupero rigenerati",
             "2FA_RESET_BY_ADMIN": "Verifica in due passaggi reimpostata da un amministratore",
+            "EMERGENCY_ACCESS_RESET": "Accesso di emergenza dal server",
             "PASSWORD_RESET_BY_ADMIN": "Password reimpostata da un amministratore",
             "ACCOUNT_LOCKED": "Account bloccato per tentativi falliti",
             "ACCOUNT_UNLOCKED_BY_ADMIN": "Account sbloccato da un amministratore",
