@@ -41,7 +41,7 @@ Hecho el 2026-11-11: Docker limpiado por completo (contenedores, imágenes, vol�
 
 ### Media: primeros meses
 
-- Capas: las cuatro listas de excepciones de `backend/api/tests/Unit/architecture-baseline.php` quedaron vacías el 2026-11-14 (negocio sin HTTP, negocio sin SQL, entrega sin SQL, dominio sin framework), así que cualquier dependencia nueva entre capas hace fallar `ArchitectureTest`. `symfony/uid` (y `symfony/polyfill-uuid`) salieron de las dependencias el 2026-11-23: `Dominio/Ident` genera sus UUID con `random_bytes`. Falta desplegarlo: como cambia `composer.lock`, la construcción de la imagen vuelve a descargar las dependencias, así que se despliega solo con Wi-Fi.
+- Capas: las cuatro listas de excepciones de `backend/api/tests/Unit/architecture-baseline.php` quedaron vacías el 2026-11-14 (negocio sin HTTP, negocio sin SQL, entrega sin SQL, dominio sin framework), así que cualquier dependencia nueva entre capas hace fallar `ArchitectureTest`. `symfony/uid` (y `symfony/polyfill-uuid`) salieron de las dependencias el 2026-11-23: `Dominio/Ident` genera sus UUID con `random_bytes`. Desplegado el mismo día (respaldo `inventario_20261123_164153.dmp`, sin migración) y validado con la suite completa: 207 pruebas en verde.
 - Suite de navegador por rol: `herramientas/qa/e2e` (Playwright) sigue atada al entorno QA retirado. El 2026-11-11 se validó a mano desde el navegador (custodia, componentes, bajas con aprobación, alcance por sede y matriz de permisos de los 7 roles); falta adaptarla al ciclo de `pruebas_produccion.sh` para repetirlo sin intervención.
 - Dos campos de formulario sin etiqueta asociada en la pantalla de Activos (aviso de accesibilidad del navegador).
 
