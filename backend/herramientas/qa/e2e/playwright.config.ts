@@ -1,16 +1,16 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /*
- * Fase 7: pruebas de punta a punta contra el entorno de QA (herramientas/qa/e2e.sh).
+ * Pruebas de punta a punta dentro de la ventana sobre producción (herramientas/qa/e2e.sh).
  * Navegador -> frontend -> API -> Oracle/Redis/MinIO/correo, en Chromium, Firefox,
  * WebKit (motor de Safari) y vista móvil (Pixel 7 e iPhone 15).
  *
- * El certificado del sitio de QA lo emite la CA interna de Caddy: se acepta solo
+ * El certificado del sitio de prueba (e2e.inventario.local) lo emite la CA interna de Caddy: se acepta solo
  * aquí (ignoreHTTPSErrors), nunca en un cliente de producción.
  */
 const evidencia = process.env.QA_EVIDENCIA ?? 'evidencia';
 const comun = {
-  baseURL: process.env.QA_URL ?? 'https://qa.inventario.local',
+  baseURL: process.env.QA_URL ?? 'https://e2e.inventario.local',
   ignoreHTTPSErrors: true,
   locale: 'es-GT',
   timezoneId: 'America/Guatemala',

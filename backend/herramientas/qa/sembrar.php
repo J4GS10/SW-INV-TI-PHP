@@ -3,17 +3,18 @@
 declare(strict_types=1);
 
 /*
- * Siembra el entorno de QA (fase 7): dos sedes de QA y un usuario por rol y
- * caso (global y no global, con y sin 2FA, cambio obligatorio, para bloqueo).
- * Idempotente: si el usuario existe, le repone contraseña, estado y 2FA.
+ * Siembra de la suite de navegador: dos sedes «QA» y un usuario por rol y caso
+ * (global y no global, con y sin 2FA, cambio obligatorio, para bloqueo), con el
+ * MFA obligatorio encendido. Idempotente: si el usuario existe, le repone
+ * contraseña, estado y 2FA.
  *
  * Corre dentro de inventario-php-dev con el repo montado, conectado como DUEÑO
- * del esquema de QA (sin contexto VPD = modo sistema). Lo llama
- * herramientas/qa/entorno.sh sembrar; nunca apunta a producción (exige
- * ENVIRONMENT=qa y la Oracle del proyecto inventario_qa).
+ * del esquema (sin contexto VPD = modo sistema). Solo lo llama herramientas/qa/e2e.sh
+ * DENTRO de su ventana sobre producción (E2E_VENTANA=SI): ya hay un respaldo
+ * verificado y al terminar se restaura, así que nada de esto queda en la base.
  *
- * Salida: QA_DIR/usuarios.json (usuarios, contraseñas y secretos TOTP de QA;
- * no versionado).
+ * Salida: QA_SALIDA (usuarios, contraseñas y secretos TOTP sembrados), en una carpeta
+ * temporal que el ejecutor borra al terminar.
  */
 
 use App\Db\SesionOracleMiddleware;
@@ -26,18 +27,19 @@ use Doctrine\DBAL\DriverManager;
 require '/repo/api/vendor/autoload.php';
 
 $e = static fn (string $k): string => (string) (getenv($k) ?: '');
-if ('qa' !== $e('ENVIRONMENT')) {
-    fwrite(STDERR, "sembrar.php solo corre con ENVIRONMENT=qa.\n");
+if ('SI' !== $e('E2E_VENTANA')) {
+    fwrite(STDERR, "sembrar.php solo corre dentro de la ventana de herramientas/qa/e2e.sh (respaldo verificado y restauración).\n");
     exit(2);
 }
+$servicio = $e('ORACLE_SERVICE_NAME') ?: 'XEPDB1';
 $salida = $e('QA_SALIDA') ?: '/qa/usuarios.json';
 
 $c = DriverManager::getConnection([
     'driver' => 'oci8',
     'host' => $e('ORACLE_HOST'),
     'port' => 1521,
-    'dbname' => 'XEPDB1',
-    'servicename' => 'XEPDB1',
+    'dbname' => $servicio,
+    'servicename' => $servicio,
     'service' => true,
     'user' => $e('ORACLE_SCHEMA_OWNER'),
     'password' => $e('ORACLE_OWNER_PASSWORD'),
@@ -92,26 +94,12 @@ $plan = [
     'qa_bloqueo' => ['CONSULTA', false, ['A'], null, false],
 ];
 
-
-// Cuentas para probar a mano (usuarios y clave en un archivo no versionado): sin 2FA ni cambio obligatorio.
-$rutaManuales = dirname($salida).'/usuarios_manuales.json';
-$manuales = is_file($rutaManuales) ? json_decode((string) file_get_contents($rutaManuales), true, flags: JSON_THROW_ON_ERROR) : ['password' => '', 'usuarios' => []];
-$nombresManuales = [];
-// Uso manual: solo las cuentas sencillas. La suite E2E (QA_MFA_REQUIRED=1) necesita además sus cuentas qa_*.
-if ('1' !== $e('QA_MFA_REQUIRED')) {
-    $plan = [];
-}
-foreach ($manuales['usuarios'] as $username => [$rol, $global, $susSedes]) {
-    $plan[$username] = [$rol, $global, $susSedes, null, false];
-    $nombresManuales[$username] = true;
-}
-
-// El interruptor del administrador del sistema arranca apagado en QA; la suite E2E lo enciende (QA_MFA_REQUIRED=1).
-$c->executeStatement('UPDATE "SYS_CONFIGURACION" SET "SYS_Mfa_Required" = :r WHERE "SYS_Configuracion" = 1', ['r' => '1' === $e('QA_MFA_REQUIRED') ? 1 : 0]);
+// La suite prueba el MFA obligatorio tal como lo enciende el administrador del sistema.
+$c->executeStatement('UPDATE "SYS_CONFIGURACION" SET "SYS_Mfa_Required" = 1 WHERE "SYS_Configuracion" = 1');
 $usuarios = [];
 foreach ($plan as $username => [$rol, $global, $susSedes, $metodo, $debeCambiar]) {
     // Contraseña aleatoria que cumple la política (mayúscula, minúscula, dígito, símbolo, 21 caracteres).
-    $clave = isset($nombresManuales[$username]) ? (string) $manuales['password'] : 'Qa'.bin2hex(random_bytes(8)).'#7x';
+    $clave = 'Qa'.bin2hex(random_bytes(8)).'#7x';
     $secreto = 'TOTP' === $metodo ? Totp::generarSecreto() : null;
     $correo = "{$username}@qa.inventario.local";
     $id = $c->fetchOne('SELECT "USU_Usuario" FROM "INV_USUARIO" WHERE "USU_Username" = :u', ['u' => $username]);
@@ -153,8 +141,8 @@ foreach ($plan as $username => [$rol, $global, $susSedes, $metodo, $debeCambiar]
     ];
 }
 
-file_put_contents($salida, json_encode(['sedes' => $sedes, 'usuarios' => array_diff_key($usuarios, $nombresManuales)], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+file_put_contents($salida, json_encode(['sedes' => $sedes, 'usuarios' => $usuarios], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 // Legible por el usuario sin privilegios del contenedor de las pruebas (pwuser); el archivo
-// vive en api/var/qa (no versionado) y solo tiene cuentas de QA.
+// vive en la carpeta temporal del ejecutor y solo tiene las cuentas sembradas.
 chmod($salida, 0644);
 printf("Sembrados %d usuarios de QA en %d sedes: %s.\n", count($usuarios), count($sedes), implode(', ', array_keys($usuarios)));

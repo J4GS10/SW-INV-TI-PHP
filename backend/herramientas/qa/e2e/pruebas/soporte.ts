@@ -1,6 +1,6 @@
 /*
  * Soporte de las pruebas de la fase 7: usuarios sembrados, TOTP, Mailpit, sesión por
- * API y por la interfaz, y verificaciones directas en la Oracle de QA.
+ * API y por la interfaz, y verificaciones directas en la base (dentro de la ventana, que se restaura al terminar).
  */
 import { createHmac, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -24,13 +24,13 @@ const siembra = JSON.parse(readFileSync(process.env.QA_USUARIOS ?? '/qa/usuarios
   usuarios: Record<string, UsuarioQa>;
 };
 export const SEDES = siembra.sedes;
-export const URL_QA = process.env.QA_URL ?? 'https://qa.inventario.local';
+export const URL_QA = process.env.QA_URL ?? 'https://e2e.inventario.local';
 export const API = `${URL_QA}/api/v1`;
 const MAILPIT = process.env.QA_MAILPIT ?? 'http://mailpit:8025';
 
 export function usuario(nombre: string): UsuarioQa & { username: string } {
   const u = siembra.usuarios[nombre];
-  if (!u) throw new Error(`Usuario de QA no sembrado: ${nombre}`);
+  if (!u) throw new Error(`Usuario no sembrado: ${nombre}`);
   return { ...u, username: nombre };
 }
 
@@ -179,12 +179,12 @@ export async function iniciarSesionUi(page: Page, nombre: string): Promise<void>
   });
 }
 
-// --- Oracle de QA (verificaciones) ---
+// --- Oracle (verificaciones; la ventana se restaura al terminar) ---
 oracledb.fetchAsString = [oracledb.CLOB];
 /** Conexión directa; con `usuarioCtx` fija el contexto VPD como lo hace la API (INV_CTX.fijar_usuario). */
 async function conexion(como: 'dueno' | 'app', usuarioCtx?: string): Promise<oracledb.Connection> {
   const cx = await oracledb.getConnection({
-    user: como === 'dueno' ? 'INVENTARIO' : 'INVENTARIO_APP',
+    user: como === 'dueno' ? process.env.QA_ORACLE_DUENO || 'INVENTARIO' : process.env.QA_ORACLE_APP || 'INVENTARIO_APP',
     password: como === 'dueno' ? process.env.QA_ORACLE_DUENO_CLAVE : process.env.QA_ORACLE_APP_CLAVE,
     connectString: process.env.QA_ORACLE ?? 'oracle:1521/XEPDB1',
   });

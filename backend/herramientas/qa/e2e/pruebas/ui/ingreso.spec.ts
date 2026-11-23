@@ -63,8 +63,11 @@ test('Compras registra, TI confirma y el técnico completa', async ({ browser })
   await expect(tecnico.getByText('Ya entró al inventario')).toBeVisible();
 
   await tecnico.getByRole('link', { name: 'Por completar' }).first().click();
-  await tecnico.getByLabel('Serie').first().fill(`SN-E2E-${sufijo()}`);
-  await tecnico.getByLabel('Serie').first().press('Enter');
+  // La bandeja tiene lo pendiente de todos los ingresos: se escribe en la tarjeta del producto recién recibido.
+  const unidad = tecnico.locator('.MuiCard-root').filter({ hasText: producto });
+  await expect(unidad).toHaveCount(1);
+  await unidad.getByLabel('Serie').fill(`SN-E2E-${sufijo()}`);
+  await unidad.getByLabel('Serie').press('Enter');
   await expect(tecnico.getByText('completado', { exact: false }).first()).toBeVisible();
   await expect(tecnico.getByRole('button', { name: /Imprimir 1 etiqueta/ })).toBeVisible();
 

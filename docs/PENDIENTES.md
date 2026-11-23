@@ -24,7 +24,7 @@ Hecho el 2026-11-11: Docker limpiado por completo (contenedores, imágenes, vol�
 | Media | Listas cerradas | Sistema Operativo y Tarjeta Gráfica se escriben a mano | Lista cerrada, al menos para Sistema Operativo |
 | Media | Oracle XE | Sin Data Guard; réplica por archivos con hasta 1 hora de pérdida | Confirmar la fecha de soporte de 21c |
 | Media | Separar los datos | Todo en una VM ([puesta en marcha](PUESTA_EN_MARCHA.md#11-seguridad-e-infraestructura-en-proxmox)) | Etapa 2 con `inv-app` e `inv-datos` cuando el servidor formal esté listo; falta dividir el compose y que el worker lea el estado de los respaldos sin montar su carpeta |
-| Media | Pruebas de navegador | La suite del backend ya corre sobre producción con respaldo y vuelta exacta (`pruebas_produccion.sh`; el 2026-11-11: 304 pruebas, 0 fallos. La imagen `inventario-php-dev` y los dobles se borran al terminar y se reconstruyen con `docker build -f docker/Dockerfile --target dev -t inventario-php-dev .`). La suite de navegador (`herramientas/qa/e2e`, `persistencia.sh`) dependía de QA y hoy no corre | Adaptarla al mismo ciclo: respaldo, prueba en producción y restauración |
+| Media | Prueba de persistencia | `herramientas/qa/persistencia.sh` dependía de QA: para probar la recuperación borra los volúmenes de Oracle y MinIO y restaura desde respaldo, algo que en producción pone en riesgo los datos reales | Correrla en el servidor formal antes de la puesta en marcha, con su propia base |
 | Baja | Anunciar lo que viene | Compras registra el ingreso cuando la mercadería ya llegó | Estado «En camino» en el ingreso, si Compras conoce los pedidos antes |
 | Baja | Tablas de órdenes de compra | Sin uso desde que se retiró el módulo, con 0 filas: `INV_ORDEN_COMPRA`, sus líneas y `INV_RECEPCION` | Borrarlas con una migración cuando se confirme que no vuelve |
 
@@ -34,7 +34,7 @@ Hecho el 2026-11-11: Docker limpiado por completo (contenedores, imágenes, vol�
 
 - Recorrido completo y validación de cada rol según [pruebas por rol](PRUEBAS_POR_ROL.md), con una persona real de cada rol.
 - Reportar pérdida o robo hasta aprobarlo: se comprobó el formulario, no la aprobación desde la pantalla.
-- Lector de códigos en un teléfono físico, y pruebas de navegador en todos los navegadores y en móvil, en producción. `ui/ingreso.spec.ts` debe escribir en la unidad recién creada, no en la primera de la lista.
+- Lector de códigos en un teléfono físico.
 - Actualización en vivo: probada con pruebas automáticas; falta verla con dos personas a la vez (una cambia el color, otra lo ve sin recargar; cerrar la sesión de alguien y que salga solo).
 - Monitor externo (Uptime Kuma) en el servidor formal: hoy nadie se entera si cae la VM o la red.
 - Sin SMTP no hay recuperación de clave por correo: solo el SUPER_ADMIN puede restablecerla.
@@ -42,10 +42,10 @@ Hecho el 2026-11-11: Docker limpiado por completo (contenedores, imágenes, vol�
 ### Media: primeros meses
 
 - Capas: las cuatro listas de excepciones de `backend/api/tests/Unit/architecture-baseline.php` quedaron vacías el 2026-11-14 (negocio sin HTTP, negocio sin SQL, entrega sin SQL, dominio sin framework), así que cualquier dependencia nueva entre capas hace fallar `ArchitectureTest`. `symfony/uid` (y `symfony/polyfill-uuid`) salieron de las dependencias el 2026-11-23: `Dominio/Ident` genera sus UUID con `random_bytes`. Desplegado el mismo día (respaldo `inventario_20261123_164153.dmp`, sin migración) y validado con la suite completa: 207 pruebas en verde.
-- Suite de navegador por rol: `herramientas/qa/e2e` (Playwright) sigue atada al entorno QA retirado. El 2026-11-11 se validó a mano desde el navegador (custodia, componentes, bajas con aprobación, alcance por sede y matriz de permisos de los 7 roles); falta adaptarla al ciclo de `pruebas_produccion.sh` para repetirlo sin intervención.
+- Suite de navegador por rol (Playwright: Chromium, Firefox, WebKit y móvil): desde el 2026-11-23 corre sobre producción en la misma ventana que la suite del backend (`herramientas/ventana_produccion.sh`): respaldo verificado, cuentas `qa_*` sembradas solo dentro de la ventana, API y worker de prueba con dobles de correo, S3, Redis y AD, un Caddy de prueba sin puertos publicados y restauración con huella idéntica. Falta la primera corrida completa (`CONFIRMAR=SI bash herramientas/qa/e2e.sh`), que descarga la imagen de Playwright: solo con Wi-Fi. `ui/ingreso.spec.ts` ya escribe en la unidad recién creada.
 - Dos campos de formulario sin etiqueta asociada en la pantalla de Activos (aviso de accesibilidad del navegador).
 
-- Volumen: tomas probadas con 501 activos. Salvo Activos, Auditoría y Trazabilidad, los listados cargan todo de una vez; paginar en el servidor los que crecen (ingresos, movimientos, mantenimiento).
+- Volumen: tomas probadas con 501 activos. Desde el 2026-11-23, ingresos, movimientos y mantenimiento se paginan, filtran y ordenan en el servidor (`skip`, `limit`, `sort`, `sort_dir` y sus filtros; respuesta `{total, items}`), como Activos, Auditoría y Trazabilidad. Antes se cortaban sin aviso en 200, 50 y 50 filas. Los demás listados son catálogos chicos y cargan completos.
 - Prueba de resistencia en el servidor formal, y revisión independiente de código y seguridad.
 - Un 503 de un adjunto tras una caída de MinIO, sin causa conocida.
 - 1 de 210 peticiones sin respuesta (conexión cortada) en la prueba de resistencia del 2026-11-09, sin causa conocida. No se repitió en 2520 peticiones simultáneas contra producción el 2026-11-10. Desde entonces, una lectura cortada se reintenta sola una vez.
