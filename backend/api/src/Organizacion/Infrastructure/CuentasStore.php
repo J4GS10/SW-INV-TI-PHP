@@ -75,9 +75,19 @@ final readonly class CuentasStore
             .'WHERE us."USU_Usuario" = :id ORDER BY s."SED_Nombre"', ['id' => $usuario]);
     }
 
-    public function existeSede(int $sede): bool
+    /**
+     * @param list<int> $sedes a user's sites (a few dozen at most)
+     *
+     * @return list<int> the ones that exist, in one query
+     */
+    public function sedesExistentes(array $sedes): array
     {
-        return false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_SEDE" WHERE "SED_Sede" = :s', ['s' => $sede]);
+        if ([] === $sedes) {
+            return [];
+        }
+
+        return array_map('intval', $this->conexion->fetchFirstColumn('SELECT "SED_Sede" FROM "INV_SEDE" WHERE "SED_Sede" IN (:s)',
+            ['s' => $sedes], ['s' => \Doctrine\DBAL\ArrayParameterType::INTEGER]));
     }
 
     /** @param list<int> $sedes */

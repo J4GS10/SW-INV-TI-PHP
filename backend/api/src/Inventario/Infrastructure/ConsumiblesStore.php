@@ -15,7 +15,7 @@ final readonly class ConsumiblesStore
 {
     private const string COLUMNAS = 'c."CON_Consumible", c."CON_Nombre", c."CON_Descripcion", c."CON_Categoria", c."CON_Unidad", '
         .'c."CCO_Categoria", c."UME_Unidad", c."CON_Stock_Actual", c."CON_Stock_Minimo", c."CON_Activo", c."SED_Sede", '
-        .'c."CON_Costo_Unitario", c."CON_Moneda"';
+        .'c."CON_Costo_Unitario", c."CON_Moneda", c."ROW_VERSION"';
 
     public function __construct(private Connection $conexion, private Alcance $alcance)
     {

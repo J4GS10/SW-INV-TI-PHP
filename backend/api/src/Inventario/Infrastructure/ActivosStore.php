@@ -29,7 +29,7 @@ final readonly class ActivosStore
     /** The asset columns, qualified with the alias, for a SELECT. */
     public static function select(string $alias = 'a'): string
     {
-        return implode(', ', array_map(static fn (string $c): string => "{$alias}.\"{$c}\"", self::COLUMNAS));
+        return implode(', ', array_map(static fn (string $c): string => "{$alias}.\"{$c}\"", [...self::COLUMNAS, \App\Db\RowVersions::COLUMN]));
     }
 
     /** Sin orden válido, el de siempre: lo más reciente primero. El código desempata para que la paginación sea estable. */

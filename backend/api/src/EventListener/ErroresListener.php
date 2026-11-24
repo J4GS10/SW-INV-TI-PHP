@@ -70,6 +70,7 @@ final readonly class ErroresListener
                 MotivoError::NoAutenticado === $e->motivo ? ['WWW-Authenticate' => 'Bearer'] : []),
             $e instanceof ErrorValidacion => new JsonResponse(['detail' => 'VALIDATION_ERROR', 'errors' => $e->errores], 422),
             $e instanceof \App\Db\RecordInUse => new JsonResponse(['detail' => 'RECORD_IN_USE'], 409),
+            $e instanceof \App\Db\RowChangedByAnotherUser => new JsonResponse(['detail' => 'RECORD_CHANGED_BY_ANOTHER_USER'], 412),
             null !== $fallo => $this->deBaseDeDatos($fallo, $ruta),
             $e instanceof HttpExceptionInterface => new JsonResponse(
                 ['detail' => match ($e->getStatusCode()) {

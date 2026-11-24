@@ -304,7 +304,33 @@ final readonly class DefinicionSeguridad
                     END;
                 SQL),
             ...$this->sinBorradoFisico($t, $usuario),
+            ...self::versionDeFila($t),
         ];
+    }
+
+    /**
+     * Cada cambio guardado mueve ROW_VERSION, lo haga quien lo haga: una edición que llega con la versión
+     * anterior se rechaza (App\Db\RowVersions). Sin efectos fuera de la fila: si Oracle reinicia la sentencia
+     * por consistencia de escritura, la versión se vuelve a calcular sobre la fila vigente.
+     *
+     * @return list<ObjetoPlsql>
+     */
+    private static function versionDeFila(string $tipo): array
+    {
+        $columna = \App\Db\RowVersions::COLUMN;
+        $objetos = [];
+        foreach (\App\Db\RowVersions::TABLES as $tabla => $columnas) {
+            $de = null === $columnas ? '' : ' OF '.implode(', ', array_map(static fn (string $c): string => "\"{$c}\"", $columnas));
+            $objetos[] = new ObjetoPlsql($tipo, 'TRG_RV_'.$tabla, <<<SQL
+                CREATE OR REPLACE TRIGGER trg_rv_{$tabla}
+                    BEFORE UPDATE{$de} ON "{$tabla}" FOR EACH ROW
+                    BEGIN
+                        :NEW."{$columna}" := :OLD."{$columna}" + 1;
+                    END;
+                SQL);
+        }
+
+        return $objetos;
     }
 
     /**

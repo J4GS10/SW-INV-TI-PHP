@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Versioned;
 use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
@@ -56,6 +57,7 @@ final readonly class MantenimientoController
     }
 
     #[Route('/tipos/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_TIPO_MANTENIMIENTO', 'TMA_Tipo_Mantenimiento')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function cambiarTipo(int $id, Request $request): JsonResponse
     {
@@ -166,6 +168,7 @@ final readonly class MantenimientoController
     }
 
     #[Route('/detalles/{id}', methods: ['PATCH'], priority: 10)]
+    #[Versioned('INV_DETALLE_MANT', 'DMA_Detalle_Mant')]
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function cambiarDetalle(int $id, Request $request): JsonResponse
     {

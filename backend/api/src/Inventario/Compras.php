@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Inventario;
 
 use App\Correo\Notificador;
+use App\Crud\Esquema;
 use App\Db\RecordInUse;
 use App\Db\Transaccion;
 use App\Dominio\ErrorDominio;
@@ -45,7 +46,7 @@ final readonly class Compras
     {
         return ['PRV_Nombre' => $f['PRV_Nombre'], 'PRV_Identificacion_Fiscal' => $f['PRV_Identificacion_Fiscal'], 'PRV_Contacto' => $f['PRV_Contacto'],
             'PRV_Email' => $f['PRV_Email'], 'PRV_Telefono' => $f['PRV_Telefono'], 'PRV_Direccion' => $f['PRV_Direccion'],
-            'PRV_Proveedor' => (int) $f['PRV_Proveedor'], 'PRV_Activo' => 1 === (int) $f['PRV_Activo']];
+            'PRV_Proveedor' => (int) $f['PRV_Proveedor'], 'PRV_Activo' => 1 === (int) $f['PRV_Activo'], ...Esquema::version($f)];
     }
 
     /** @return list<array<string, mixed>> */

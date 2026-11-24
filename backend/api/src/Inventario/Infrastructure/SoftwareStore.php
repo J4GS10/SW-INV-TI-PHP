@@ -11,11 +11,11 @@ use Doctrine\DBAL\Connection;
 /** Software, license types, licenses, their keys and their installations, as stored: all that SQL lives here. */
 final readonly class SoftwareStore
 {
-    private const string TIPO = '"TLI_Tipo_Licencia", "TLI_Nombre", "TLI_Descripcion"';
-    private const string SOFTWARE = '"SOF_Software", "SOF_Nombre", "SOF_Version", "SOF_Fabricante", "MAR_Marca"';
+    private const string TIPO = '"TLI_Tipo_Licencia", "TLI_Nombre", "TLI_Descripcion", "ROW_VERSION"';
+    private const string SOFTWARE = '"SOF_Software", "SOF_Nombre", "SOF_Version", "SOF_Fabricante", "MAR_Marca", "ROW_VERSION"';
     private const string LICENCIA = 'l."LIC_Licencia", l."LIC_Clave_Activacion", l."LIC_Fecha_Vencimiento", l."LIC_Cantidad_Total", '
         .'l."LIC_Cantidad_Usada", l."LIC_Costo", l."LIC_Moneda", l."MCO_Modelo_Comercial", l."MAC_Metodo_Activacion", l."FCO_Forma_Conteo", '
-        .'l."LIC_Proveedor", l."LIC_Fecha_Inicio", l."LIC_Renovacion_Automatica", l."LIC_Notas", l."SOF_Software", l."TLI_Tipo_Licencia"';
+        .'l."LIC_Proveedor", l."LIC_Fecha_Inicio", l."LIC_Renovacion_Automatica", l."LIC_Notas", l."SOF_Software", l."TLI_Tipo_Licencia", l."ROW_VERSION"';
     private const string INSTALACION = '"INS_Instalacion", "INS_Fecha_Instalacion", "INS_Estado", "INS_Fecha_Retiro", "INS_Motivo_Retiro", '
         .'"ACT_Activo", "PER_Persona", "LIC_Licencia", "LCL_Licencia_Clave"';
 

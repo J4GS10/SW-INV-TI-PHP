@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Inventario;
 
 use App\Inventario\Infrastructure\Kardex;
+use App\Crud\Esquema;
 use App\Db\Transaccion;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
@@ -259,6 +260,7 @@ final readonly class Credenciales
                 'sin_rotar' => $tieneSecreto && null !== $cambio && (int) $cambio->diff($hoy)->days > self::ROTACION_DIAS && $cambio < $hoy,
                 'asignada_en' => null === $c['INS_Fecha_Instalacion'] ? null : substr((string) $c['INS_Fecha_Instalacion'], 0, 10),
                 'destino' => $destino,
+                ...Esquema::version($c),
             ];
         }
         // Licencia anterior con una sola key en la cabecera (sin credenciales).

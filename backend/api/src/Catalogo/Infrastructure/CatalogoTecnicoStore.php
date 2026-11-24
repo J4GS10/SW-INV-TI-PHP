@@ -125,10 +125,21 @@ final readonly class CatalogoTecnicoStore
 
     // ---- Standard kits ----
 
-    /** @return list<int> every kit, by name */
-    public function idsDeKits(): array
+    /** @return list<array<string, mixed>> every kit, by name */
+    public function kits(): array
     {
-        return array_map('intval', $this->conexion->fetchFirstColumn('SELECT "KIT_Kit" FROM "INV_KIT_ESTANDAR" ORDER BY "KIT_Nombre", "KIT_Kit"'));
+        return $this->conexion->fetchAllAssociative('SELECT * FROM "INV_KIT_ESTANDAR" ORDER BY "KIT_Nombre", "KIT_Kit"');
+    }
+
+    /** @return array<int, list<array<string, mixed>>> the lines of every kit, by kit, in one query */
+    public function itemsDeTodosLosKits(): array
+    {
+        $porKit = [];
+        foreach ($this->conexion->fetchAllAssociative('SELECT * FROM "INV_KIT_ESTANDAR_ITEM" ORDER BY "KIT_Kit", "KIT_Item"') as $i) {
+            $porKit[(int) $i['KIT_Kit']][] = $i;
+        }
+
+        return $porKit;
     }
 
     /** @return array<string, mixed>|false */

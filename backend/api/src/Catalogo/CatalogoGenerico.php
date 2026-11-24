@@ -273,6 +273,7 @@ final class CatalogoGenerico
             'sistema' => null !== $codigo && \in_array($codigo, $d['sistema'], true),
             'uso' => $uso,
             'extras' => (object) $extras,
+            ...\App\Crud\Esquema::version($f),
         ];
     }
 

@@ -11,6 +11,7 @@ import { TipoLicencia } from '../../types/software';
 import { softwareService } from './softwareService';
 import { Dialog } from '../../components/ui/Dialog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { withRowVersion } from '../../api/rowVersion';
 
 interface Props { open: boolean; onClose: () => void; }
 
@@ -39,7 +40,7 @@ export const LicenseTypesDialog = ({ open, onClose }: Props) => {
     setSaving(true);
     try {
       const payload = { TLI_Nombre: name.trim(), TLI_Descripcion: description.trim() || undefined };
-      if (selected) await softwareService.updateTipoLicencia(selected.TLI_Tipo_Licencia, payload);
+      if (selected) await softwareService.updateTipoLicencia(selected.TLI_Tipo_Licencia, withRowVersion(payload, selected));
       else await softwareService.createTipoLicencia(payload);
       enqueueSnackbar(t(selected ? 'common.success_update' : 'common.success_create'), { variant: 'success' });
       startCreate(); await load();

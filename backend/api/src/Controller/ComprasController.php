@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Versioned;
 use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Roles;
@@ -67,6 +68,7 @@ final readonly class ComprasController
     }
 
     #[Route('/proveedores/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_PROVEEDOR', 'PRV_Proveedor')]
     #[Autenticado(roles: Roles::ESCRITURA_COMPRAS)]
     public function cambiarProveedor(int $id, Request $request): JsonResponse
     {

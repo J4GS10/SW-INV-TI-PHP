@@ -15,6 +15,7 @@ import { Consumible, ConsumibleCreate } from '../../types/consumables';
 import { CatalogField } from '../../components/CatalogField';
 import { useCatalogo } from '../../hooks/useCatalogo';
 import { Dialog } from '../../components/ui/Dialog';
+import { withRowVersion } from '../../api/rowVersion';
 interface Props {
     open: boolean;
     onClose: (refresh?: boolean) => void;
@@ -108,7 +109,7 @@ export const ConsumableDialog = ({ open, onClose, toEdit }: Props) => {
             if (isEdit && toEdit) {
                 const updatePayload: Partial<ConsumibleCreate> = { ...payload };
                 delete updatePayload.CON_Stock_Actual;
-                await consumableService.update(toEdit.CON_Consumible, updatePayload);
+                await consumableService.update(toEdit.CON_Consumible, withRowVersion(updatePayload, toEdit));
                 await consumableService.setCompatibles(toEdit.CON_Consumible, compatibles);
                 enqueueSnackbar(t('common.success_update'), { variant: 'success' });
             }

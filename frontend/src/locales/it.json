@@ -2008,6 +2008,8 @@
         "IDEMPOTENCY_REQUEST_IN_PROGRESS": "L'operazione è già in elaborazione. Attenda un momento.",
         "IDEMPOTENCY_ALREADY_APPLIED": "L'operazione è già stata registrata. La schermata mostra il risultato.",
         "RECORD_IN_USE": "Non si può eliminare: altri record lo usano.",
+        "RECORD_CHANGED_BY_ANOTHER_USER": "Un'altra persona ha salvato modifiche a questo record mentre lo modificavi. Per non annullarle, non è stato salvato nulla: chiudilo e riaprilo per vedere la versione attuale.",
+        "INVALID_IF_MATCH": "La versione del record inviata non è valida. Ricarica la schermata e riprova.",
         "PHYSICAL_DELETE_FORBIDDEN": "Questo record non si può cancellare dal sistema; si può solo dismettere.",
         "LOCK_UNTIL_MUST_BE_FUTURE": "La data del blocco deve essere successiva a oggi.",
         "LOCK_REASON_REQUIRED": "Scriva il motivo del blocco (almeno 5 lettere).",

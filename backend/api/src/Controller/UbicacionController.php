@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Versioned;
 use App\Http\ClienteHttp;
 use App\Http\Peticion;
 use App\Catalogo\CatalogoGenerico;
@@ -63,6 +64,7 @@ final readonly class UbicacionController
     }
 
     #[Route('/paises/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_PAIS', 'PAI_Pais')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarPais(Request $r): JsonResponse
     {
@@ -114,6 +116,7 @@ final readonly class UbicacionController
     }
 
     #[Route('/estados/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_ESTADO', 'EST_Estado')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarEstado(Request $r): JsonResponse
     {
@@ -165,6 +168,7 @@ final readonly class UbicacionController
     }
 
     #[Route('/municipios/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_MUNICIPIO', 'MUN_Municipio')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarMunicipio(Request $r): JsonResponse
     {
@@ -223,6 +227,7 @@ final readonly class UbicacionController
     }
 
     #[Route('/sedes/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_SEDE', 'SED_Sede')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarSede(Request $r): JsonResponse
     {
@@ -283,6 +288,7 @@ final readonly class UbicacionController
     }
 
     #[Route('/edificios/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_EDIFICIO', 'EDI_Edificio')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarEdificio(Request $r): JsonResponse
     {
@@ -342,6 +348,7 @@ final readonly class UbicacionController
     }
 
     #[Route('/niveles/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_NIVEL', 'NIV_Nivel')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarNivel(Request $r): JsonResponse
     {
@@ -420,6 +427,7 @@ final readonly class UbicacionController
     }
 
     #[Route('/areas/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_AREA', 'ARE_Area')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarArea(Request $r): JsonResponse
     {

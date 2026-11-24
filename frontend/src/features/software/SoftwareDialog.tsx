@@ -9,6 +9,7 @@ import { Software, SoftwareCreate } from '../../types/software';
 import { SectionCard } from '../../components/ui';
 import { CatalogField } from '../../components/CatalogField';
 import { Dialog } from '../../components/ui/Dialog';
+import { withRowVersion } from '../../api/rowVersion';
 interface Props {
     open: boolean;
     onClose: (refresh?: boolean) => void;
@@ -44,7 +45,7 @@ export const SoftwareDialog = ({ open, onClose, softwareToEdit }: Props) => {
         setLoading(true);
         try {
             if (softwareToEdit) {
-                await softwareService.updateSoftware(softwareToEdit.SOF_Software, data);
+                await softwareService.updateSoftware(softwareToEdit.SOF_Software, withRowVersion(data, softwareToEdit));
                 enqueueSnackbar(t('common.success_update'), { variant: 'success' });
             }
             else {

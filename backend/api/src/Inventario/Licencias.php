@@ -83,6 +83,7 @@ final readonly class Licencias
             'LIC_Fecha_Inicio' => $fecha($l['LIC_Fecha_Inicio']), 'LIC_Renovacion_Automatica' => 1 === (int) $l['LIC_Renovacion_Automatica'],
             'LIC_Notas' => $l['LIC_Notas'],
             'LIC_Claves_Total' => $conteos['total'], 'LIC_Claves_Disponibles' => $conteos['disponibles'], 'LIC_Claves_Asignadas' => $conteos['asignadas'],
+            ...Esquema::version($l),
         ];
     }
 

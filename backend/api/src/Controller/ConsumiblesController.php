@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Versioned;
 use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Roles;
@@ -73,6 +74,7 @@ final readonly class ConsumiblesController
     }
 
     #[Route('/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_CONSUMIBLE', 'CON_Consumible')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizar(int $id, Request $request): JsonResponse
     {

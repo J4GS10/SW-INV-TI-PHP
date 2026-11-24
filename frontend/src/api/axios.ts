@@ -5,6 +5,7 @@ import { isSessionRestriction } from '../types/auth';
 import { apiCache, GET_TTL_MS } from './cache';
 import { CLIENT_ID } from './liveUpdates';
 import { refreshAccessToken } from './refresh';
+import { moveRowVersionToHeader } from './rowVersion';
 import { sessionEvents } from './sessionEvents';
 import { tokenStorage } from './tokenStorage';
 
@@ -73,6 +74,12 @@ client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // Toda escritura lleva su clave de idempotencia; un reintento conserva la misma (va en config).
   if ((config.method ?? 'get').toLowerCase() !== 'get' && !config.headers[IDEMPOTENCY_HEADER]) {
     config.headers[IDEMPOTENCY_HEADER] = newIdempotencyKey();
+  }
+  // Una edición con la versión del registro que se abrió la envía en If-Match (api/rowVersion.ts).
+  const { data, ifMatch } = moveRowVersionToHeader(config.method, config.data);
+  if (ifMatch) {
+    config.data = data;
+    config.headers['If-Match'] = ifMatch;
   }
   return config;
 });

@@ -138,7 +138,7 @@ final readonly class Mantenimientos
     private static function detalleAApi(array $d): array
     {
         return ['DMA_Accion_Realizada' => $d['DMA_Accion_Realizada'], 'DMA_Costo_Item' => Esquema::decimal((string) $d['DMA_Costo_Item'], 2),
-            'AMA_Accion' => null === $d['AMA_Accion'] ? null : (int) $d['AMA_Accion'], 'DMA_Detalle_Mant' => (int) $d['DMA_Detalle_Mant']];
+            'AMA_Accion' => null === $d['AMA_Accion'] ? null : (int) $d['AMA_Accion'], 'DMA_Detalle_Mant' => (int) $d['DMA_Detalle_Mant'], ...Esquema::version($d)];
     }
 
     /**

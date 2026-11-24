@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Versioned;
 use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Crud\Esquema;
@@ -100,6 +101,7 @@ final readonly class OrganizacionController
     }
 
     #[Route('/departamentos/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_DEPARTAMENTO', 'DEP_Departamento')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarDepartamento(Request $r): JsonResponse
     {
@@ -152,6 +154,7 @@ final readonly class OrganizacionController
     }
 
     #[Route('/cargos/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_CARGO', 'CAR_Cargo')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarCargo(Request $r): JsonResponse
     {
@@ -211,6 +214,7 @@ final readonly class OrganizacionController
     }
 
     #[Route('/personas/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_PERSONA', 'PER_Persona', uuid: true)]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarPersona(Request $r): JsonResponse
     {
@@ -299,6 +303,7 @@ final readonly class OrganizacionController
     }
 
     #[Route('/usuarios/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_USUARIO', 'USU_Usuario', uuid: true)]
     #[Autenticado(roles: [Roles::SUPER_ADMIN])]
     public function actualizarUsuario(Request $r): JsonResponse
     {

@@ -102,7 +102,26 @@ final class EsquemaTest extends TestCase
             ."'USU_Usuario' VALUE k.\"USU_Usuario\" ABSENT ON NULL RETURNING CLOB)", $cuerpo->ddl);
         self::assertStringNotContainsString("'KDX_Hash'", $cuerpo->ddl);
         self::assertSame('CREATE OR REPLACE CONTEXT INVENTARIO_CTX USING INVENTARIO.INV_CTX', $d->ddlContexto());
-        self::assertCount(13 + \count(\App\Db\LogicalDelete::TABLES), $d->objetos());
+        self::assertCount(13 + \count(\App\Db\LogicalDelete::TABLES) + \count(\App\Db\RowVersions::TABLES), $d->objetos());
+    }
+
+    public function testCadaCambioGuardadoMueveLaVersionDeLaFila(): void
+    {
+        $d = new DefinicionSeguridad('INVENTARIO', ['KDX_Hash'], ['SUPER_ADMIN']);
+        $porNombre = [];
+        foreach ($d->objetos() as $o) {
+            $porNombre[$o->nombre] = $o;
+        }
+
+        $activo = $porNombre['TRG_RV_INV_ACTIVO']->ddl;
+        self::assertStringContainsString('BEFORE UPDATE ON "INV_ACTIVO" FOR EACH ROW', $activo);
+        self::assertStringContainsString(':NEW."ROW_VERSION" := :OLD."ROW_VERSION" + 1;', $activo);
+        // Un inicio de sesión o un movimiento de stock no es una edición: no rechaza el formulario abierto.
+        $usuario = $porNombre['TRG_RV_INV_USUARIO']->ddl;
+        self::assertStringContainsString('BEFORE UPDATE OF "USU_Username", "USU_Rol"', $usuario);
+        self::assertStringNotContainsString('USU_Ultimo_Login', $usuario);
+        self::assertStringNotContainsString('CON_Stock_Actual', $porNombre['TRG_RV_INV_CONSUMIBLE']->ddl);
+        self::assertStringNotContainsString('LIC_Cantidad_Usada', $porNombre['TRG_RV_INV_LICENCIA']->ddl);
     }
 
     public function testLosRegistrosDeNegocioSoloAdmitenBorradoLogico(): void

@@ -18,6 +18,7 @@ import type { LicenciaDisponible } from '../../../types/software';
 import { softwareService } from '../../software/softwareService';
 import { Dialog } from '../../../components/ui/Dialog';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
+import { withRowVersion } from '../../../api/rowVersion';
 
 type Opcion = { id: number; nombre: string };
 
@@ -42,7 +43,7 @@ export const KitsPanel = () => {
   const [licencias, setLicencias] = useState<LicenciaDisponible[]>([]);
   const [cargos, setCargos] = useState<Opcion[]>([]);
   const [deptos, setDeptos] = useState<Opcion[]>([]);
-  const [editando, setEditando] = useState<{ id: number | null; datos: KitEstandarInput } | null>(null);
+  const [editando, setEditando] = useState<{ id: number | null; kit?: KitEstandar; datos: KitEstandarInput } | null>(null);
   const [por, setPor] = useState<'cargo' | 'departamento'>('cargo');
 
   const cargar = useCallback(async () => {
@@ -70,7 +71,7 @@ export const KitsPanel = () => {
   const abrir = (kit?: KitEstandar) => {
     setPor(kit?.DEP_Departamento ? 'departamento' : 'cargo');
     setEditando(kit
-      ? { id: kit.KIT_Kit, datos: { KIT_Nombre: kit.KIT_Nombre, CAR_Cargo: kit.CAR_Cargo, DEP_Departamento: kit.DEP_Departamento,
+      ? { id: kit.KIT_Kit, kit, datos: { KIT_Nombre: kit.KIT_Nombre, CAR_Cargo: kit.CAR_Cargo, DEP_Departamento: kit.DEP_Departamento,
           KIT_Activo: kit.KIT_Activo, items: kit.items.map(({ TAC_Tipo_Activo, KIT_Cantidad, LIC_Licencia }) => ({ TAC_Tipo_Activo, KIT_Cantidad, LIC_Licencia })) } }
       : { id: null, datos: vacio() });
   };
@@ -85,7 +86,7 @@ export const KitsPanel = () => {
         .map((i) => (i.TAC_Tipo_Activo ? { ...i, LIC_Licencia: null } : i)),
     };
     try {
-      if (editando.id) await catalogoConfigService.editarKit(editando.id, datos);
+      if (editando.id) await catalogoConfigService.editarKit(editando.id, withRowVersion(datos, editando.kit));
       else await catalogoConfigService.crearKit(datos);
       enqueueSnackbar(t('common.success_update'), { variant: 'success' });
       setEditando(null);

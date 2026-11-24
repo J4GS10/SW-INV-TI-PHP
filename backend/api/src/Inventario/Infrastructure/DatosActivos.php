@@ -35,6 +35,44 @@ final readonly class DatosActivos
         return false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_TIPO_ESPECIFICACION" WHERE "TES_Tipo_Especificacion" = :t', ['t' => $tipo]);
     }
 
+    /**
+     * @param list<int> $tipos
+     *
+     * @return list<int> the ones that exist, in one query
+     */
+    public function tiposEspecificacionExistentes(array $tipos): array
+    {
+        return $this->existentes('INV_TIPO_ESPECIFICACION', 'TES_Tipo_Especificacion', $tipos);
+    }
+
+    /**
+     * @param list<int> $proveedores
+     *
+     * @return list<int> the ones that exist, in one query
+     */
+    public function proveedoresExistentes(array $proveedores): array
+    {
+        return $this->existentes('INV_PROVEEDOR', 'PRV_Proveedor', $proveedores);
+    }
+
+    /**
+     * @param list<int> $ids
+     *
+     * @return list<int>
+     */
+    private function existentes(string $tabla, string $clave, array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $existen = [];
+        // Oracle admite hasta 1000 valores en un IN.
+        foreach (array_chunk($ids, 1000) as $lote) {
+            $existen = [...$existen, ...array_map('intval', $this->conexion->fetchFirstColumn(
+                "SELECT \"{$clave}\" FROM \"{$tabla}\" WHERE \"{$clave}\" IN (:ids)", ['ids' => $lote], ['ids' => \Doctrine\DBAL\ArrayParameterType::INTEGER]))];
+        }
+
+        return $existen;
+    }
+
     /** @return array<string, mixed>|false ESP_Especificacion and ESP_Valor of the specification of that type in that asset */
     public function especificacionDe(mixed $activo, mixed $tipo): array|false
     {

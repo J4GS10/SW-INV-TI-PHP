@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Versioned;
 use App\Http\ClienteHttp;
 use App\Http\Peticion;
 use App\Catalogo\ClasesActivo;
@@ -85,6 +86,7 @@ final readonly class CatalogoTecnicoController
     }
 
     #[Route('/tipos-activo/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_TIPO_ACTIVO', 'TAC_Tipo_Activo')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarTipo(Request $r): JsonResponse
     {
@@ -123,6 +125,7 @@ final readonly class CatalogoTecnicoController
     }
 
     #[Route('/marcas/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_MARCA', 'MAR_Marca')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarMarca(Request $r): JsonResponse
     {
@@ -160,6 +163,7 @@ final readonly class CatalogoTecnicoController
     }
 
     #[Route('/tipos-conexion/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_TIPO_CONEXION', 'TCN_Tipo_Conexion')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarConexion(Request $r): JsonResponse
     {
@@ -222,6 +226,7 @@ final readonly class CatalogoTecnicoController
     }
 
     #[Route('/modelos/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_MODELO', 'MOD_Modelo')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarModelo(Request $r): JsonResponse
     {
@@ -266,6 +271,7 @@ final readonly class CatalogoTecnicoController
     }
 
     #[Route('/estados-operativos/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_ESTADO_OPERATIVO', 'EOP_Estado_Operativo')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarEstado(Request $r): JsonResponse
     {
@@ -305,6 +311,7 @@ final readonly class CatalogoTecnicoController
     }
 
     #[Route('/tipos-especificacion/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_TIPO_ESPECIFICACION', 'TES_Tipo_Especificacion')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarEspecificacion(Request $r): JsonResponse
     {

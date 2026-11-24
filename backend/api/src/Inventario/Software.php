@@ -6,6 +6,7 @@ namespace App\Inventario;
 
 use App\Inventario\Infrastructure\SoftwareStore;
 use App\Catalogo\CatalogoGenerico;
+use App\Crud\Esquema;
 use App\Db\Transaccion;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\GobiernoRepositorio;
@@ -43,7 +44,7 @@ final readonly class Software
      */
     private static function tipoAApi(array $f): array
     {
-        return ['TLI_Nombre' => $f['TLI_Nombre'], 'TLI_Descripcion' => $f['TLI_Descripcion'], 'TLI_Tipo_Licencia' => (int) $f['TLI_Tipo_Licencia']];
+        return ['TLI_Nombre' => $f['TLI_Nombre'], 'TLI_Descripcion' => $f['TLI_Descripcion'], 'TLI_Tipo_Licencia' => (int) $f['TLI_Tipo_Licencia'], ...Esquema::version($f)];
     }
 
     /**
@@ -111,7 +112,7 @@ final readonly class Software
     private static function softwareAApi(array $f): array
     {
         return ['SOF_Nombre' => $f['SOF_Nombre'], 'SOF_Version' => $f['SOF_Version'], 'SOF_Fabricante' => $f['SOF_Fabricante'],
-            'MAR_Marca' => null === $f['MAR_Marca'] ? null : (int) $f['MAR_Marca'], 'SOF_Software' => (int) $f['SOF_Software']];
+            'MAR_Marca' => null === $f['MAR_Marca'] ? null : (int) $f['MAR_Marca'], 'SOF_Software' => (int) $f['SOF_Software'], ...Esquema::version($f)];
     }
 
     /**

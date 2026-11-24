@@ -15,6 +15,7 @@ import { suggestionService } from '../../api/suggestionService';
 import { managerReason } from '../../utils/suggestionReasons';
 import { createSearchFilter } from '../../utils/autocomplete';
 import { Dialog } from '../../components/ui/Dialog';
+import { withRowVersion } from '../../api/rowVersion';
 interface Depto {
     DEP_Departamento: number;
     DEP_Nombre: string;
@@ -167,7 +168,7 @@ export const PersonDialog = ({ open, persona, onClose, onCreated }: Props) => {
                 SED_Sede: data.SED_Sede === '' ? null : Number(data.SED_Sede),
             };
             if (isEdit && persona) {
-                await personService.update(persona.PER_Persona, payload as PersonaUpdate);
+                await personService.update(persona.PER_Persona, withRowVersion(payload as PersonaUpdate, persona));
                 enqueueSnackbar(t('common.success_update'), { variant: 'success' });
             }
             else {

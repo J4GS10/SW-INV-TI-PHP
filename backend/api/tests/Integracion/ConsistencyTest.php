@@ -148,6 +148,90 @@ final class ConsistencyTest extends PruebaApi
         self::assertArrayNotHasKey('PER_Segundo_Apellido', $person, 'Apostrophes, hyphens and any alphabet are real names.');
     }
 
+    public function testAnEditMadeOnAStaleVersionIsRefusedAndChangesNothing(): void
+    {
+        $token = $this->tokenDe(D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]));
+        [, $supplier] = $this->pedir('POST', '/api/v1/compras/proveedores', ['PRV_Nombre' => 'Proveedor versionado '.D::sufijo()], $token);
+        $route = "/api/v1/compras/proveedores/{$supplier['PRV_Proveedor']}";
+        $loaded = $supplier['row_version'];
+        $contact = static fn (): mixed => D::conexion()->fetchOne('SELECT "PRV_Contacto" FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :p', ['p' => $supplier['PRV_Proveedor']]);
+
+        // Two people opened the same record: the first one saves, the second one is told instead of undoing that change.
+        [$first, $saved] = $this->pedir('PATCH', $route, ['PRV_Contacto' => 'Ana'], $token, ['If-Match' => "\"{$loaded}\""]);
+        self::assertSame([200, $loaded + 1], [$first, $saved['row_version']]);
+        self::assertSame([412, 'RECORD_CHANGED_BY_ANOTHER_USER'], $this->conCabeceras('PATCH', $route, ['PRV_Contacto' => 'Beto'], $token, ['If-Match' => "\"{$loaded}\""]));
+        self::assertSame('Ana', $contact());
+
+        // Any write moves the version, not only the forms (here, one made straight in the database).
+        D::conexion()->executeStatement('UPDATE "INV_PROVEEDOR" SET "PRV_Telefono" = :t WHERE "PRV_Proveedor" = :p', ['t' => '5550101', 'p' => $supplier['PRV_Proveedor']]);
+        self::assertSame(412, $this->pedir('PATCH', $route, ['PRV_Contacto' => 'Beto'], $token, ['If-Match' => "\"{$saved['row_version']}\""])[0]);
+        $current = $saved['row_version'] + 1;
+        self::assertSame(200, $this->pedir('PATCH', $route, ['PRV_Contacto' => 'Beto'], $token, ['If-Match' => "\"{$current}\""])[0]);
+        self::assertSame('Beto', $contact());
+
+        // A retry of an edit that already applied gets its stored answer: its version is history, not a conflict.
+        $headers = ['If-Match' => '"'.($current + 1).'"', 'Idempotency-Key' => 'k'.bin2hex(random_bytes(12))];
+        [$applied, $answer] = $this->pedir('PATCH', $route, ['PRV_Contacto' => 'Carla'], $token, $headers);
+        self::assertSame([200, [200, $answer]], [$applied, $this->pedir('PATCH', $route, ['PRV_Contacto' => 'Carla'], $token, $headers)]);
+
+        // Without If-Match nothing is checked (scripts, batch edits); a malformed one is the client's error.
+        self::assertSame(200, $this->pedir('PATCH', $route, ['PRV_Contacto' => 'Dora'], $token)[0]);
+        self::assertSame([400, 'INVALID_IF_MATCH'], $this->conCabeceras('PATCH', $route, ['PRV_Contacto' => 'Eva'], $token, ['If-Match' => 'ayer']));
+        self::assertSame('Dora', $contact());
+    }
+
+    public function testRoutineWritesDoNotRejectAnOpenForm(): void
+    {
+        $token = $this->tokenDe(D::crearUsuario(['rol' => 'SUPER_ADMIN', 'global' => true]));
+        $target = D::crearUsuario(['rol' => 'CONSULTA', 'global' => true]);
+        $route = '/api/v1/org/usuarios/'.Ident::aTexto($target['id']);
+        [, $user] = $this->pedir('GET', $route, null, $token);
+        // Logging in and failing a password are not edits of the account.
+        D::conexion()->executeStatement('UPDATE "INV_USUARIO" SET "USU_Ultimo_Login" = SYSTIMESTAMP, "USU_Intentos_Fallidos" = 1 WHERE "USU_Usuario" = :u', ['u' => $target['id']]);
+        self::assertSame(200, $this->pedir('PATCH', $route, ['USU_Rol' => 'CONSULTA'], $token, ['If-Match' => "\"{$user['row_version']}\""])[0]);
+
+        // The generic catalogues are versioned through their definition.
+        $token = $this->tokenDe(D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]));
+        [, $item] = $this->pedir('POST', '/api/v1/catalogos/tipos-area', ['nombre' => 'Área versionada '.D::sufijo()], $token);
+        $route = "/api/v1/catalogos/tipos-area/{$item['id']}";
+        self::assertSame(200, $this->pedir('PATCH', $route, ['descripcion' => 'uno'], $token, ['If-Match' => "\"{$item['row_version']}\""])[0]);
+        self::assertSame([412, 'RECORD_CHANGED_BY_ANOTHER_USER'], $this->conCabeceras('PATCH', $route, ['descripcion' => 'dos'], $token, ['If-Match' => "\"{$item['row_version']}\""]));
+    }
+
+    public function testTheVersionIsCheckedAgainUnderLockBeforeTheWrite(): void
+    {
+        // Somebody saves between the first check (when the request arrives) and this request's own write.
+        $token = $this->tokenDe(D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]));
+        [, $supplier] = $this->pedir('POST', '/api/v1/compras/proveedores', ['PRV_Nombre' => 'Proveedor bloqueado '.D::sufijo()], $token);
+        $versions = static::getContainer()->get(\App\Db\RowVersions::class);
+        $versions->expect('INV_PROVEEDOR', 'PRV_Proveedor', $supplier['PRV_Proveedor'], $supplier['row_version']);
+        D::conexion()->executeStatement('UPDATE "INV_PROVEEDOR" SET "PRV_Contacto" = :c WHERE "PRV_Proveedor" = :p', ['c' => 'Otro', 'p' => $supplier['PRV_Proveedor']]);
+
+        $wrote = false;
+        try {
+            static::getContainer()->get(\App\Db\Transaccion::class)->ejecutar(static function () use (&$wrote): void {
+                $wrote = true;
+            });
+            self::fail('Se esperaba RowChangedByAnotherUser');
+        } catch (\App\Db\RowChangedByAnotherUser $e) {
+            self::assertSame([$supplier['row_version'], $supplier['row_version'] + 1], [$e->expected, $e->current]);
+        }
+        self::assertFalse($wrote, 'The edit never ran.');
+    }
+
+    /**
+     * @param array<string, mixed>  $body
+     * @param array<string, string> $headers
+     *
+     * @return array{0: int, 1: mixed}
+     */
+    private function conCabeceras(string $method, string $route, array $body, string $token, array $headers): array
+    {
+        [$status, $answer] = $this->pedir($method, $route, $body, $token, $headers);
+
+        return [$status, \is_array($answer) ? ($answer['detail'] ?? null) : null];
+    }
+
     /** @return array{0: int, 1: mixed} */
     private function login(string $username, string $password): array
     {

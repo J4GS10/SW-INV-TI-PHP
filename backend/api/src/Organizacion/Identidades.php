@@ -145,6 +145,7 @@ final readonly class Identidades
             'USU_Creado_En' => $fecha($u['USU_Creado_En']),
             'persona' => false === $persona ? null : Esquema::aApi(Entidades::persona(), $persona),
             'foto_url' => ProfilePhoto::url('/api/v1/org/usuarios/'.Ident::aTexto((string) $u['USU_Usuario']).'/foto', $u['FOTO_EN'] ?? null),
+            ...Esquema::version($u),
         ];
     }
 
@@ -596,10 +597,8 @@ final readonly class Identidades
     {
         $ids = array_values(array_unique($sedes));
         sort($ids);
-        foreach ($ids as $id) {
-            if (!$this->cuentas->existeSede($id)) {
-                throw ErrorDominio::invalido('SEDE_NOT_FOUND');
-            }
+        if (\count($this->cuentas->sedesExistentes($ids)) !== \count($ids)) {
+            throw ErrorDominio::invalido('SEDE_NOT_FOUND');
         }
 
         return $ids;

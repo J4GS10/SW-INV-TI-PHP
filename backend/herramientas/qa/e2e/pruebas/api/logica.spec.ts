@@ -195,6 +195,24 @@ test('edición concurrente del mismo activo: sin 5xx y la base queda con uno de 
   expect(valores).toContain(final);
 });
 
+test('concurrencia optimista: ediciones simultáneas con la misma versión -> una se guarda, las demás 412 y nada se pisa', async () => {
+  const a = await alta(admin);
+  const version: number = a.row_version;
+  expect(typeof version).toBe('number');
+  const valores = Array.from({ length: 8 }, (_, i) => `FAC-${i}-${sufijo()}`);
+  const res = await Promise.all(valores.map((v, i) => (i % 2 ? jefe : admin).ctx.patch(`/api/v1/core/activos/${a.ACT_Activo}`,
+    { data: { ACT_Factura: v }, headers: { 'If-Match': `"${version}"` } })));
+  const estados = res.map((r) => r.status()).sort();
+  expect(estados).toEqual([200, ...Array(7).fill(412)]);
+  const ganadora = await res.find((r) => r.status() === 200)!.json();
+  for (const r of res.filter((x) => x.status() === 412)) expect((await r.json()).detail).toBe('RECORD_CHANGED_BY_ANOTHER_USER');
+  const fila = (await consulta<any>('SELECT "ACT_Factura" F, "ROW_VERSION" V FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', { a: hex(a.ACT_Activo) }))[0];
+  expect([fila.F, Number(fila.V)]).toEqual([ganadora.ACT_Factura, ganadora.row_version]);
+  // La pantalla que recargó el registro guarda con la versión nueva.
+  const otra = await jefe.ctx.patch(`/api/v1/core/activos/${a.ACT_Activo}`, { data: { ACT_Factura: 'FAC-final' }, headers: { 'If-Match': `"${ganadora.row_version}"` } });
+  expect(otra.status(), await otra.text()).toBe(200);
+});
+
 test('baja con aprobación y separación de funciones: quien solicita no aprueba; aprobada queda Baja y el kardex la registra', async () => {
   const a = await alta(admin);
   const s = await admin.ctx.post(`/api/v1/core/activos/${a.ACT_Activo}/baja`, { data: { motivo: 'OBSOLESCENCIA', destino: 'RECICLAJE' } });

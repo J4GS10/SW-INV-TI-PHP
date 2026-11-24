@@ -67,6 +67,7 @@ final readonly class Consumibles
             'CON_Costo_Unitario' => null === $c['CON_Costo_Unitario'] ? null : Esquema::decimal((string) $c['CON_Costo_Unitario'], 4),
             'CON_Moneda' => $c['CON_Moneda'],
             'bajo_stock' => $minimo > 0 && $actual <= $minimo,
+            ...Esquema::version($c),
         ];
     }
 

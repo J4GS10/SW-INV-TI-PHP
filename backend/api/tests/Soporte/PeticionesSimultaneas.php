@@ -14,8 +14,8 @@ trait PeticionesSimultaneas
     /**
      * Lanza todas las peticiones a la vez y espera las respuestas.
      *
-     * @param list<array{0: string, 1: string, 2?: array<string, mixed>|null, 3?: string, 4?: array<string, mixed>}> $peticiones
-     *     [método, ruta, cuerpo JSON, token, formulario multipart]
+     * @param list<array{0: string, 1: string, 2?: array<string, mixed>|null, 3?: string|null, 4?: array<string, mixed>|null, 5?: list<string>}> $peticiones
+     *     [método, ruta, cuerpo JSON, token, formulario multipart, cabeceras extra ("If-Match: \"3\"")]
      *
      * @return list<array{estado: int, cuerpo: mixed, ms: float, ruta: string|null, error: string|null}>
      */
@@ -27,7 +27,7 @@ trait PeticionesSimultaneas
             $h = curl_init($this->url.$p[1]);
             curl_setopt_array($h, [\CURLOPT_CUSTOMREQUEST => $p[0], \CURLOPT_RETURNTRANSFER => true, \CURLOPT_TIMEOUT => 120,
                 \CURLOPT_HTTPHEADER => [...(isset($p[4]) ? [] : ['Content-Type: application/json']), 'Authorization: Bearer '.($p[3] ?? $this->token),
-                    'X-Real-IP: 10.50.'.intdiv($i, 250).'.'.($i % 250)]]);
+                    'X-Real-IP: 10.50.'.intdiv($i, 250).'.'.($i % 250), ...($p[5] ?? [])]]);
             if (isset($p[4])) {
                 curl_setopt($h, \CURLOPT_POSTFIELDS, $p[4]);
             } elseif (null !== ($p[2] ?? null)) {

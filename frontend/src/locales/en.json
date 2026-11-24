@@ -2008,6 +2008,8 @@
         "IDEMPOTENCY_REQUEST_IN_PROGRESS": "The operation is already being processed. Please wait a moment.",
         "IDEMPOTENCY_ALREADY_APPLIED": "The operation was already recorded. The screen shows the result.",
         "RECORD_IN_USE": "It cannot be deleted: other records use it.",
+        "RECORD_CHANGED_BY_ANOTHER_USER": "Someone else saved changes to this record while you were editing it. To avoid undoing them, nothing was saved: close it and open it again to see the current version.",
+        "INVALID_IF_MATCH": "The record version that was sent is not valid. Reload the screen and try again.",
         "PHYSICAL_DELETE_FORBIDDEN": "This record cannot be erased from the system; it can only be retired.",
         "LOCK_UNTIL_MUST_BE_FUTURE": "The lock date must be after today.",
         "LOCK_REASON_REQUIRED": "Write the reason for the lock (at least 5 letters).",

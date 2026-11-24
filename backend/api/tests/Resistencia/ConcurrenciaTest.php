@@ -135,6 +135,20 @@ final class ConcurrenciaTest extends KernelTestCase
         self::assertSame(1, D::contar("SELECT COUNT(*) FROM \"INV_KARDEX\" WHERE \"ACT_Activo\" = :a AND \"KDX_Tipo\" = 'ASIGNACION'", ['a' => str_replace('-', '', $activo)]));
     }
 
+    public function testEdicionesSimultaneasDeLaMismaVersionGuardanUnaSola(): void
+    {
+        $tipo = I::tipo('COMPUTO');
+        $activo = $this->activo($tipo, I::modelo($tipo));
+        $version = $this->uno('GET', "/api/v1/core/activos/{$activo}")['row_version'];
+        // Veinte pantallas abiertas sobre la misma versión guardan a la vez: una gana, las demás reciben 412 y nada se pisa.
+        $r = $this->rafaga(array_map(static fn (int $i): array => ['PATCH', "/api/v1/core/activos/{$activo}", ['ACT_Factura' => "F-{$i}"], null, null, ["If-Match: \"{$version}\""]],
+            range(1, 20)));
+        self::assertSame([200 => 1, 412 => 19], self::porEstado($r), json_encode(array_slice(array_column($r, 'cuerpo'), 0, 3)));
+        $ganadora = array_values(array_filter($r, static fn (array $x): bool => 200 === $x['estado']))[0]['cuerpo'];
+        $fila = D::conexion()->fetchAssociative('SELECT "ACT_Factura", "ROW_VERSION" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => str_replace('-', '', $activo)]);
+        self::assertSame([$ganadora['ACT_Factura'], $version + 1], [$fila['ACT_Factura'], (int) $fila['ROW_VERSION']], 'Queda lo que guardó la ganadora, con una sola versión nueva.');
+    }
+
     public function testDosAprobadoresALaVezEjecutanLaBajaUnaSolaVez(): void
     {
         $tipo = I::tipo('COMPUTO');

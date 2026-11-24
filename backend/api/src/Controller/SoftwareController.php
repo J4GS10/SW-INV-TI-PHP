@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Versioned;
 use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
@@ -67,6 +68,7 @@ final readonly class SoftwareController
     }
 
     #[Route('/tipos-licencia/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_TIPO_LICENCIA', 'TLI_Tipo_Licencia')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function cambiarTipo(int $id, Request $request): JsonResponse
     {
@@ -113,6 +115,7 @@ final readonly class SoftwareController
     }
 
     #[Route('/software/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_SOFTWARE', 'SOF_Software')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function cambiarSoftware(int $id, Request $request): JsonResponse
     {
@@ -197,6 +200,7 @@ final readonly class SoftwareController
     }
 
     #[Route('/licencias/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_LICENCIA', 'LIC_Licencia')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function cambiarLicencia(int $id, Request $request): JsonResponse
     {
@@ -282,6 +286,7 @@ final readonly class SoftwareController
     }
 
     #[Route('/credenciales/{id}', methods: ['PATCH'])]
+    #[Versioned('INV_LICENCIA_CLAVE', 'LCL_Licencia_Clave')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function editarCredencial(int $id, Request $request): Response
     {

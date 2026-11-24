@@ -22,6 +22,7 @@ import { catalogItemLabel } from '../../../utils/catalogLabels';
 import { mergeAtomicValues } from '../../../utils/atomicValues';
 import { MergeDialog } from './MergeDialog';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
+import { withRowVersion } from '../../../api/rowVersion';
 
 const SPEC_TYPES = 'tipos-especificacion';
 /** Reading order of a specification: what kind of data comes first, its unit and range depend on it. */
@@ -122,7 +123,7 @@ export const CatalogItemsPanel = ({ def }: Props) => {
 
   const guardar = async (item: CatalogoItem, cambios: Parameters<typeof catalogoService.editar>[2]) => {
     try {
-      const actualizado = await catalogoService.editar(clave, item.id, cambios);
+      const actualizado = await catalogoService.editar(clave, item.id, withRowVersion(cambios, item));
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...actualizado, uso: i.uso } : i)));
     } catch (err) {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_save')), { variant: 'error' });
@@ -161,8 +162,9 @@ export const CatalogItemsPanel = ({ def }: Props) => {
       await catalogoService.reordenar(clave, orden);
     } catch (err) {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_save')), { variant: 'error' });
-      await cargar();
     }
+    // Reordenar cambia la versión de cada registro: la siguiente edición debe partir de la vigente.
+    await cargar();
   };
 
   /** Extras of a row, in reading order. Unit and range only mean something for a number. */

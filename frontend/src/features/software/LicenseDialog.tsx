@@ -13,6 +13,7 @@ import { DEFAULT_CURRENCY } from '../../utils/currency';
 import { CredentialsEditor } from './CredentialsEditor';
 import { Dialog } from '../../components/ui/Dialog';
 import { DateField } from '../../components/ui/DateField';
+import { withRowVersion } from '../../api/rowVersion';
 
 interface Props {
   open: boolean;
@@ -84,7 +85,7 @@ export const LicenseDialog = ({ open, softwarePreseleccionado, licenciaToEdit, o
         payload.LIC_Moneda = moneda;
       }
       if (isEdit && licenciaToEdit) {
-        await softwareService.updateLicencia(licenciaToEdit.LIC_Licencia, payload);
+        await softwareService.updateLicencia(licenciaToEdit.LIC_Licencia, withRowVersion(payload, licenciaToEdit));
         enqueueSnackbar(t('common.success_update'), { variant: 'success' });
       } else {
         if (!softwarePreseleccionado) return;

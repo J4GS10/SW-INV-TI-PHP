@@ -44,12 +44,13 @@ final readonly class EdicionLote
             $anteriores = [];
             $codigos = [];
             $todos = [];
+            $existentes = $this->referenciasExistentes($items);
             foreach ($items as [$id, $cambios]) {
                 $activo = $this->activos->fila($id) ?? throw ErrorDominio::noEncontrado('BATCH_ITEM_FAILED:'.Ident::aTexto($id).':ASSET_NOT_FOUND');
                 $campos = array_intersect_key($cambios, array_flip(self::CAMPOS));
                 $todos = [...$todos, ...array_keys($cambios)];
                 try {
-                    $this->validar($activo, $campos);
+                    $this->validar($activo, $campos, $existentes['proveedores']);
                     $previos = [];
                     $diferencias = [];
                     foreach ($campos as $c => $nuevo) {
@@ -64,7 +65,7 @@ final readonly class EdicionLote
                     if ([] !== $diferencias) {
                         $this->kardex->registrar('CAMBIO_ESTADO', activo: $activo, usuario: $usuario, motivo: 'Edición en lote', detalle: ['campos' => $diferencias]);
                     }
-                    $specs = $this->especificaciones($activo, $cambios['especificaciones'] ?? [], $usuario);
+                    $specs = $this->especificaciones($activo, $cambios['especificaciones'] ?? [], $usuario, $existentes['especificaciones']);
                 } catch (ErrorDominio $e) {
                     throw new ErrorDominio($e->motivo, "BATCH_ITEM_FAILED:{$activo['ACT_Codigo_Interno']}:".explode(':', $e->detalle)[0]);
                 }
@@ -96,10 +97,38 @@ final readonly class EdicionLote
     }
 
     /**
+     * Proveedores y tipos de especificación que nombra el lote, comprobados de una vez (dos consultas,
+     * sea cual sea el número de activos): cada activo solo mira si el suyo está en la lista.
+     *
+     * @param list<array{0: string, 1: array<string, mixed>}> $items
+     *
+     * @return array{proveedores: array<int, true>, especificaciones: array<int, true>}
+     */
+    private function referenciasExistentes(array $items): array
+    {
+        $proveedores = [];
+        $tipos = [];
+        foreach ($items as [, $cambios]) {
+            if (null !== ($cambios['PRV_Proveedor'] ?? null)) {
+                $proveedores[] = (int) $cambios['PRV_Proveedor'];
+            }
+            foreach ($cambios['especificaciones'] ?? [] as $s) {
+                $tipos[] = (int) $s['TES_Tipo_Especificacion'];
+            }
+        }
+
+        return [
+            'proveedores' => array_fill_keys([] === $proveedores ? [] : $this->datos->proveedoresExistentes($proveedores), true),
+            'especificaciones' => array_fill_keys([] === $tipos ? [] : $this->datos->tiposEspecificacionExistentes($tipos), true),
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $activo
      * @param array<string, mixed> $campos
+     * @param array<int, true>     $proveedores los que existen (referenciasExistentes)
      */
-    private function validar(array $activo, array $campos): void
+    private function validar(array $activo, array $campos, array $proveedores): void
     {
         if (null !== ($campos['ARE_Area_Ubicacion'] ?? null)) {
             $area = (int) $campos['ARE_Area_Ubicacion'];
@@ -123,7 +152,7 @@ final readonly class EdicionLote
             throw ErrorDominio::invalido('WARRANTY_DATE_CANNOT_BE_BEFORE_PURCHASE_DATE');
         }
         if (null !== ($campos['PRV_Proveedor'] ?? null)
-            && !$this->datos->existeProveedor($campos['PRV_Proveedor'])) {
+            && !isset($proveedores[(int) $campos['PRV_Proveedor']])) {
             throw ErrorDominio::noEncontrado('SUPPLIER_NOT_FOUND');
         }
     }
@@ -133,10 +162,11 @@ final readonly class EdicionLote
      *
      * @param array<string, mixed>                                      $activo
      * @param list<array{TES_Tipo_Especificacion: int, valor: ?string}> $specs
+     * @param array<int, true>                                          $tipos los que existen (referenciasExistentes)
      *
      * @return list<array{TES_Tipo_Especificacion: int, valor: ?string}>
      */
-    private function especificaciones(array $activo, array $specs, string $usuario): array
+    private function especificaciones(array $activo, array $specs, string $usuario, array $tipos): array
     {
         if ([] === $specs) {
             return [];
@@ -145,7 +175,7 @@ final readonly class EdicionLote
         $detalle = [];
         foreach ($specs as $s) {
             $tipo = $s['TES_Tipo_Especificacion'];
-            if (!$this->datos->existeTipoEspecificacion($tipo)) {
+            if (!isset($tipos[(int) $tipo])) {
                 throw ErrorDominio::noEncontrado('SPECIFICATION_TYPE_NOT_FOUND');
             }
             $valor = trim((string) ($s['valor'] ?? ''));

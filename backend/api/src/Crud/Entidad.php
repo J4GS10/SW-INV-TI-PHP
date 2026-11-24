@@ -29,10 +29,10 @@ final readonly class Entidad
         $this->campos = $porNombre;
     }
 
-    /** Columnas de la respuesta, con la clave primero. */
+    /** Columnas de la respuesta, con la clave primero y la versión de la fila (App\Db\RowVersions). */
     public function columnasSelect(string $alias = 't'): string
     {
-        $columnas = ["{$alias}.\"{$this->clave}\""];
+        $columnas = ["{$alias}.\"{$this->clave}\"", "{$alias}.\"".\App\Db\RowVersions::COLUMN.'"'];
         foreach ($this->campos as $nombre => $campo) {
             $columnas[] = "{$alias}.\"{$campo->columnaBd()}\"".($campo->columnaBd() === $nombre ? '' : " AS \"{$nombre}\"");
         }

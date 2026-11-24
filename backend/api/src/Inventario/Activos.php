@@ -117,6 +117,7 @@ final readonly class Activos
             'ACT_Instalado' => 1 === (int) $f['ACT_Instalado'],
             'ACT_Responsable' => $uuid($f['ACT_Responsable']),
             'especificaciones' => $especificaciones ?? $this->especificacionesDe([(string) $f['ACT_Activo']])[(string) $f['ACT_Activo']] ?? [],
+            ...Esquema::version($f),
         ];
     }
 

@@ -350,6 +350,7 @@ Ambas leen el mismo predicado de `INV_VPD_PREDICADO`, así que no pueden diferir
 | Riesgo | Cómo se evita | Dónde |
 |---|---|---|
 | Dos operaciones sobre el mismo registro a la vez | La fila se bloquea (`SELECT … FOR UPDATE`) antes de leer su estado; varios activos se bloquean siempre en el mismo orden, sin interbloqueos | `Activos::bloquearEnOrden`, ingresos, tomas, licencias, consumibles, aprobaciones |
+| Dos personas editan el mismo registro (la segunda deshace sin saberlo lo que guardó la primera) | Concurrencia optimista. Cada tabla editable tiene `ROW_VERSION`, y el disparador `TRG_RV_<TABLA>` lo sube en cada `UPDATE`, lo haga un formulario, una asignación o la sincronización del directorio. Las columnas de rutina (inicio de sesión, stock, cupos usados, sello de sincronización) no cuentan como edición. Cada registro llega con `row_version`, y el formulario la devuelve como `If-Match`. Si el registro cambió, el servidor responde 412 `RECORD_CHANGED_BY_ANOTHER_USER` sin escribir nada. Lo compara dos veces: al llegar la petición (respuesta rápida) y, con la fila bloqueada, al empezar la transacción (nadie guarda entre la comprobación y la escritura). Sin `If-Match` no se comprueba nada (edición en lote, scripts) | `#[Versioned]` en la ruta, `Http/RowVersionListener.php`, `Db/RowVersions.php`, `Db/Transaccion.php`, `api/rowVersion.ts` |
 | Contadores (stock, cupos) | Actualización condicional (`… WHERE stock >= :n`) que falla si otro ya lo consumió | `Consumibles`, `Software` |
 | Duplicados (serie, código, hostname, mes cerrado) | Índices únicos en la base | Migraciones |
 | Foto del cierre mensual descuadrada | El cálculo corre en una transacción `READ ONLY` (todas las consultas ven el mismo instante, sin bloquear a nadie). Después, el cierre y su auditoría se guardan en una transacción corta, y la clave única del periodo deja pasar uno solo de dos cierres simultáneos. No se usa `SERIALIZABLE`: Oracle la aborta con ORA-08177 cuando otra sesión confirma un cambio en una fila que luego se escribe | `CierreMensual::cerrar` |
@@ -558,6 +559,7 @@ types/           Tipos de la API.
 | Una columna | Migración nueva en `api/migrations/` y las consultas afectadas, en el mismo cambio |
 | Una tabla por sede | Migración, permisos y política en `Esquema/PoliticasVpd.php` |
 | Una ruta | Controlador con `#[Autenticado]`, servicio y prueba en `tests/Integracion/` |
+| Un formulario que edita un registro | `#[Versioned('<TABLA>', '<CLAVE>')]` en la ruta. La tabla va en `Db/RowVersions::TABLES` con su migración de `ROW_VERSION`, y la respuesta incluye `row_version` (`Esquema::version`). El formulario envía `withRowVersion(cambios, registroAbierto)` |
 | Una acción que requiere aprobación | `Solicitudes.php`, un `case` en `Aprobaciones.php` y `types/aprobaciones.ts` |
 | Una página | Componente en `features/`, ruta en `App.tsx`, entrada en `navigation.ts` y textos en los tres idiomas |
 | Una tarea periódica | Clase que implemente `TareaPeriodica` en `Tareas/` |

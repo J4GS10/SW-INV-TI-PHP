@@ -171,27 +171,48 @@ final readonly class FotoCierreMensual
         return ['resumen' => $resumen, 'altas' => $detalle($entre('ACT_Fecha_Compra')), 'bajas' => $detalle($entre('ACT_Baja_Fecha'))];
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * Saldo inicial, movimientos y saldo final de cada consumible del alcance. Tres consultas en total, haya los
+     * consumibles que haya: el saldo de un momento es el del último evento del kardex hasta ese momento
+     * (KEEP DENSE_RANK LAST, el mismo orden fecha y evento de siempre).
+     *
+     * @return list<array<string, mixed>>
+     */
     private function consumibles(string $inicio, string $fin, ?int $sede): array
     {
         [$alcance, $pa] = $this->alcance->lectura('INV_CONSUMIBLE', 'c');
+        $filtro = $alcance.(null === $sede ? '' : ' AND c."SED_Sede" = :sede');
+        $base = null === $sede ? $pa : [...$pa, 'sede' => $sede];
+        $saldos = function (string $momento) use ($filtro, $base): array {
+            $porConsumible = [];
+            foreach ($this->conexion->fetchAllNumeric('SELECT k."CON_Consumible", '
+                .'MAX(k."KDX_Saldo") KEEP (DENSE_RANK LAST ORDER BY k."KDX_Fecha", k."KDX_Evento"), '
+                .'MAX(k."KDX_Saldo_Valor") KEEP (DENSE_RANK LAST ORDER BY k."KDX_Fecha", k."KDX_Evento") '
+                .'FROM "INV_KARDEX" k JOIN "INV_CONSUMIBLE" c ON c."CON_Consumible" = k."CON_Consumible" '
+                .'WHERE k."KDX_Fecha" <= :momento AND k."KDX_Saldo" IS NOT NULL AND '.$filtro.' GROUP BY k."CON_Consumible"',
+                [...$base, 'momento' => $momento]) as [$consumible, $cantidad, $valor]) {
+                $porConsumible[(int) $consumible] = [(int) $cantidad, (string) ($valor ?? '0')];
+            }
+
+            return $porConsumible;
+        };
+        $iniciales = $saldos($inicio);
+        $finales = $saldos($fin);
+        $movimientos = [];
+        foreach ($this->conexion->fetchAllNumeric('SELECT k."CON_Consumible", k."KDX_Tipo", NVL(SUM(k."KDX_Cantidad"), 0), NVL(SUM(ABS(k."KDX_Cantidad") * NVL(k."KDX_Costo", 0)), 0) '
+            .'FROM "INV_KARDEX" k JOIN "INV_CONSUMIBLE" c ON c."CON_Consumible" = k."CON_Consumible" '
+            ."WHERE k.\"KDX_Fecha\" > :i AND k.\"KDX_Fecha\" <= :f AND k.\"KDX_Tipo\" IN ('CONSUMIBLE_ENTRADA', 'CONSUMIBLE_SALIDA', 'CONSUMIBLE_AJUSTE') AND {$filtro} "
+            .'GROUP BY k."CON_Consumible", k."KDX_Tipo"', [...$base, 'i' => $inicio, 'f' => $fin]) as [$consumible, $tipo, $cant, $valor]) {
+            $movimientos[(int) $consumible][$tipo] = [(int) $cant, (string) $valor];
+        }
+
         $filas = [];
         foreach ($this->conexion->fetchAllAssociative('SELECT c."CON_Consumible", c."CON_Nombre", c."CON_Unidad", c."SED_Sede", c."CON_Moneda" FROM "INV_CONSUMIBLE" c WHERE '
-            .$alcance.(null === $sede ? '' : ' AND c."SED_Sede" = :sede').' ORDER BY c."CON_Nombre"', null === $sede ? $pa : [...$pa, 'sede' => $sede]) as $c) {
-            $saldo = function (string $momento) use ($c): array {
-                $f = $this->conexion->fetchAssociative('SELECT "KDX_Saldo", "KDX_Saldo_Valor" FROM "INV_KARDEX" WHERE "CON_Consumible" = :c AND "KDX_Fecha" <= :m AND "KDX_Saldo" IS NOT NULL '
-                    .'ORDER BY "KDX_Fecha" DESC, "KDX_Evento" DESC FETCH FIRST 1 ROWS ONLY', ['c' => $c['CON_Consumible'], 'm' => $momento]);
-
-                return false === $f ? [0, '0'] : [(int) $f['KDX_Saldo'], (string) ($f['KDX_Saldo_Valor'] ?? '0')];
-            };
-            [$iniCant, $iniVal] = $saldo($inicio);
-            [$finCant, $finVal] = $saldo($fin);
-            $mov = ['CONSUMIBLE_ENTRADA' => [0, '0'], 'CONSUMIBLE_SALIDA' => [0, '0'], 'CONSUMIBLE_AJUSTE' => [0, '0']];
-            foreach ($this->conexion->fetchAllNumeric('SELECT "KDX_Tipo", NVL(SUM("KDX_Cantidad"), 0), NVL(SUM(ABS("KDX_Cantidad") * NVL("KDX_Costo", 0)), 0) FROM "INV_KARDEX" '
-                ."WHERE \"CON_Consumible\" = :c AND \"KDX_Fecha\" > :i AND \"KDX_Fecha\" <= :f AND \"KDX_Tipo\" IN ('CONSUMIBLE_ENTRADA', 'CONSUMIBLE_SALIDA', 'CONSUMIBLE_AJUSTE') "
-                .'GROUP BY "KDX_Tipo"', ['c' => $c['CON_Consumible'], 'i' => $inicio, 'f' => $fin]) as [$tipo, $cant, $valor]) {
-                $mov[$tipo] = [(int) $cant, (string) $valor];
-            }
+            .$filtro.' ORDER BY c."CON_Nombre"', $base) as $c) {
+            $id = (int) $c['CON_Consumible'];
+            [$iniCant, $iniVal] = $iniciales[$id] ?? [0, '0'];
+            [$finCant, $finVal] = $finales[$id] ?? [0, '0'];
+            $mov = [...['CONSUMIBLE_ENTRADA' => [0, '0'], 'CONSUMIBLE_SALIDA' => [0, '0'], 'CONSUMIBLE_AJUSTE' => [0, '0']], ...($movimientos[$id] ?? [])];
             if (0 === $iniCant && 0 === $finCant && 0 === $mov['CONSUMIBLE_ENTRADA'][0] && 0 === $mov['CONSUMIBLE_SALIDA'][0] && 0 === $mov['CONSUMIBLE_AJUSTE'][0]) {
                 continue;
             }

@@ -21,8 +21,11 @@ final class Transaccion implements ResetInterface
     /** @var list<\Closure(): void> */
     private array $alConfirmar = [];
 
-    public function __construct(private readonly Connection $conexion, private readonly LoggerInterface $logger)
-    {
+    public function __construct(
+        private readonly Connection $conexion,
+        private readonly LoggerInterface $logger,
+        private readonly RowVersions $versiones,
+    ) {
     }
 
     /**
@@ -36,7 +39,12 @@ final class Transaccion implements ResetInterface
     {
         $externa = !$this->conexion->isTransactionActive();
         try {
-            $resultado = $this->conexion->transactional($bloque);
+            // La edición con If-Match bloquea su fila y compara la versión antes de su primera escritura (App\Db\RowVersions).
+            $resultado = $this->conexion->transactional($externa ? function () use ($bloque): mixed {
+                $this->versiones->lockPending();
+
+                return $bloque();
+            } : $bloque);
         } catch (\Throwable $e) {
             if ($externa) {
                 $this->alConfirmar = [];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Versioned;
 use App\Http\Peticion;
 use App\Crud\Campo;
 use App\Dominio\Ident;
@@ -166,6 +167,7 @@ final readonly class CoreController
     }
 
     #[Route('/activos/{activo}', methods: ['PATCH'])]
+    #[Versioned('INV_ACTIVO', 'ACT_Activo', parameter: 'activo', uuid: true)]
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function actualizar(Request $request): JsonResponse
     {

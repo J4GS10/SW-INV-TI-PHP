@@ -61,7 +61,7 @@ final class CatalogosTest extends WebTestCase
     {
         $nombre = 'Marca '.D::sufijo();
         [$e, $marca] = $this->pedir('POST', '/api/v1/cat/marcas', ['MAR_Nombre' => $nombre]);
-        self::assertSame([201, ['MAR_Marca', 'MAR_Nombre']], [$e, array_keys($marca)]);
+        self::assertSame([201, ['MAR_Marca', 'MAR_Nombre', 'row_version']], [$e, array_keys($marca)]);
         self::assertSame([409, 'BRAND_ALREADY_EXISTS'], $this->detalle('POST', '/api/v1/cat/marcas', ['MAR_Nombre' => ' '.strtoupper($nombre)]));
 
         [$e, $modelo] = $this->pedir('POST', '/api/v1/cat/modelos', ['MOD_Nombre' => 'Modelo 100%_A', 'MAR_Marca' => $marca['MAR_Marca'], 'MOD_Anio_Lanzamiento' => 2024]);
@@ -103,7 +103,7 @@ final class CatalogosTest extends WebTestCase
         $nombre = 'Sala '.D::sufijo();
         [$e, $item] = $this->pedir('POST', '/api/v1/catalogos/tipos-area', ['nombre' => $nombre, 'descripcion' => '  ']);
         self::assertSame(201, $e);
-        self::assertSame(['id', 'nombre', 'codigo', 'descripcion', 'orden', 'activo', 'fusionado_en', 'sistema', 'uso', 'extras'], array_keys($item));
+        self::assertSame(['id', 'nombre', 'codigo', 'descripcion', 'orden', 'activo', 'fusionado_en', 'sistema', 'uso', 'extras', 'row_version'], array_keys($item));
         self::assertSame([null, null, true, false, 0], [$item['codigo'], $item['descripcion'], $item['activo'], $item['sistema'], $item['uso']]);
         self::assertSame([409, 'CATALOG_ITEM_ALREADY_EXISTS'], $this->detalle('POST', '/api/v1/catalogos/tipos-area', ['nombre' => strtoupper($nombre)]));
         [, $editado] = $this->pedir('PATCH', "/api/v1/catalogos/tipos-area/{$item['id']}", ['activo' => false, 'orden' => 5]);

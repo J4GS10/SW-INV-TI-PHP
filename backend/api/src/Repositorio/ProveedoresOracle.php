@@ -15,7 +15,7 @@ use Doctrine\DBAL\Connection;
 /** Suppliers and the warranty view in Oracle: all their SQL lives here. */
 final readonly class ProveedoresOracle implements Proveedores, GarantiasActivos
 {
-    private const string COLUMNAS = '"PRV_Proveedor", "PRV_Nombre", "PRV_Identificacion_Fiscal", "PRV_Contacto", "PRV_Email", "PRV_Telefono", "PRV_Direccion", "PRV_Activo"';
+    private const string COLUMNAS = '"PRV_Proveedor", "PRV_Nombre", "PRV_Identificacion_Fiscal", "PRV_Contacto", "PRV_Email", "PRV_Telefono", "PRV_Direccion", "PRV_Activo", "ROW_VERSION"';
 
     public function __construct(private Connection $conexion, private Alcance $alcance, private LogicalDelete $borrado)
     {

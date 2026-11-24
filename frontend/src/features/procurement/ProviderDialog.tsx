@@ -8,6 +8,7 @@ import { procurementService } from './procurementService';
 import { Proveedor, ProveedorCreate } from '../../types/procurement';
 import { SectionCard } from '../../components/ui';
 import { Dialog } from '../../components/ui/Dialog';
+import { withRowVersion } from '../../api/rowVersion';
 interface Props {
     open: boolean;
     onClose: (refresh?: boolean) => void;
@@ -52,7 +53,7 @@ export const ProviderDialog = ({ open, onClose, toEdit }: Props) => {
                     payload[field] = value;
             });
             if (isEdit && toEdit) {
-                await procurementService.updateProveedor(toEdit.PRV_Proveedor, payload);
+                await procurementService.updateProveedor(toEdit.PRV_Proveedor, withRowVersion(payload, toEdit));
                 enqueueSnackbar(t('common.success_update'), { variant: 'success' });
             }
             else {

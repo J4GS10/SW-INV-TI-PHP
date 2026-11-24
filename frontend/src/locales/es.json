@@ -2008,6 +2008,8 @@
         "IDEMPOTENCY_REQUEST_IN_PROGRESS": "La operación ya se está procesando. Espere un momento.",
         "IDEMPOTENCY_ALREADY_APPLIED": "La operación ya se registró. La pantalla muestra el resultado.",
         "RECORD_IN_USE": "No se puede eliminar: otros registros lo usan.",
+        "RECORD_CHANGED_BY_ANOTHER_USER": "Otra persona guardó cambios en este registro mientras lo editabas. Para no deshacerlos, no se guardó nada: cierra y vuelve a abrirlo para ver la versión actual.",
+        "INVALID_IF_MATCH": "La versión del registro que se envió no es válida. Recarga la pantalla e inténtalo de nuevo.",
         "PHYSICAL_DELETE_FORBIDDEN": "Este registro no se puede borrar del sistema; solo se puede dar de baja.",
         "LOCK_UNTIL_MUST_BE_FUTURE": "La fecha del bloqueo debe ser posterior a hoy.",
         "LOCK_REASON_REQUIRED": "Escriba el motivo del bloqueo (al menos 5 letras).",

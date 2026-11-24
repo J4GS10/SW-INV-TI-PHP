@@ -69,7 +69,21 @@ final class Esquema
             $salida[$nombre] = self::valorApi($campo, $fila[$nombre] ?? null);
         }
 
-        return $salida;
+        return [...$salida, ...self::version($fila)];
+    }
+
+    /**
+     * La versión que la pantalla devuelve en If-Match al editar (App\Http\RowVersionListener).
+     *
+     * @param array<string, mixed> $fila
+     *
+     * @return array{row_version?: int}
+     */
+    public static function version(array $fila): array
+    {
+        $version = $fila[\App\Db\RowVersions::COLUMN] ?? null;
+
+        return null === $version ? [] : ['row_version' => (int) $version];
     }
 
     public static function valorApi(Campo $campo, mixed $valor): mixed

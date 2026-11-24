@@ -26,6 +26,7 @@ import { useSuggestion } from '../../hooks/useSuggestion';
 import { suggestionService } from '../../api/suggestionService';
 import { Dialog } from '../../components/ui/Dialog';
 import { DateField } from '../../components/ui/DateField';
+import { withRowVersion } from '../../api/rowVersion';
 interface Props {
     open: boolean;
     assetToEdit?: Activo | null;
@@ -242,7 +243,7 @@ export const AssetDialog = ({ open, assetToEdit, onClose }: Props) => {
             if (data.ACT_Codigo_Interno)
                 payload.ACT_Codigo_Interno = data.ACT_Codigo_Interno;
             if (isEdit && assetToEdit) {
-                await assetService.updateActivo(assetToEdit.ACT_Activo, payload as ActivoUpdate);
+                await assetService.updateActivo(assetToEdit.ACT_Activo, withRowVersion(payload as ActivoUpdate, assetToEdit));
                 enqueueSnackbar(t('common.success_update'), { variant: 'success' });
             }
             else {

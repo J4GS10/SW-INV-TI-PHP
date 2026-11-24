@@ -15,7 +15,7 @@ use Doctrine\DBAL\ParameterType;
 /** Maintenance tickets, their work items and their types, as stored: all that SQL lives here. */
 final readonly class MantenimientosStore
 {
-    private const string DETALLE = '"DMA_Detalle_Mant", "DMA_Accion_Realizada", "DMA_Costo_Item", "AMA_Accion"';
+    private const string DETALLE = '"DMA_Detalle_Mant", "DMA_Accion_Realizada", "DMA_Costo_Item", "AMA_Accion", "ROW_VERSION"';
     private const string UNIONES = 'LEFT JOIN "INV_TIPO_MANTENIMIENTO" t ON t."TMA_Tipo_Mantenimiento" = m."TMA_Tipo_Mantenimiento" '
         .'LEFT JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" LEFT JOIN "INV_PERSONA" p ON p."PER_Persona" = m."PER_Persona_Solicita"';
     /** A ticket with its type, asset and requester. */

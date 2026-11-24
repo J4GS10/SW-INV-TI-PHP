@@ -20,6 +20,7 @@ import { Mantenimiento, DetalleMantenimiento, DetalleCreate } from '../../types/
 import { maintenanceService } from './maintenanceService';
 import { Dialog } from '../../components/ui/Dialog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { withRowVersion } from '../../api/rowVersion';
 interface Props {
     open: boolean;
     ticket: Mantenimiento | null;
@@ -97,7 +98,7 @@ export const MaintenanceDetailDialog = ({ open, ticket, onClose, onChanged }: Pr
                 DMA_Costo_Item: detCosto ? Number(detCosto) : 0,
             };
             if (editingDet) {
-                await maintenanceService.updateDetalle(editingDet.DMA_Detalle_Mant, payload);
+                await maintenanceService.updateDetalle(editingDet.DMA_Detalle_Mant, withRowVersion(payload, editingDet));
                 enqueueSnackbar(t('common.success_update'), { variant: 'success' });
             }
             else {

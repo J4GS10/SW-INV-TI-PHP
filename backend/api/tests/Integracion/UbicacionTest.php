@@ -43,7 +43,7 @@ final class UbicacionTest extends WebTestCase
 
         [$estado, $pais] = $this->pedir('POST', '/api/v1/geo/paises', $t, ['PAI_Nombre' => "  {$nombre} ", 'PAI_Codigo_ISO' => $iso], true);
         self::assertSame(201, $estado);
-        self::assertSame(['PAI_Pais', 'PAI_Nombre', 'PAI_Codigo_ISO'], array_keys($pais));
+        self::assertSame(['PAI_Pais', 'PAI_Nombre', 'PAI_Codigo_ISO', 'row_version'], array_keys($pais));
         self::assertIsInt($pais['PAI_Pais']);
         self::assertSame($nombre, $pais['PAI_Nombre'], 'Los textos se recortan.');
         self::assertSame(1, $this->auditorias($admin['id'], 'CREATE', 'INV_PAIS'));

@@ -14,6 +14,7 @@ import { locationService } from './locationService';
 import { useConfirm } from '../../components/confirm-context';
 import { Dialog } from '../../components/ui/Dialog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { withRowVersion } from '../../api/rowVersion';
 type LevelType = 'PAIS' | 'ESTADO' | 'MUNICIPIO' | 'SEDE' | 'EDIFICIO' | 'NIVEL' | 'AREA';
 interface BreadcrumbItem {
     type: LevelType;
@@ -184,7 +185,7 @@ export const LocationsPage = () => {
         }
         try {
             if (editing) {
-                await api.update(fieldAsNumber(editing, meta.idField), payload);
+                await api.update(fieldAsNumber(editing, meta.idField), withRowVersion(payload, editing));
                 enqueueSnackbar(t('common.success_update'), { variant: 'success' });
             }
             else {

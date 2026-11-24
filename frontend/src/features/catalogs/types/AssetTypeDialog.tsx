@@ -10,6 +10,7 @@ import { TipoActivo } from '../../../types/inventory';
 import { TipoActivoCreate } from '../../../types/catalogs';
 import { CLASES_ACTIVO, type ClaseActivo } from '../../../utils/clasesActivo';
 import { Dialog } from '../../../components/ui/Dialog';
+import { withRowVersion } from '../../../api/rowVersion';
 
 interface Props {
   open: boolean;
@@ -65,7 +66,7 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
         ...(data.TAC_Clase ? { TAC_Clase: data.TAC_Clase } : {}),
       };
       const guardado = typeToEdit
-        ? await catalogService.updateTipoActivo(typeToEdit.TAC_Tipo_Activo, payload)
+        ? await catalogService.updateTipoActivo(typeToEdit.TAC_Tipo_Activo, withRowVersion(payload, typeToEdit))
         : await catalogService.createTipoActivo(payload);
       if (CON_COMPONENTES.includes((guardado.TAC_Clase ?? data.TAC_Clase) as ClaseActivo)) {
         await catalogService.setComponentesTipo(guardado.TAC_Tipo_Activo, componentes);

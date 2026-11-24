@@ -8,6 +8,7 @@ import { getApiErrorMessage } from '../../../api/errors';
 import { catalogService } from '../catalogService';
 import { Marca, Modelo, ModeloCreate, TipoConexion, TipoActivo } from '../../../types/catalogs';
 import { Dialog } from '../../../components/ui/Dialog';
+import { withRowVersion } from '../../../api/rowVersion';
 interface Props {
     open: boolean;
     onClose: (refresh?: boolean) => void;
@@ -79,7 +80,7 @@ export const ModelDialog = ({ open, onClose, defaultMarcaId, modelToEdit }: Prop
                 payload.TCN_Tipo_Conexion = Number(data.TCN_Tipo_Conexion);
             payload.TAC_Tipo_Activo = data.TAC_Tipo_Activo ? Number(data.TAC_Tipo_Activo) : null;
             if (modelToEdit) {
-                await catalogService.updateModelo(modelToEdit.MOD_Modelo, payload);
+                await catalogService.updateModelo(modelToEdit.MOD_Modelo, withRowVersion(payload, modelToEdit));
                 enqueueSnackbar(t('common.success_update'), { variant: 'success' });
             }
             else {

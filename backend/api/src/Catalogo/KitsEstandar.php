@@ -25,26 +25,38 @@ final readonly class KitsEstandar
     ) {
     }
 
-    /** @return list<array<string, mixed>> todos los kits, por nombre */
+    /** @return list<array<string, mixed>> todos los kits, por nombre, con sus renglones: dos consultas, haya los kits que haya */
     public function listar(): array
     {
-        return array_map(fn (int $id): array => (array) $this->obtener($id), $this->datos->idsDeKits());
+        $items = $this->datos->itemsDeTodosLosKits();
+
+        return array_map(static fn (array $k): array => self::aApi($k, $items[(int) $k['KIT_Kit']] ?? []), $this->datos->kits());
     }
 
     /** @return array<string, mixed>|null el kit con sus renglones */
     public function obtener(int $id): ?array
     {
         $k = $this->datos->kit($id);
-        if (false === $k) {
-            return null;
-        }
+
+        return false === $k ? null : self::aApi($k, $this->datos->itemsDeKit($id));
+    }
+
+    /**
+     * @param array<string, mixed>       $k
+     * @param list<array<string, mixed>> $items
+     *
+     * @return array<string, mixed>
+     */
+    private static function aApi(array $k, array $items): array
+    {
         $entero = static fn (mixed $v): ?int => null === $v ? null : (int) $v;
 
         return [
             'KIT_Kit' => (int) $k['KIT_Kit'], 'KIT_Nombre' => $k['KIT_Nombre'], 'CAR_Cargo' => $entero($k['CAR_Cargo']),
             'DEP_Departamento' => $entero($k['DEP_Departamento']), 'KIT_Activo' => 1 === (int) $k['KIT_Activo'],
             'items' => array_map(static fn (array $i): array => ['KIT_Item' => (int) $i['KIT_Item'], 'TAC_Tipo_Activo' => $entero($i['TAC_Tipo_Activo']),
-                'KIT_Cantidad' => (int) $i['KIT_Cantidad'], 'LIC_Licencia' => $entero($i['LIC_Licencia'])], $this->datos->itemsDeKit($id)),
+                'KIT_Cantidad' => (int) $i['KIT_Cantidad'], 'LIC_Licencia' => $entero($i['LIC_Licencia'])], $items),
+            ...\App\Crud\Esquema::version($k),
         ];
     }
 

@@ -23,6 +23,7 @@ import { suggestionService } from '../../api/suggestionService';
 import { personContextLine, roleReason } from '../../utils/suggestionReasons';
 import { PasswordChecklist } from '../auth/security/PasswordChecklist';
 import { Dialog } from '../../components/ui/Dialog';
+import { withRowVersion } from '../../api/rowVersion';
 
 interface Props {
   open: boolean;
@@ -206,7 +207,7 @@ export const UserDialog = ({ open, onClose, userToEdit, policy, personaInicial }
           USU_SSO_Provider: data.USU_SSO_Habilitado ? data.USU_SSO_Provider || null : null,
           ...scopePayload(data),
         };
-        await userService.updateUser(userToEdit.USU_Usuario, payload);
+        await userService.updateUser(userToEdit.USU_Usuario, withRowVersion(payload, userToEdit));
         enqueueSnackbar(t('users.messages.updated'), { variant: 'success' });
       } else {
         const sso = data.authMethod === 'sso';

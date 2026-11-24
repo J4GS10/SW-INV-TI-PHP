@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Http\Versioned;
 use App\Http\ClienteHttp;
 use App\Http\Peticion;
 use App\Catalogo\CatalogoGenerico;
@@ -105,6 +106,7 @@ final readonly class CatalogosController
     }
 
     #[Route('/kits/{kit}', methods: ['PUT'], priority: 10)]
+    #[Versioned('INV_KIT_ESTANDAR', 'KIT_Kit', parameter: 'kit')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function editarKit(Request $r): JsonResponse
     {
@@ -142,6 +144,7 @@ final readonly class CatalogosController
     }
 
     #[Route('/{clave}/{item}', methods: ['PATCH'], requirements: ['item' => '[^/]+'])]
+    #[Versioned(catalog: 'clave', parameter: 'item')]
     #[Autenticado(roles: Roles::ADMIN)]
     public function editarItem(string $clave, Request $r): JsonResponse
     {

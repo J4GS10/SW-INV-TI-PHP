@@ -56,10 +56,8 @@ final readonly class EspecificacionesPorTipo
         if (\count(array_unique($ids)) !== \count($ids)) {
             throw ErrorDominio::noProcesable('DUPLICATED_SPECIFICATION');
         }
-        foreach ($ids as $id) {
-            if (!$this->activos->existeTipoEspecificacion($id)) {
-                throw ErrorDominio::noEncontrado('SPECIFICATION_TYPE_NOT_FOUND');
-            }
+        if (\count($this->activos->tiposEspecificacionExistentes($ids)) !== \count($ids)) {
+            throw ErrorDominio::noEncontrado('SPECIFICATION_TYPE_NOT_FOUND');
         }
         $this->transaccion->ejecutar(function () use ($tipo, $items, $origen): void {
             $this->reglas->removeOptionsOfType($tipo);
