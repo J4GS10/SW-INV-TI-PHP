@@ -26,12 +26,6 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Autenticado(roles: Roles::APP)]
 final readonly class CatalogoTecnicoController
 {
-    /**
-     * Estados de los que depende la máquina de estados de los activos: no se
-     * pueden renombrar ni borrar.
-     */
-    private const array ESTADOS_DEL_SISTEMA = ['disponible', 'asignado', 'en reparación', 'en reparacion', 'baja', 'en bodega'];
-
     public function __construct(
         private Operaciones $crud,
         private \App\Catalogo\CatalogoTecnico $catalogo,
@@ -275,28 +269,16 @@ final readonly class CatalogoTecnicoController
     #[Autenticado(roles: Roles::ADMIN)]
     public function actualizarEstado(Request $r): JsonResponse
     {
-        $id = Peticion::enteroDeRuta($r);
-        $cambios = $this->cambios(T::estadoOperativo(), $r);
-        $estado = $this->crud->obtenerO404(T::estadoOperativo(), $id, 'OPERATIONAL_STATUS_NOT_FOUND');
-        // Las transiciones de estado dependen de estos nombres canónicos.
-        if (self::delSistema($estado['EOP_Nombre'])) {
-            throw new ErrorApi(409, 'CANNOT_MODIFY_SYSTEM_OPERATIONAL_STATUS');
-        }
-
-        return new JsonResponse($this->crud->actualizar(T::estadoOperativo(), $id, $cambios, ClienteHttp::origen($r)));
+        return new JsonResponse($this->catalogo->actualizarEstadoOperativo(Peticion::enteroDeRuta($r), $this->cambios(T::estadoOperativo(), $r), ClienteHttp::origen($r)));
     }
 
     #[Route('/estados-operativos/{id}', methods: ['DELETE'])]
     #[Autenticado(roles: Roles::ADMIN)]
     public function eliminarEstado(Request $r): Response
     {
-        $id = Peticion::enteroDeRuta($r);
-        $estado = $this->crud->obtenerO404(T::estadoOperativo(), $id, 'OPERATIONAL_STATUS_NOT_FOUND');
-        if (self::delSistema($estado['EOP_Nombre'])) {
-            throw new ErrorApi(409, 'CANNOT_DELETE_SYSTEM_OPERATIONAL_STATUS');
-        }
+        $this->catalogo->eliminarEstadoOperativo(Peticion::enteroDeRuta($r), ClienteHttp::origen($r));
 
-        return $this->eliminarEnUso(T::estadoOperativo(), $r, 'OPERATIONAL_STATUS_NOT_FOUND', 'EOP_Nombre', 'CANNOT_DELETE_OPERATIONAL_STATUS_IN_USE');
+        return new Response(null, 204);
     }
 
     // ================= TIPO DE ESPECIFICACIÓN =================
@@ -337,11 +319,6 @@ final readonly class CatalogoTecnicoController
     }
 
     // ================= apoyo =================
-
-    private static function delSistema(?string $nombre): bool
-    {
-        return \in_array(mb_strtolower(trim((string) $nombre)), self::ESTADOS_DEL_SISTEMA, true);
-    }
 
     private function actualizarSimple(Entidad $e, Request $r, string $noEncontrado): JsonResponse
     {

@@ -14,7 +14,11 @@ final class Contrasenas
 {
     private const array OPCIONES = ['memory_cost' => 65536, 'time_cost' => 3, 'threads' => 2];
 
-    private static ?string $hashSenuelo = null;
+    /**
+     * Hash fijo con los mismos parámetros que OPCIONES, de una clave al azar que nadie conoce. Precalculado: si
+     * cada worker lo generara en su primera llamada, esa respuesta de «usuario inexistente» costaría el doble.
+     */
+    private const string HASH_SENUELO = '$argon2id$v=19$m=65536,t=3,p=2$bkJJVnVxa2E2dzBsdjFSMA$eHBnsfmb72jv5+YVwGHpdWZ+VdPpBhLe/b1W/hzled4';
 
     public static function hashear(string $plano): string
     {
@@ -41,7 +45,6 @@ final class Contrasenas
      */
     public static function verificarSenuelo(): void
     {
-        self::$hashSenuelo ??= self::hashear('timing-equalization-dummy-password');
-        password_verify('timing', self::$hashSenuelo);
+        password_verify('timing', self::HASH_SENUELO);
     }
 }

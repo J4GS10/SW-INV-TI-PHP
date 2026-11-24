@@ -1268,6 +1268,8 @@
         "mfa_switch": "Richiedi il secondo fattore ai ruoli amministrativi",
         "mfa_enabled": "Secondo fattore obbligatorio attivato.",
         "mfa_disabled": "Secondo fattore obbligatorio disattivato.",
+        "mfa_always_on": "Sempre attivo",
+        "mfa_always_on_help": "Questo server non consente di disattivarlo: i ruoli amministrativi accedono sempre con il secondo fattore.",
         "company_name": "Nome dell'azienda",
         "logo_url": "URL del logo",
         "logo_help": "Consigliato: 200 × 60 px, PNG con sfondo trasparente",

@@ -6,7 +6,7 @@
  * Cada prueba que cambia una cuenta crea la suya por la API de identidades (IAM).
  */
 import { test, expect, type Page } from '@playwright/test';
-import { contextoApi, esperarCorreo, sesionApi, SEDES, sufijo, totp, iniciarSesionUi, usuario, type Sesion } from '../soporte';
+import { claveAleatoria, contextoApi, esperarCorreo, sesionApi, SEDES, sufijo, totp, iniciarSesionUi, usuario, type Sesion } from '../soporte';
 import { persona } from '../datos';
 import { leerQr } from '../qr';
 
@@ -23,7 +23,7 @@ interface Cuenta { id: string; username: string; password: string; correo: strin
 async function cuentaNueva(rol = 'CONSULTA'): Promise<Cuenta> {
   const per = await persona(SEDES.A, 'Cuenta');
   const username = `e2e_${sufijo()}`;
-  const password = `Qa.${sufijo()}${sufijo()}#9`;
+  const password = claveAleatoria('Qa.', '#9');
   const creador = ['ADMIN_TI', 'JEFE_TI', 'ADMIN_SEGURIDAD', 'SUPER_ADMIN'].includes(rol) ? raiz : iam;
   const r = await creador.ctx.post('/api/v1/org/usuarios', { data: { USU_Username: username, USU_Password: password, USU_Rol: rol, PER_Persona: per, sedes: [SEDES.A] } });
   expect(r.status(), await r.text()).toBe(201);
@@ -39,7 +39,7 @@ async function cuentaActiva(rol = 'CONSULTA'): Promise<Cuenta> {
   const c = await cuentaNueva(rol);
   const ctx = await contextoApi();
   const t = (await (await ctx.post('/api/v1/login/access-token', { form: { username: c.username, password: c.password } })).json()).access_token;
-  const nueva = `Ac.${sufijo()}${sufijo()}#4`;
+  const nueva = claveAleatoria('Ac.', '#4');
   const r = await ctx.post('/api/v1/me/password', { data: { current_password: c.password, new_password: nueva }, headers: { Authorization: `Bearer ${t}` } });
   expect(r.status(), await r.text()).toBe(204);
   return { ...c, password: nueva };
@@ -104,7 +104,7 @@ test('contraseña temporal asignada por IAM: cambio obligatorio antes de usar el
   const temporal = (await r.json()).temporary_password as string;
   await entrar(page, c.username, temporal);
   await expect(page.getByText('Cambie su contraseña temporal')).toBeVisible();
-  const nueva = `Nv.${sufijo()}${sufijo()}#5`;
+  const nueva = claveAleatoria('Nv.', '#5');
   await page.getByLabel('Contraseña temporal').fill(temporal);
   await page.getByLabel('Nueva contraseña', { exact: true }).fill(nueva);
   await page.getByLabel('Confirmar nueva contraseña').fill(nueva);
@@ -127,7 +127,7 @@ test('recuperación por correo: enlace de Mailpit, nueva contraseña y entrada; 
   const enlace = await esperarCorreo(c.correo, desde, /(https?:\/\/[^\s"<>]+reset-password#token=[A-Za-z0-9_-]+)/);
   const ruta = new URL(enlace).pathname + new URL(enlace).hash;
   await page.goto(ruta);
-  const nueva = `Rc.${sufijo()}${sufijo()}#3`;
+  const nueva = claveAleatoria('Rc.', '#3');
   await page.getByLabel('Nueva contraseña', { exact: true }).fill(nueva);
   await page.getByLabel('Confirmar nueva contraseña').fill(nueva);
   await page.getByRole('button', { name: 'Restablecer' }).click();
@@ -135,7 +135,7 @@ test('recuperación por correo: enlace de Mailpit, nueva contraseña y entrada; 
   await entrar(page, c.username, nueva);
   await expect(page).not.toHaveURL(/\/login/);
   const token = new URLSearchParams(new URL(enlace).hash.slice(1)).get('token');
-  const otra = await page.request.post('/api/v1/login/password-reset/confirm', { data: { token, new_password: `Ot.${sufijo()}${sufijo()}#1` } });
+  const otra = await page.request.post('/api/v1/login/password-reset/confirm', { data: { token, new_password: claveAleatoria('Ot.', '#1') } });
   expect(otra.status()).toBeGreaterThanOrEqual(400);
 });
 
@@ -195,9 +195,19 @@ test('SSO: desactivado como en producción, sin botones de proveedores', async (
   await expect(page.getByRole('button', { name: /Microsoft|Google/ })).toHaveCount(0);
 });
 
-test('MFA obligatorio: el administrador del sistema lo apaga y lo enciende desde Configuración', async ({ page }) => {
+test('MFA obligatorio: el administrador del sistema lo controla desde Configuración, salvo que el servidor lo fije', async ({ page }) => {
+  // Reutiliza la sesión del beforeAll: cada ingreso con TOTP de la misma cuenta espera su propio paso de 30 s.
+  const politica = await (await raiz.ctx.get('/api/v1/gov/security/mfa')).json();
   await iniciarSesionUi(page, 'qa_superadmin');
   await page.goto('/config');
+  if (politica.required && !politica.can_be_disabled) {
+    // MFA_CAN_BE_DISABLED=false (producción): se ve fijo, sin un interruptor que el servidor rechazaría.
+    await expect(page.getByText('Siempre activo', { exact: true })).toBeVisible();
+    await expect(page.getByRole('switch', { name: /Exigir segundo factor/ })).toHaveCount(0);
+    const intento = await raiz.ctx.post('/api/v1/gov/security/mfa', { data: { required: false } });
+    expect([intento.status(), (await intento.json()).detail]).toEqual([409, 'MFA_CANNOT_BE_DISABLED']);
+    return;
+  }
   const interruptor = page.getByRole('switch', { name: /Exigir segundo factor/ });
   await expect(interruptor).toBeChecked();
 

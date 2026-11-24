@@ -1268,6 +1268,8 @@
         "mfa_switch": "Exigir segundo factor a los roles administrativos",
         "mfa_enabled": "Segundo factor obligatorio activado.",
         "mfa_disabled": "Segundo factor obligatorio desactivado.",
+        "mfa_always_on": "Siempre activo",
+        "mfa_always_on_help": "Este servidor no permite apagarlo: los roles administrativos siempre entran con segundo factor.",
         "company_name": "Nombre de la empresa",
         "logo_url": "URL del logotipo",
         "logo_help": "Recomendado: 200 × 60 px, PNG con fondo transparente",

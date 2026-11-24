@@ -92,6 +92,8 @@ $plan = [
     'qa_contabilidad' => ['COMPRAS', true, [], null, false],
     'qa_cambio' => ['TECNICO', false, ['A'], null, true],
     'qa_bloqueo' => ['CONSULTA', false, ['A'], null, false],
+    // Solo para la prueba de logout-all: revocar todas sus sesiones no debe tocar las de otras pruebas paralelas.
+    'qa_sesiones' => ['CONSULTA', false, ['A'], null, false],
 ];
 
 // La suite prueba el MFA obligatorio tal como lo enciende el administrador del sistema.

@@ -263,6 +263,8 @@ final class AutenticacionTest extends WebTestCase
             self::assertArrayNotHasKey('SYS_Mfa_Required', $this->pedirConfig());
             self::assertSame(403, $this->cambiarMfa(false, $tokenAdmin)['estado']);
             self::assertSame(422, $this->post('/api/v1/gov/security/mfa', ['required' => 'no'], $super)['estado']);
+            // La pantalla sabe si ofrecer el interruptor: aquí MFA_CAN_BE_DISABLED=true (en producción, false).
+            self::assertTrue($this->get('/api/v1/gov/security/mfa', $super)['can_be_disabled']);
 
             $apagado = $this->cambiarMfa(false, $super);
             self::assertSame([200, false], [$apagado['estado'], $apagado['json']['required']]);

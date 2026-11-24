@@ -405,6 +405,11 @@ final readonly class Identidades
      */
     public function bloquear(string $objetivoHex, Usuario $solicitante, callable $auditar, string $motivo, ?string $hastaDia): void
     {
+        // Cinco espacios no son un motivo: sin texto real, el bloqueo no quedaría explicado en la auditoría.
+        $motivo = trim($motivo);
+        if (mb_strlen($motivo) < 5) {
+            throw ErrorDominio::noProcesable('LOCK_REASON_REQUIRED');
+        }
         $objetivo = $this->gestionable($objetivoHex, $solicitante);
         $hasta = null;
         if (null !== $hastaDia) {

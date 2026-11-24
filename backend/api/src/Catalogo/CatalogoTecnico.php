@@ -7,6 +7,7 @@ namespace App\Catalogo;
 use App\Catalogo\EntidadesTecnicas as T;
 use App\Catalogo\Infrastructure\CatalogoTecnicoStore;
 use App\Crud\Operaciones;
+use App\Db\RecordInUse;
 use App\Db\Transaccion;
 use App\Dominio\ErrorDominio;
 use App\Dominio\Origen;
@@ -17,6 +18,12 @@ use App\Dominio\Origen;
  */
 final readonly class CatalogoTecnico
 {
+    /**
+     * Estados de los que depende la máquina de estados de los activos: no se
+     * pueden renombrar ni borrar.
+     */
+    private const array ESTADOS_DEL_SISTEMA = ['disponible', 'asignado', 'en reparación', 'en reparacion', 'baja', 'en bodega'];
+
     public function __construct(
         private CatalogoTecnicoStore $datos,
         private Operaciones $crud,
@@ -162,6 +169,42 @@ final readonly class CatalogoTecnico
             'tipo_sugerido' => null === $tipo ? null : ['TAC_Tipo_Activo' => $tipo['TAC_Tipo_Activo'], 'nombre' => $tipo['TAC_Nombre'],
                 'prefijo' => $tipo['TAC_Prefijo'], 'origen' => 'activos_del_modelo'],
         ];
+    }
+
+    /**
+     * Renombra un estado operativo; los que usa la máquina de estados de los activos no se tocan.
+     *
+     * @param array<string, mixed> $cambios
+     *
+     * @return array<string, mixed>
+     */
+    public function actualizarEstadoOperativo(int $id, array $cambios, Origen $origen): array
+    {
+        $this->estadoEditable($id, 'CANNOT_MODIFY_SYSTEM_OPERATIONAL_STATUS');
+
+        return $this->crud->actualizar(T::estadoOperativo(), $id, $cambios, $origen);
+    }
+
+    /** Borrado lógico de un estado operativo que no es del sistema ni está en uso. */
+    public function eliminarEstadoOperativo(int $id, Origen $origen): void
+    {
+        $estado = $this->estadoEditable($id, 'CANNOT_DELETE_SYSTEM_OPERATIONAL_STATUS');
+        try {
+            $this->crud->eliminar(T::estadoOperativo(), $id, $origen, ['id' => $id, 'nombre' => $estado['EOP_Nombre']]);
+        } catch (RecordInUse) {
+            throw ErrorDominio::conflicto('CANNOT_DELETE_OPERATIONAL_STATUS_IN_USE');
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function estadoEditable(int $id, string $siEsDelSistema): array
+    {
+        $estado = $this->crud->obtenerO404(T::estadoOperativo(), $id, 'OPERATIONAL_STATUS_NOT_FOUND');
+        if (in_array(mb_strtolower(trim((string) $estado['EOP_Nombre'])), self::ESTADOS_DEL_SISTEMA, true)) {
+            throw ErrorDominio::conflicto($siEsDelSistema);
+        }
+
+        return $estado;
     }
 
     /** @return array<string, mixed> */

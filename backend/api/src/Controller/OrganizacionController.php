@@ -357,12 +357,7 @@ final readonly class OrganizacionController
         $motivo = $entrada->texto('reason', 5, 500);
         $hasta = $entrada->patron('until', '^\d{4}-\d{2}-\d{2}$');
         $entrada->validar();
-        // Cinco espacios no son un motivo: sin texto real, el bloqueo no quedaría registrado.
-        $motivo = trim((string) $motivo);
-        if (mb_strlen($motivo) < 5) {
-            throw new ErrorApi(422, 'LOCK_REASON_REQUIRED');
-        }
-        $this->identidades->bloquear(Peticion::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r), $motivo, $hasta);
+        $this->identidades->bloquear(Peticion::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r), (string) $motivo, $hasta);
 
         return new JsonResponse(['status' => 'success']);
     }

@@ -92,7 +92,8 @@ for (const [nombre, rol] of USUARIOS) {
     const prohibida = PANTALLAS.find(([, , roles]) => !roles.includes(rol));
     if (prohibida) {
       estado.prohibidas.length = 0;
-      await page.goto(prohibida[0]);
+      // Firefox aborta la espera de «load» si la aplicación redirige al cargar: basta con que la navegación se confirme.
+      await page.goto(prohibida[0], { waitUntil: 'commit' });
       await page.waitForLoadState('networkidle');
       await expect(page.getByRole('heading', { name: prohibida[1], exact: true }), `${rol} no ve «${prohibida[1]}»`).toHaveCount(0);
     }

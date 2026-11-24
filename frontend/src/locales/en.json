@@ -1268,6 +1268,8 @@
         "mfa_switch": "Require a second factor for administrative roles",
         "mfa_enabled": "Mandatory second factor turned on.",
         "mfa_disabled": "Mandatory second factor turned off.",
+        "mfa_always_on": "Always on",
+        "mfa_always_on_help": "This server does not allow turning it off: administrative roles always sign in with a second factor.",
         "company_name": "Company name",
         "logo_url": "Logo URL",
         "logo_help": "Recommended: 200 × 60 px, PNG with a transparent background",

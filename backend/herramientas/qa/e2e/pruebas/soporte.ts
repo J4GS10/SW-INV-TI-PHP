@@ -37,6 +37,23 @@ export function usuario(nombre: string): UsuarioQa & { username: string } {
 /** Sufijo único para datos creados por una prueba. */
 export const sufijo = (): string => randomBytes(4).toString('hex');
 
+// Las mismas secuencias que rechaza App\Seguridad\PoliticaContrasenas (cuatro caracteres seguidos).
+const SECUENCIAS = ['0123456789', '9876543210', 'abcdefghijklmnopqrstuvwxyz', 'zyxwvutsrqponmlkjihgfedcba',
+  'qwertyuiop', 'asdfghjkl', 'zxcvbnm', 'poiuytrewq', 'lkjhgfdsa', 'mnbvcxz'];
+
+/** Clave aleatoria que cumple la política: un sufijo al azar nunca debe traer «1234» o «abcd» y volver intermitente una prueba. */
+export function claveAleatoria(prefijo: string, final: string): string {
+  for (;;) {
+    const clave = `${prefijo}${sufijo()}${sufijo()}${final}`;
+    const t = clave.toLowerCase();
+    let valida = true;
+    for (let i = 0; valida && i + 4 <= t.length; i++) {
+      if (SECUENCIAS.some((s) => s.includes(t.slice(i, i + 4)))) valida = false;
+    }
+    if (valida) return clave;
+  }
+}
+
 // --- TOTP (RFC 6238, SHA-1, 30 s, 6 dígitos), igual que App\Seguridad\Totp ---
 function base32(texto: string): Buffer {
   const alfabeto = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';

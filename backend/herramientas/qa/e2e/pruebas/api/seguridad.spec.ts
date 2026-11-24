@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import { createHmac } from 'node:crypto';
 import JSZip from 'jszip';
 import { test, expect, type APIResponse } from '@playwright/test';
-import { consulta, contextoApi, correos, esperarCorreo, sesionApi, SEDES, sufijo, totp, usuario, type Sesion } from '../soporte';
+import { consulta, contextoApi, correos, esperarCorreo, sesionApi, SEDES, sufijo, totp, URL_QA, usuario, type Sesion } from '../soporte';
 import { altaApi, area, hex, persona, tipoMovimiento, tipoYModelo } from '../datos';
 import { pdfATexto } from '../qr';
 
@@ -57,8 +57,8 @@ test('JWT: alg none, firma alterada, rol cambiado y refresh como access -> 401',
 });
 
 test('sesión: tras logout el access token queda revocado; logout-all cierra las demás sesiones', async () => {
-  const s1 = await sesionApi('qa_contabilidad');
-  const s2 = await sesionApi('qa_contabilidad');
+  const s1 = await sesionApi('qa_sesiones');
+  const s2 = await sesionApi('qa_sesiones');
   expect((await s1.ctx.get('/api/v1/me')).status()).toBe(200);
   expect((await s1.ctx.post('/api/v1/login/logout')).status()).toBeLessThan(300);
   const tras = await s1.ctx.get('/api/v1/me');
@@ -89,8 +89,10 @@ test('enumeración: usuario inexistente y contraseña errónea dan la misma resp
     const r = await api.post('/api/v1/login/access-token', { form: { username, password: 'Incorrecta.123!' } });
     return { ms: performance.now() - t0, status: r.status(), cuerpo: await r.text() };
   };
+  // Calentamiento: la primera petición de cada worker de la API carga clases y conexiones, no mide el login.
+  for (let i = 0; i < 2; i++) { await medir('qa_bloqueo'); await medir(`nadie_${sufijo()}`); }
   const existentes = []; const inexistentes = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 10; i++) {
     existentes.push(await medir('qa_bloqueo'));
     inexistentes.push(await medir(`nadie_${sufijo()}`));
   }
@@ -252,11 +254,20 @@ test('inyección SQL en búsqueda, filtros y orden: sin errores, sin datos de m�
   expect(Number((await consulta<any>('SELECT COUNT(*) N FROM "INV_ACTIVO"'))[0].N)).toBeGreaterThan(0);
 });
 
-test('CSV/Excel: un hostname con fórmula sale neutralizado en el exporte', async () => {
-  const formula = `=HYPERLINK("http://evil.qa/${sufijo()}","x")`;
-  await altaApi(jefe, cat.modelo, cat.tipo, { ACT_Hostname: formula.slice(0, 60) });
-  const csv = await (await jefe.ctx.get('/api/v1/export/activos.csv')).text();
-  const linea = csv.split(/\r?\n/).find((l) => l.includes('HYPERLINK'))!;
+test('CSV/Excel: una fórmula no entra como hostname y, en texto libre, sale neutralizada en el exporte', async () => {
+  const marca = sufijo();
+  const formula = `=HYPERLINK("http://evil.qa/${marca}","x")`;
+  // Primera barrera: el hostname solo admite los caracteres de un identificador.
+  const base = await altaApi(jefe, cat.modelo, cat.tipo);
+  const rechazo = await jefe.ctx.post('/api/v1/core/activos', { data: { ACT_Serie_Fabricante: `CSV-${marca}`, ACT_Fecha_Compra: '2026-10-01',
+    MOD_Modelo: cat.modelo, TAC_Tipo_Activo: cat.tipo, EOP_Estado_Operativo: base.EOP_Estado_Operativo, SED_Sede: SEDES.A, ACT_Hostname: formula.slice(0, 60) } });
+  expect(rechazo.status()).toBe(422);
+  // Texto libre (observación de un movimiento): se guarda tal cual y el exporte lo neutraliza.
+  const m = await jefe.ctx.post('/api/v1/trazabilidad/movimientos', { data: { ACT_Activo: base.ACT_Activo, PER_Persona: await persona(SEDES.A, 'Csv'),
+    ARE_Area: await area(SEDES.A), TMO_Tipo_Movimiento: await tipoMovimiento('Asignación'), MOV_Motivo: 'CSV', MOV_Observacion: formula } });
+  expect(m.status(), await m.text()).toBe(201);
+  const csv = await (await jefe.ctx.get(`/api/v1/export/movimientos.csv?q=${encodeURIComponent(base.ACT_Codigo_Interno)}`)).text();
+  const linea = csv.split(/\r?\n/).find((l) => l.includes(marca))!;
   expect(linea).toBeDefined();
   expect(linea).not.toMatch(/(^|[,;])"?=HYPERLINK/);
   expect(linea).toMatch(/'=HYPERLINK/);
@@ -359,8 +370,8 @@ test('borde: CORS solo para el origen propio, cabeceras de seguridad, operativos
   const api = await contextoApi();
   const pre = await api.fetch('/api/v1/me', { method: 'OPTIONS', headers: { Origin: 'https://evil.qa', 'Access-Control-Request-Method': 'GET' } });
   expect(pre.headers()['access-control-allow-origin']).toBeUndefined();
-  const propio = await api.fetch('/api/v1/me', { method: 'OPTIONS', headers: { Origin: 'https://qa.inventario.local', 'Access-Control-Request-Method': 'GET' } });
-  expect(propio.headers()['access-control-allow-origin']).toBe('https://qa.inventario.local');
+  const propio = await api.fetch('/api/v1/me', { method: 'OPTIONS', headers: { Origin: URL_QA, 'Access-Control-Request-Method': 'GET' } });
+  expect(propio.headers()['access-control-allow-origin']).toBe(URL_QA);
   const html = await api.get('/');
   const h = html.headers();
   expect(h['strict-transport-security']).toMatch(/max-age=\d{7,}/);

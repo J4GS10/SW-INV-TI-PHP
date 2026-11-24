@@ -28,10 +28,9 @@ export const configService = {
         return (await client.post<SystemConfig>('/gov/config/logo', form)).data;
     },
 
-    getMfaRequirement: async (): Promise<boolean> => {
-        const response = await client.get<{ required: boolean }>('/gov/security/mfa');
-        return response.data.required;
-    },
+    /** Si el MFA es obligatorio y si este servidor permite apagarlo (MFA_CAN_BE_DISABLED). */
+    getMfaRequirement: async (): Promise<{ required: boolean; can_be_disabled: boolean }> =>
+        (await client.get<{ required: boolean; can_be_disabled: boolean }>('/gov/security/mfa')).data,
 
     setMfaRequirement: async (required: boolean): Promise<boolean> => {
         const response = await client.post<{ required: boolean }>('/gov/security/mfa', { required });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Autocomplete, Box, Button, CircularProgress, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment, MenuItem, Radio, RadioGroup, Stack, Switch, TextField, Tooltip, Typography } from '@mui/material';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
@@ -85,7 +85,10 @@ export const UserDialog = ({ open, onClose, userToEdit, policy, personaInicial }
   const { user: currentUser } = useAuth();
   const isEdit = !!userToEdit;
   const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
-  const passwordPolicy = policy ? policyFromSummary(policy) : DEFAULT_PASSWORD_POLICY;
+  const passwordPolicy = useMemo(() => (policy ? policyFromSummary(policy) : DEFAULT_PASSWORD_POLICY), [policy]);
+  // El formulario se prepara al abrir con la política vigente; una recarga en vivo de la política no lo reinicia.
+  const politicaVigente = useRef(passwordPolicy);
+  useEffect(() => { politicaVigente.current = passwordPolicy; }, [passwordPolicy]);
   const roleOptions = grantableRoles(currentUser?.role);
 
   const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({ mode: 'onChange',
@@ -168,7 +171,7 @@ export const UserDialog = ({ open, onClose, userToEdit, policy, personaInicial }
         .then(setPersonas)
         .catch(() => enqueueSnackbar(t('common.error_loading'), { variant: 'error' }));
       // La clave temporal ya viene generada: se ve y se copia sin pedirla.
-      reset({ ...empty, PER_Persona: personaInicial ?? '', USU_Password: generateStrongPassword(16, passwordPolicy) });
+      reset({ ...empty, PER_Persona: personaInicial ?? '', USU_Password: generateStrongPassword(16, politicaVigente.current) });
       setShowPassword(true);
     }
   }, [open, userToEdit, isEdit, reset, enqueueSnackbar, t, personaInicial]);

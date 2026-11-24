@@ -46,7 +46,7 @@ export const ModelsPage = () => {
             }
         };
         init();
-    }, []);
+    }, [enqueueSnackbar, t]);
     // Carga Modelos
     const [loadError, setLoadError] = useState(false);
     const loadModelos = useCallback(async () => {

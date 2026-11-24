@@ -8,6 +8,7 @@ use App\Config\Ajustes;
 use App\Dominio\ErrorDominio;
 use App\Seguridad\CifradoCampos;
 use App\Seguridad\CodigosSeguridad;
+use App\Seguridad\Contrasenas;
 use App\Seguridad\Fernet;
 use App\Seguridad\PoliticaContrasenas;
 use App\Seguridad\TokenFernetInvalido;
@@ -150,6 +151,14 @@ final class CriptografiaTest extends TestCase
         } catch (ErrorDominio $e) {
             self::assertSame([400, 'PASSWORD_POLICY_VIOLATION:min_length:10'], [\App\EventListener\ErroresListener::estadoHttp($e->motivo), $e->detalle]);
         }
+    }
+
+    public function testElHashSenueloCuestaLoMismoQueUnoReal(): void
+    {
+        // Con otros parámetros, un usuario inexistente respondería en otro tiempo y se podrían enumerar cuentas.
+        $senuelo = (new \ReflectionClassConstant(Contrasenas::class, 'HASH_SENUELO'))->getValue();
+        self::assertIsString($senuelo);
+        self::assertFalse(Contrasenas::necesitaRehash($senuelo));
     }
 
     public function testLaContrasenaTemporalCumpleLaPolitica(): void

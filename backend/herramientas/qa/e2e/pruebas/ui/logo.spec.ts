@@ -75,6 +75,8 @@ test('el usuario elige entre subir la imagen o usar un enlace, y un enlace de Dr
   await campo.fill('https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp_qrs/view?usp=sharing');
   await campo.blur();
   await expect(campo).toHaveValue('https://drive.google.com/thumbnail?id=1AbCdEfGhIjKlMnOp_qrs&sz=w1000');
+  // Sin salida a Internet la vista previa falla y su aviso desplaza el botón: se espera a que la pantalla quede quieta.
+  await expect(page.getByText(/Esa dirección no muestra una imagen/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Quitar logotipo' }).click();
   await expect(page.getByText('Logotipo quitado.')).toBeVisible();

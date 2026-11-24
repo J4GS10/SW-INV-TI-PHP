@@ -11,6 +11,7 @@ use App\Http\ErrorApi;
 use App\Repositorio\GobiernoRepositorio;
 use App\Security\Mfa\ChangeMfaRequirement;
 use App\Security\Mfa\MfaCannotBeDisabled;
+use App\Security\Mfa\MfaDisablePolicy;
 use App\Security\Mfa\MfaRequirementStore;
 use App\Seguridad\Autenticado;
 use App\Seguridad\UsuarioActual;
@@ -26,6 +27,7 @@ final readonly class SystemSecurityController
 {
     public function __construct(
         private MfaRequirementStore $store,
+        private MfaDisablePolicy $disablePolicy,
         private ChangeMfaRequirement $changeRequirement,
         private GobiernoRepositorio $audit,
         private UsuarioActual $currentUser,
@@ -33,10 +35,11 @@ final readonly class SystemSecurityController
     ) {
     }
 
+    /** Whether MFA is required and whether this deployment lets it be turned off (MFA_CAN_BE_DISABLED). */
     #[Route('', methods: ['GET'])]
     public function show(): JsonResponse
     {
-        return new JsonResponse(['required' => $this->store->isRequired()]);
+        return new JsonResponse(['required' => $this->store->isRequired(), 'can_be_disabled' => $this->disablePolicy->allowsDisabling()]);
     }
 
     #[Route('', methods: ['POST'])]

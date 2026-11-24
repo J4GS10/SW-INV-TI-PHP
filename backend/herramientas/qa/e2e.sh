@@ -34,6 +34,9 @@ WORKER=inventario-e2e-worker
 BORDE=inventario-e2e-caddy
 CANARIO=inventario-e2e-canario
 SIEMBRA=inventario-e2e-siembra
+# Redis propio con contraseña: la configuración de producción no arranca con un Redis sin AUTH.
+REDIS=inventario-e2e-redis
+REDIS_CLAVE="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 NAVEGADOR=inventario-e2e-playwright
 BUCKET=e2e-adjuntos
 nativa() { cygpath -w "$1" 2>/dev/null || echo "$1"; }
@@ -42,7 +45,7 @@ mkdir -p "$HERRAMIENTAS/../api/var/qa/evidencia/e2e"
 EVIDENCIA="$(nativa "$(cd "$HERRAMIENTAS/../api/var/qa/evidencia/e2e" && pwd)")"
 
 terminar() {
-  docker rm -f "$NAVEGADOR" "$API" "$WORKER" "$BORDE" "$CANARIO" "$SIEMBRA" \
+  docker rm -f "$NAVEGADOR" "$API" "$WORKER" "$BORDE" "$CANARIO" "$SIEMBRA" "$REDIS" \
     mailpit minio-pruebas redis-pruebas samba-ad-pruebas >/dev/null 2>&1 || true
   # Cortada a mitad: la base puede tener datos de prueba y se restaura igual.
   [ "$fase" = abierta ] && cerrar_ventana
@@ -64,6 +67,7 @@ abrir_ventana || exit 1
 ( AQUI="$HERRAMIENTAS"; source "$HERRAMIENTAS/dobles_pruebas.sh" )
 docker run --rm --network "$RED" --entrypoint sh pgsty/mc@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd -c \
   "mc alias set p http://minio-pruebas:9000 pruebas pruebas-minio-2026 >/dev/null && mc mb --ignore-existing p/$BUCKET >/dev/null"
+docker run -d --name "$REDIS" --network "$RED" redis:7-alpine redis-server --requirepass "$REDIS_CLAVE" >/dev/null
 # Canario de SSRF: anota cada petición y sirve su propio registro en /registro.txt.
 docker run -d --name "$CANARIO" --network "$RED" --network-alias canario.qa nginx:1.30.6-alpine sh -c \
   'printf "server { listen 80; access_log /usr/share/nginx/html/registro.txt; location / { root /usr/share/nginx/html; } }" > /etc/nginx/conf.d/default.conf && touch /usr/share/nginx/html/registro.txt && exec nginx -g "daemon off;"' >/dev/null
@@ -99,7 +103,7 @@ limites=(-e RATE_LIMIT_LOGIN=1000/minute -e RATE_LIMIT_REFRESH=1000/minute -e RA
 dobles=(
   -e SMTP_HOST=mailpit -e SMTP_PORT=1025 -e SMTP_USER= -e SMTP_PASSWORD= -e SMTP_TLS=false -e SMTP_STARTTLS=false
   -e EMAIL_ENABLED=true -e NOTIFY_ADMIN_EMAILS=admin@qa.inventario.local
-  -e REDIS_URL=redis://redis-pruebas:6379/0
+  -e REDIS_URL="redis://:$REDIS_CLAVE@$REDIS:6379/0"
   -e S3_ENDPOINT_URL=http://minio-pruebas:9000 -e S3_ACCESS_KEY=pruebas -e S3_SECRET_KEY=pruebas-minio-2026 -e S3_BUCKET="$BUCKET"
   -e UPLOAD_DIR=/tmp/adjuntos-e2e
   -e AD_ENABLED=false -e AD_SYNC_INTERVAL_MINUTES=0 -e AD_CA_CERT_FILE=/run/e2e/samba-ad-ca.pem
@@ -145,7 +149,7 @@ docker network connect "$RED" "$NAVEGADOR"
 docker start -a "$NAVEGADOR"
 rc=$?
 
-docker rm -f "$NAVEGADOR" "$API" "$WORKER" "$BORDE" "$CANARIO" >/dev/null 2>&1 || true
+docker rm -f "$NAVEGADOR" "$API" "$WORKER" "$BORDE" "$CANARIO" "$REDIS" >/dev/null 2>&1 || true
 cerrar_ventana
 [ "$fase" = restaurada ] || exit 3
 exit "$rc"

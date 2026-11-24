@@ -32,17 +32,22 @@ export const DevolucionLoteDialog = ({ open, activos, onClose }: Props) => {
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoLote | null>(null);
 
+  // Las sedes de los equipos elegidos, como clave estable: recargar la lista en vivo no reinicia el formulario.
+  const sedesElegidas = [...new Set(activos.map((x) => (x as { SED_Sede?: number | null }).SED_Sede).filter((s): s is number => s != null))]
+    .sort((a, b) => a - b).join(',');
+
   useEffect(() => {
     if (!open) return;
     setResultado(null); setMotivo(null); setDetalle(''); setArea(null); setCondicion('BUENO');
     movementService.getAreas().then((a) => {
       setAreas(a);
       // Si hay una sola bodega para los equipos elegidos, se propone (se puede cambiar).
-      const sedes = new Set(activos.map((x) => (x as { SED_Sede?: number | null }).SED_Sede).filter(Boolean));
-      const bodegas = (a as (Area & { tipo_area?: string; SED_Sede?: number | null })[]).filter((x) => x.tipo_area === 'BODEGA' && (sedes.size === 0 || sedes.has(x.SED_Sede)));
+      const sedes = new Set(sedesElegidas ? sedesElegidas.split(',').map(Number) : []);
+      const bodegas = (a as (Area & { tipo_area?: string; SED_Sede?: number | null })[])
+        .filter((x) => x.tipo_area === 'BODEGA' && (sedes.size === 0 || (x.SED_Sede != null && sedes.has(x.SED_Sede))));
       if (bodegas.length === 1) setArea(bodegas[0]);
     }).catch(() => setAreas([]));
-  }, [open]);
+  }, [open, sedesElegidas]);
 
   const enviar = async () => {
     setEnviando(true);

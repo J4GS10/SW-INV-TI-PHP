@@ -7,7 +7,7 @@
  * cámara y teclado, verificada en Oracle; y el escáner en inglés e italiano.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { consulta, iniciarSesionUi, sesionApi, SEDES, type Sesion } from '../soporte';
+import { consulta, iniciarSesionUi, sesionApi, SEDES, URL_QA, type Sesion } from '../soporte';
 import { altaApi, area, persona, tipoMovimiento, tipoYModelo } from '../datos';
 
 import { leerQr, pdfAPng } from '../qr';
@@ -73,7 +73,7 @@ function sinErrores(page: Page): string[] {
   page.on('console', (m) => { if (m.type() === 'error') errores.push(m.text()); });
   page.on('pageerror', (e) => errores.push(e.message));
   // El lector se sirve desde el propio sitio: ninguna petición sale a otro origen (CDN).
-  page.on('request', (r) => { if (!r.url().startsWith('https://qa.inventario.local') && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) errores.push(`externa: ${r.url()}`); });
+  page.on('request', (r) => { if (!r.url().startsWith(URL_QA) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) errores.push(`externa: ${r.url()}`); });
   return errores;
 }
 
@@ -138,7 +138,7 @@ test('escáner: lector USB (código + Enter), código ajeno a la sede y modo lot
 
   await page.getByText('Modo lote').click();
   for (const a of [a1, a2, a1]) {
-    await campo.fill(`https://qa.inventario.local/activos/${a.ACT_Codigo_Interno}`);
+    await campo.fill(`${URL_QA}/activos/${a.ACT_Codigo_Interno}`);
     await campo.press('Enter');
   }
   await expect(page.getByText('2 equipos en la lista')).toBeVisible();
