@@ -35,6 +35,14 @@ final class AccountingTest extends PruebaApi
         }
     }
 
+    /** Custody as the system records it: an open assignment movement, not a column filled by hand. */
+    private function assign(string $asset, string $person): void
+    {
+        $type = (int) D::conexion()->fetchOne("SELECT MIN(\"TMO_Tipo_Movimiento\") FROM \"INV_TIPO_MOVIMIENTO\" WHERE \"TMO_Nombre\" = 'Asignación'");
+        $this->ok(201, 'POST', '/api/v1/trazabilidad/movimientos', ['ACT_Activo' => $asset, 'PER_Persona' => Ident::aTexto($person),
+            'ARE_Area' => I::area($this->sede), 'TMO_Tipo_Movimiento' => $type, 'MOV_Motivo' => 'Entrega']);
+    }
+
     /** @return array<string, mixed> */
     private function asset(int $type, string $cost, string $currency = 'GTQ'): array
     {
@@ -98,8 +106,8 @@ final class AccountingTest extends PruebaApi
 
         // La estación de trabajo: lo que la persona tiene a su cargo, con los componentes de cada equipo.
         $person = D::crearPersona($this->sede, 'Ana');
-        D::conexion()->executeStatement('UPDATE "INV_ACTIVO" SET "ACT_Responsable" = :p WHERE "ACT_Activo" IN (:a, :b)',
-            ['p' => $person, 'a' => Ident::aHex($laptop['ACT_Activo']), 'b' => Ident::aHex($monitor['ACT_Activo'])]);
+        $this->assign($laptop['ACT_Activo'], $person);
+        $this->assign($monitor['ACT_Activo'], $person);
         $w = $this->ok(200, 'GET', '/api/v1/accounting/persons/'.Ident::aTexto($person).'/workstation?as_of=2026-06-30');
         self::assertSame('Ana Prueba', $w['person']['name']);
         self::assertCount(2, $w['items'], 'La RAM va dentro de la laptop, no como otro equipo.');
@@ -130,7 +138,7 @@ final class AccountingTest extends PruebaApi
         // La RAM va instalada en la laptop de Luis: cuenta para él aunque no esté a su nombre.
         $this->ok(200, 'POST', "/api/v1/core/activos/{$laptop['ACT_Activo']}/componentes", ['ACT_Componente' => $ram['ACT_Activo'], 'motivo' => 'Ampliación']);
         $person = D::crearPersona($this->sede, 'Luis');
-        D::conexion()->executeStatement('UPDATE "INV_ACTIVO" SET "ACT_Responsable" = :p WHERE "ACT_Activo" = :a', ['p' => $person, 'a' => Ident::aHex($laptop['ACT_Activo'])]);
+        $this->assign($laptop['ACT_Activo'], $person);
 
         $s = $this->ok(200, 'GET', "/api/v1/accounting/summary?as_of=2026-06-30&site_id={$this->sede}");
         self::assertSame([['currency' => 'GTQ', 'count' => 2, 'acquisition_cost' => '13200.00', 'accumulated_depreciation' => '1833.30', 'book_value' => '11366.70']], $s['totals']);

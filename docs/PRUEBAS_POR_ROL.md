@@ -22,6 +22,12 @@ Dirección: `https://localhost` en el PC del sistema, o `https://<IP o nombre>` 
 - **Omitir el MFA una vez:** en el primer ingreso de una cuenta con MFA aparece la pantalla para configurarlo, con el botón *Omitir por esta vez*. Esa sesión sigue con un aviso; en el siguiente ingreso el MFA es obligatorio y ya no se puede omitir, salvo que el SUPER_ADMIN conceda una excepción.
 - **Datos que crean estas cuentas:** el país Guatemala, las sedes *Sede Prueba Norte* y *Sede Prueba Sur*, el departamento *Pruebas* y el cargo *Colaborador de prueba*.
 - **Crearlas o restablecer su clave** (idempotente; la clave va solo en la variable, nunca en un archivo), desde `backend/deploy`: `TEST_ACCOUNTS_PASSWORD='<clave>' docker compose -p inventario --env-file .env --env-file .env.php run --rm --no-deps -e TEST_ACCOUNTS_PASSWORD migrador php bin/console app:test-accounts`.
+- **Datos de muestra** (después de las cuentas; una sola vez, si ya están no hace nada): `docker compose -p inventario --env-file .env --env-file .env.php run --rm --no-deps -e RATE_LIMIT_DEFAULT=100000/minute api_php php bin/console app:demo-data`. Todo entra por la API como `adminti1` (y `compras1` el ingreso), con su kardex y su auditoría:
+  - en cada sede, un edificio con sus áreas (Norte: Recepción, Finanzas, Operaciones, Tecnología, Centro de datos, Bodega TI Norte; Sur: Ventas, Recursos Humanos, Centro de datos Sur, Bodega TI Sur);
+  - 5 departamentos, 4 cargos y 14 personas: 12 con estación de trabajo entregada (laptop con RAM y, una de cada dos, disco SSD instalados, o computadora de escritorio; más monitor, teclado y mouse) y 2 sin equipo, para probar la entrega de puesto;
+  - 10 tipos de activo con su categoría contable de Guatemala, 7 marcas, 12 modelos y 3 proveedores; compras de 2022 a 2026, así que hay equipos totalmente depreciados, a medias y nuevos;
+  - impresoras, switches (en dólares) y UPS instalados en áreas, y equipo en bodega listo para entregar;
+  - 4 consumibles (uno por debajo del mínimo), una licencia de Microsoft 365 para 20 personas y un ingreso de Compras por confirmar.
 - **Sin SMTP no sale ningún correo.** Los avisos se ven en *Mis tareas* y en la campana.
 - **Pruebe en ventanas privadas**, una por cuenta, para tener varias sesiones a la vez.
 

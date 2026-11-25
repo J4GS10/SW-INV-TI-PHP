@@ -14,22 +14,25 @@ final readonly class ValuationStore
 {
     private const string SELECT = <<<'SQL'
         SELECT a."ACT_Activo" "ASSET_ID", a."ACT_Codigo_Interno" "CODE", a."ACT_Serie_Fabricante" "SERIAL", a."ACT_Activo_Padre" "PARENT_ID",
-               a."ACT_Responsable" "RESPONSIBLE_ID", a."ACT_Costo" "COST", a."ACT_Moneda" "CURRENCY", a."ACT_Factura" "INVOICE",
+               a."ACT_Costo" "COST", a."ACT_Moneda" "CURRENCY", a."ACT_Factura" "INVOICE",
                TO_CHAR(a."ACT_Fecha_Compra", 'YYYY-MM-DD') "ACQUIRED_ON", TO_CHAR(a."ACT_Baja_Fecha", 'YYYY-MM-DD') "DISPOSED_ON",
                a."SED_Sede" "SITE_ID", t."TAC_Tipo_Activo" "TYPE_ID", t."TAC_Nombre" "TYPE_NAME", t."TAC_Aplica_Depreciacion" "TYPE_DEPRECIATES",
                TRIM(mar."MAR_Nombre" || ' ' || m."MOD_Nombre") "PRODUCT",
                c."FAC_ASSET_CATEGORY" "CATEGORY_ID", c."FAC_CODE" "CATEGORY_CODE", c."FAC_NAME" "CATEGORY_NAME", c."FAC_METHOD" "METHOD",
                c."FAC_ANNUAL_RATE" "ANNUAL_RATE", c."FAC_RESIDUAL_PERCENT" "RESIDUAL_PERCENT", c."FAC_STARTS_NEXT_MONTH" "STARTS_NEXT_MONTH",
                c."FAC_ACCOUNT_CODE" "ACCOUNT_CODE",
-               -- Who has it: an installed component belongs to whoever has the equipment it is in.
-               NVL(a."ACT_Responsable", pa."ACT_Responsable") "HOLDER_ID", s."SED_Nombre" "SITE_NAME"
+               -- Who has it in custody (open assignment); an installed component belongs to whoever has its equipment.
+               NVL(cu."PER", cp."PER") "HOLDER_ID", s."SED_Nombre" "SITE_NAME"
           FROM "INV_ACTIVO" a
           JOIN "INV_TIPO_ACTIVO" t ON t."TAC_Tipo_Activo" = a."TAC_Tipo_Activo"
           LEFT JOIN "INV_MODELO" m ON m."MOD_Modelo" = a."MOD_Modelo"
           LEFT JOIN "INV_MARCA" mar ON mar."MAR_Marca" = m."MAR_Marca"
           LEFT JOIN "FIN_ASSET_CATEGORY" c ON c."FAC_ASSET_CATEGORY" = t."FAC_ASSET_CATEGORY"
-          LEFT JOIN "INV_ACTIVO" pa ON pa."ACT_Activo" = a."ACT_Activo_Padre"
           LEFT JOIN "INV_SEDE" s ON s."SED_Sede" = a."SED_Sede"
+          LEFT JOIN (SELECT "ACT_Activo", MAX("PER_Persona") "PER" FROM "INV_MOVIMIENTO" WHERE "MOV_Fecha_Devolucion" IS NULL GROUP BY "ACT_Activo") cu
+            ON cu."ACT_Activo" = a."ACT_Activo"
+          LEFT JOIN (SELECT "ACT_Activo", MAX("PER_Persona") "PER" FROM "INV_MOVIMIENTO" WHERE "MOV_Fecha_Devolucion" IS NULL GROUP BY "ACT_Activo") cp
+            ON cp."ACT_Activo" = a."ACT_Activo_Padre"
         SQL;
 
     public function __construct(private Connection $connection)
@@ -49,7 +52,9 @@ final readonly class ValuationStore
      */
     public function workstation(string $person): array
     {
-        return $this->tree('START WITH "ACT_Responsable" = :person AND "ACT_Baja_Fecha" IS NULL', ['person' => $person]);
+        // Custody is the open assignment (INV_MOVIMIENTO without a return date), the same the person's file shows.
+        return $this->tree('START WITH "ACT_Activo" IN (SELECT "ACT_Activo" FROM "INV_MOVIMIENTO" WHERE "PER_Persona" = :person AND "MOV_Fecha_Devolucion" IS NULL)',
+            ['person' => $person]);
     }
 
     /**

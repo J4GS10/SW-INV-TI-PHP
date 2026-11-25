@@ -4,8 +4,8 @@
  * componente. En Chromium deja capturas de cada pantalla para revisar su presentación.
  */
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
-import { iniciarSesionUi, sesionApi, SEDES, ejecutar } from '../soporte';
-import { altaApi, hex, persona, tipoYModelo } from '../datos';
+import { iniciarSesionUi, sesionApi, SEDES } from '../soporte';
+import { altaApi, area, persona, tipoYModelo } from '../datos';
 
 const captura = async (page: Page, info: TestInfo, nombre: string) => {
   if (info.project.name === 'chromium') {
@@ -33,7 +33,15 @@ test('el valor de cada equipo, de la estación de una persona y de los libros', 
   const pantalla = await altaApi(jefe, monitor.modelo, monitor.tipo, { ACT_Costo: 2400, ACT_Fecha_Compra: '2025-05-20', ACT_Hostname: null });
   expect((await jefe.ctx.post(`/api/v1/core/activos/${equipo.ACT_Activo}/componentes`, { data: { ACT_Componente: memoria.ACT_Activo, motivo: 'Ampliación' } })).status()).toBe(200);
   const ana = await persona(SEDES.A, 'Ana');
-  await ejecutar('UPDATE "INV_ACTIVO" SET "ACT_Responsable" = :p WHERE "ACT_Activo" IN (:a, :b)', { p: hex(ana), a: hex(equipo.ACT_Activo), b: hex(pantalla.ACT_Activo) });
+  // Entrega real (movimiento de asignación): la custodia es la misma que ve la ficha de la persona.
+  const tipos = await (await jefe.ctx.get('/api/v1/trazabilidad/tipos')).json() as { TMO_Tipo_Movimiento: number; TMO_Nombre: string }[];
+  const asignacion = tipos.find((t) => t.TMO_Nombre === 'Asignación')!.TMO_Tipo_Movimiento;
+  const lugar = await area(SEDES.A);
+  for (const a of [equipo, pantalla]) {
+    const r = await jefe.ctx.post('/api/v1/trazabilidad/movimientos', { data: { ACT_Activo: a.ACT_Activo, PER_Persona: ana, ARE_Area: lugar,
+      TMO_Tipo_Movimiento: asignacion, MOV_Motivo: 'Entrega de puesto' } });
+    expect(r.status(), await r.text()).toBe(201);
+  }
 
   await iniciarSesionUi(page, 'qa_contable_ti');
 

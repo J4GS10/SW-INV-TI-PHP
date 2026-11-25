@@ -2,6 +2,8 @@
 
 ## Antes de cargar datos reales
 
+Reinstalado de cero otra vez el 2026-11-25, a pedido: respaldo previo `inventario_20261125_171204.dmp` y copia de MinIO y adjuntos en `reinstalacion_20261125_111203` (carpeta de respaldos), volúmenes de Oracle, MinIO y adjuntos borrados, y despliegue nuevo con `sa`, las cuentas de prueba (`app:test-accounts`) y los datos de muestra (`app:demo-data`, ver [pruebas por rol](PRUEBAS_POR_ROL.md)). Caddy conservó su volumen: la raíz de su CA sigue instalada en Windows.
+
 Hecho el 2026-11-11: Docker limpiado por completo (contenedores, imágenes, volúmenes y caché de construcción), y el sistema reinstalado desde cero sin caché. Quedaron solo el catálogo mínimo, `sa` y las cuentas de prueba por rol (`app:test-accounts`), todas con la misma clave de prueba, que se pasó solo por variable de entorno. MFA obligatorio para SUPER_ADMIN, ADMIN_SEGURIDAD y ADMIN_TI, con `MFA_CAN_BE_DISABLED=false`. El respaldo de antes de la limpieza es `inventario_20261111_172959.dmp`.
 
 | Ajuste | Hoy | Para el uso real |
