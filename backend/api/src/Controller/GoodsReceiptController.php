@@ -11,6 +11,9 @@ use App\Dominio\Ident;
 use App\Dominio\Roles;
 use App\GoodsReceipt\Application\GoodsReceiptAct;
 use App\GoodsReceipt\Application\GoodsReceiptService;
+use App\GoodsReceipt\Application\ReceiptModels;
+use App\GoodsReceipt\Application\ReceiptPresenter;
+use App\GoodsReceipt\Application\UnitCompletion;
 use App\GoodsReceipt\Domain\GoodsReceiptStatus;
 use App\Http\ClienteHttp;
 use App\Validacion\Entrada;
@@ -32,6 +35,9 @@ final readonly class GoodsReceiptController
 
     public function __construct(
         private GoodsReceiptService $service,
+        private ReceiptPresenter $presenter,
+        private UnitCompletion $units,
+        private ReceiptModels $models,
         private GoodsReceiptAct $act,
         private UsuarioActual $current,
     ) {
@@ -64,7 +70,7 @@ final readonly class GoodsReceiptController
         [, $text] = $e->campo(Campo::texto('q', max: 100), false);
         $e->validar();
 
-        return new JsonResponse($this->service->list(null === $status ? null : (string) $status, null === $text ? null : (string) $text, $page));
+        return new JsonResponse($this->presenter->list(null === $status ? null : (string) $status, null === $text ? null : (string) $text, $page));
     }
 
     #[Route('', methods: ['POST'])]
@@ -92,14 +98,14 @@ final readonly class GoodsReceiptController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function checkSerial(Request $request): JsonResponse
     {
-        return new JsonResponse(['exists' => $this->service->serialExists((string) $request->query->get('value', ''), self::except($request))]);
+        return new JsonResponse(['exists' => $this->units->serialExists((string) $request->query->get('value', ''), self::except($request))]);
     }
 
     #[Route('/checks/hostname', methods: ['GET'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function checkHostname(Request $request): JsonResponse
     {
-        return new JsonResponse(['exists' => $this->service->hostnameExists((string) $request->query->get('value', ''), self::except($request))]);
+        return new JsonResponse(['exists' => $this->units->hostnameExists((string) $request->query->get('value', ''), self::except($request))]);
     }
 
     #[Route('/classification-suggestion', methods: ['GET'])]
@@ -113,14 +119,14 @@ final readonly class GoodsReceiptController
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function pendingUnits(): JsonResponse
     {
-        return new JsonResponse($this->service->pendingUnits());
+        return new JsonResponse($this->units->pendingUnits());
     }
 
     #[Route('/units/{asset}', methods: ['PATCH'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
     public function completeUnit(Request $request): JsonResponse
     {
-        return new JsonResponse($this->service->completeUnit(Peticion::uuidDeRuta($request, 'asset'), self::body($request), $this->user(), ClienteHttp::ip($request)));
+        return new JsonResponse($this->units->completeUnit(Peticion::uuidDeRuta($request, 'asset'), self::body($request), $this->user(), ClienteHttp::ip($request)));
     }
 
     #[Route('/lines/{line}/license-keys', methods: ['POST'])]
@@ -132,7 +138,7 @@ final readonly class GoodsReceiptController
         $e->validar();
         $keys = array_values(array_filter(array_map(trim(...), $lista), static fn (string $k): bool => '' !== $k));
 
-        return new JsonResponse($this->service->completeLicenseKeys($line, $keys, $this->user(), ClienteHttp::ip($request)));
+        return new JsonResponse($this->units->completeLicenseKeys($line, $keys, $this->user(), ClienteHttp::ip($request)));
     }
 
     #[Route('/catalog/models', methods: ['POST'])]
@@ -144,7 +150,7 @@ final readonly class GoodsReceiptController
         $marca = $e->texto('brand', 1, 100);
         $modelo = $e->texto('model', 1, 150);
         $e->validar();
-        $result = $this->service->createModel((int) $tipo, (string) $marca, (string) $modelo, $this->user(), ClienteHttp::ip($request));
+        $result = $this->models->createModel((int) $tipo, (string) $marca, (string) $modelo, $this->user(), ClienteHttp::ip($request));
 
         return new JsonResponse($result, $result['created'] ? 201 : 200);
     }
@@ -153,7 +159,7 @@ final readonly class GoodsReceiptController
     #[Autenticado(roles: Roles::ADMIN)]
     public function readModelDefaults(int $model): JsonResponse
     {
-        return new JsonResponse($this->service->modelDefaults($model));
+        return new JsonResponse($this->models->modelDefaults($model));
     }
 
     #[Route('/catalog/models/{model}/spec-defaults', methods: ['PUT'])]
@@ -176,7 +182,7 @@ final readonly class GoodsReceiptController
             $valores[(int) $tipo] = (string) $valor;
         }
         $e->validar();
-        $this->service->setModelDefaults($model, $valores, $this->user(), ClienteHttp::ip($request));
+        $this->models->setModelDefaults($model, $valores, $this->user(), ClienteHttp::ip($request));
 
         return new JsonResponse(['status' => 'success']);
     }
@@ -184,7 +190,7 @@ final readonly class GoodsReceiptController
     #[Route('/{id}', methods: ['GET'])]
     public function show(int $id): JsonResponse
     {
-        return new JsonResponse($this->service->present($id));
+        return new JsonResponse($this->presenter->present($id));
     }
 
     #[Route('/{id}', methods: ['PATCH'])]
