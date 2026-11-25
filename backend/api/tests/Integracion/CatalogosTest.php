@@ -75,7 +75,8 @@ final class CatalogosTest extends WebTestCase
         self::assertNotContains('_ningún_otro_', array_column($nada, 'MOD_Nombre'), 'Un % del usuario es literal, no comodín.');
         self::assertSame([409, 'CANNOT_DELETE_BRAND_IN_USE'], $this->detalle('DELETE', "/api/v1/cat/marcas/{$marca['MAR_Marca']}"));
         [, $contexto] = $this->pedir('GET', "/api/v1/cat/modelos/{$modelo['MOD_Modelo']}/contexto");
-        self::assertSame(['marca' => ['MAR_Marca' => $marca['MAR_Marca'], 'nombre' => $nombre], 'tipo_sugerido' => null], $contexto);
+        // Sin activos del modelo no hay última compra que proponer.
+        self::assertSame(['ultima_compra' => null, 'marca' => ['MAR_Marca' => $marca['MAR_Marca'], 'nombre' => $nombre], 'tipo_sugerido' => null], $contexto);
     }
 
     public function testEstadosOperativosDelSistemaProtegidos(): void

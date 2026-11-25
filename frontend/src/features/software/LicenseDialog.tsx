@@ -52,7 +52,8 @@ export const LicenseDialog = ({ open, softwarePreseleccionado, licenciaToEdit, o
     setModelo(l?.MCO_Modelo_Comercial ?? null);
     setForma(l?.FCO_Forma_Conteo ?? null);
     setTotal(String(l?.LIC_Cantidad_Total ?? 1));
-    setInicio(l?.LIC_Fecha_Inicio ?? '');
+    // Alta: empieza hoy salvo que se diga otra cosa.
+    setInicio(l ? (l.LIC_Fecha_Inicio ?? '') : new Date().toISOString().slice(0, 10));
     setVence(l?.LIC_Fecha_Vencimiento ?? '');
     setRenovacion(!!l?.LIC_Renovacion_Automatica);
     setCosto(l?.LIC_Costo != null ? String(l.LIC_Costo) : '');

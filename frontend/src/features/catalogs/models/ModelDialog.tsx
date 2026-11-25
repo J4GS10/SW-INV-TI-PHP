@@ -33,7 +33,7 @@ export const ModelDialog = ({ open, onClose, defaultMarcaId, modelToEdit }: Prop
     const { t } = useTranslation();
     const { enqueueSnackbar } = useSnackbar();
     const isEdit = !!modelToEdit;
-    const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ mode: 'onChange',
+    const { control, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({ mode: 'onChange',
         defaultValues: emptyForm,
     });
     const [loading, setLoading] = useState(false);
@@ -67,6 +67,16 @@ export const ModelDialog = ({ open, onClose, defaultMarcaId, modelToEdit }: Prop
             reset({ ...emptyForm, MAR_Marca: defaultMarcaId ?? '' });
         }
     }, [open, modelToEdit, defaultMarcaId, reset]);
+    // El nombre suele empezar por la marca («Dell Latitude 5440»): si aún no hay marca, se toma de ahí.
+    const nombreModelo = watch('MOD_Nombre');
+    const marcaElegida = watch('MAR_Marca');
+    useEffect(() => {
+        if (modelToEdit || marcaElegida !== '' || !nombreModelo) return;
+        const texto = nombreModelo.trim().toLowerCase();
+        const marca = [...marcas].sort((a, b) => b.MAR_Nombre.length - a.MAR_Nombre.length)
+            .find((m) => texto.startsWith(`${m.MAR_Nombre.toLowerCase()} `));
+        if (marca) setValue('MAR_Marca', marca.MAR_Marca, { shouldValidate: true });
+    }, [nombreModelo, marcaElegida, marcas, modelToEdit, setValue]);
     const onSubmit = async (data: FormValues) => {
         setLoading(true);
         try {

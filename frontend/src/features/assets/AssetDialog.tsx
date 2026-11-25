@@ -142,7 +142,8 @@ export const AssetDialog = ({ open, assetToEdit, onClose }: Props) => {
             });
         }
         else {
-            reset(emptyForm);
+            // Alta: la fecha de compra arranca en hoy (lo más común al registrar lo que acaba de llegar).
+            reset({ ...emptyForm, ACT_Fecha_Compra: new Date().toISOString().slice(0, 10) });
         }
     }, [open, assetToEdit, reset]);
     const modeloActual = useMemo(() => modelos.find((m) => m.MOD_Modelo === modeloSeleccionado) ?? null, [modelos, modeloSeleccionado]);
@@ -172,6 +173,21 @@ export const AssetDialog = ({ open, assetToEdit, onClose }: Props) => {
         apply: (value) => setValue('TAC_Tipo_Activo', value, { shouldDirty: true, shouldValidate: value !== '' }),
         suggestion: modelCtx.loading ? undefined : tipoSugerido,
     });
+    // La última unidad del mismo modelo propone costo, moneda y garantía; solo llena lo que sigue vacío.
+    const ultimaCompra = !isEdit ? modelCtx.data?.ultima_compra : null;
+    const fechaCompra = watch('ACT_Fecha_Compra');
+    useEffect(() => {
+        if (!ultimaCompra) return;
+        if (canSeeCosts && ultimaCompra.ACT_Costo != null && !watch('ACT_Costo')) {
+            setValue('ACT_Costo', String(ultimaCompra.ACT_Costo), { shouldDirty: true });
+            if (ultimaCompra.ACT_Moneda) setValue('ACT_Moneda', ultimaCompra.ACT_Moneda, { shouldDirty: true });
+        }
+        if (ultimaCompra.garantia_meses && fechaCompra && !watch('ACT_Fin_Garantia')) {
+            const fin = new Date(`${fechaCompra}T00:00:00`);
+            fin.setMonth(fin.getMonth() + ultimaCompra.garantia_meses);
+            setValue('ACT_Fin_Garantia', fin.toISOString().slice(0, 10), { shouldDirty: true });
+        }
+    }, [ultimaCompra, fechaCompra, canSeeCosts, setValue, watch]);
     // Cascada: la marca filtra los modelos; el tipo también, salvo que sea la
     // sugerencia del propio modelo (si no, no se podría cambiar de modelo).
     const filtrarPorTipo = !!tipoSeleccionado && !(tipoHint && !tipoHint.modified);

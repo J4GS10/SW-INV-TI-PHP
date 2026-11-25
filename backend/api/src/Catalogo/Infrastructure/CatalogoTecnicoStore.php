@@ -65,6 +65,24 @@ final readonly class CatalogoTecnicoStore
     }
 
     /** The asset type that model is registered with most often, among the assets the current user may see. */
+    /**
+     * La última compra visible de ese modelo: costo, moneda, meses de garantía y proveedor, para proponerlos en la próxima alta.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function ultimaCompraDeModelo(mixed $modelo): ?array
+    {
+        [$filtro, $parametros] = $this->alcance->lectura('INV_ACTIVO', 'a');
+        $fila = $this->conexion->fetchAssociative(
+            'SELECT a."ACT_Costo", a."ACT_Moneda", a."PRV_Proveedor", '
+            .'CASE WHEN a."ACT_Fin_Garantia" IS NULL THEN NULL ELSE ROUND(MONTHS_BETWEEN(a."ACT_Fin_Garantia", a."ACT_Fecha_Compra")) END AS "GARANTIA_MESES" '
+            .'FROM "INV_ACTIVO" a WHERE a."MOD_Modelo" = :m AND '.$filtro.' ORDER BY a."ACT_Fecha_Compra" DESC, a."ACT_Codigo_Interno" DESC FETCH FIRST 1 ROWS ONLY',
+            ['m' => $modelo, ...$parametros],
+        );
+
+        return false === $fila ? null : $fila;
+    }
+
     public function tipoMasUsadoDeModelo(mixed $modelo): ?int
     {
         [$filtro, $parametros] = $this->alcance->lectura('INV_ACTIVO', 'a');

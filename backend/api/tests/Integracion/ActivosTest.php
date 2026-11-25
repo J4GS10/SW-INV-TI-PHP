@@ -137,6 +137,37 @@ final class ActivosTest extends PruebaApi
         self::assertSame([400, 'COMPONENT_NOT_INSTALLED_IN_ASSET'], $this->detalle('POST', "/api/v1/core/activos/{$id}/componentes/{$ram['ACT_Activo']}/retirar", []));
     }
 
+    public function testComponenteNuevoInstaladoHeredaDelEquipoYTomaLosValoresDelModelo(): void
+    {
+        $equipo = $this->alta();
+        // Un tipo «Batería…» nace con lo que se pregunta de una batería.
+        $tipo = $this->ok(201, 'POST', '/api/v1/cat/tipos-activo', ['TAC_Nombre' => 'Batería '.D::sufijo(), 'TAC_Prefijo' => 'B'.strtoupper(substr(D::sufijo(), 0, 4)), 'TAC_Clase' => 'COMPONENTE']);
+        $tipoId = (int) $tipo['TAC_Tipo_Activo'];
+        $specs = $this->ok(200, 'GET', '/api/v1/catalogos/especificaciones-tipo')[(string) $tipoId] ?? [];
+        self::assertContains('Capacidad', array_column($specs, 'nombre'));
+        self::assertContains('Salud de batería', array_column($specs, 'nombre'));
+
+        // El valor de fábrica del modelo se copia al alta sin escribirlo.
+        $modelo = I::modelo($tipoId);
+        $capacidad = (int) array_values(array_filter($specs, static fn (array $s): bool => 'Capacidad' === $s['nombre']))[0]['TES_Tipo_Especificacion'];
+        $this->ok(200, 'PUT', "/api/v1/goods-receipts/catalog/models/{$modelo}/spec-defaults", ['values' => [(string) $capacidad => '5000']]);
+        $bateria = $this->ok(201, 'POST', '/api/v1/core/activos', ['ACT_Serie_Fabricante' => 'BAT-'.D::sufijo(), 'ACT_Fecha_Compra' => '2026-01-15',
+            'MOD_Modelo' => $modelo, 'TAC_Tipo_Activo' => $tipoId, 'EOP_Estado_Operativo' => I::estado('En Bodega'), 'ACT_Activo_Padre' => $equipo['ACT_Activo']]);
+        self::assertSame([$equipo['ACT_Activo'], $this->sede], [$bateria['ACT_Activo_Padre'], $bateria['SED_Sede']]);
+
+        // Instalado de una vez y legible desde el equipo: tipo y características.
+        $c = $this->ok(200, 'GET', "/api/v1/core/activos/{$equipo['ACT_Activo']}/componentes");
+        self::assertSame([$bateria['ACT_Activo']], array_column($c['actuales'], 'ACT_Activo'));
+        self::assertSame($tipo['TAC_Nombre'], $c['actuales'][0]['TAC_Nombre']);
+        self::assertStringContainsString('Capacidad: 5000', (string) $c['actuales'][0]['especificaciones']);
+
+        // Un tipo que el equipo no admite no se registra dentro de él.
+        $periferico = I::tipo('PERIFERICO');
+        self::assertSame([422, 'COMPONENT_TYPE_NOT_ALLOWED'], $this->detalle('POST', '/api/v1/core/activos', ['ACT_Serie_Fabricante' => 'PER-'.D::sufijo(),
+            'ACT_Fecha_Compra' => '2026-01-15', 'MOD_Modelo' => I::modelo($periferico), 'TAC_Tipo_Activo' => $periferico,
+            'EOP_Estado_Operativo' => I::estado('En Bodega'), 'ACT_Activo_Padre' => $equipo['ACT_Activo']]));
+    }
+
     private function tipoEspecificacion(): int
     {
         D::conexion()->executeStatement('INSERT INTO "INV_TIPO_ESPECIFICACION" ("TES_Nombre") VALUES (:n)', ['n' => 'RAM '.D::sufijo()]);

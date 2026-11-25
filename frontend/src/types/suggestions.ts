@@ -65,6 +65,8 @@ export interface ActivoContexto {
 }
 
 export interface ModeloContexto {
+  /** Última unidad igual: el alta propone su costo (solo a quien ve costos), moneda, garantía y proveedor. */
+  ultima_compra?: { ACT_Costo?: number | null; ACT_Moneda: string | null; garantia_meses: number | null; PRV_Proveedor: number | null } | null;
   marca: { MAR_Marca: number; nombre: string } | null;
   tipo_sugerido: {
     TAC_Tipo_Activo: number;

@@ -38,13 +38,21 @@ final readonly class ComponentesDeActivo
     public function componentes(string $equipo): array
     {
         $e = $this->activos->filaO404($equipo);
+        $resumen = [];
+        foreach ($this->datos->resumenComponentes($equipo) as $r) {
+            $resumen[(string) $r['ACT_Activo']] = $r;
+        }
+        // Tipo, modelo y especificaciones de cada componente: se lee sin abrirlo.
+        $describir = static fn (array $c): array => ['TAC_Nombre' => $resumen[(string) $c['ACT_Activo']]['TAC_Nombre'] ?? null,
+            'MAR_Nombre' => $resumen[(string) $c['ACT_Activo']]['MAR_Nombre'] ?? null, 'MOD_Nombre' => $resumen[(string) $c['ACT_Activo']]['MOD_Nombre'] ?? null,
+            'especificaciones' => $resumen[(string) $c['ACT_Activo']]['ESPECIFICACIONES'] ?? null];
 
         return [
             'equipo' => Ident::aTexto($equipo),
             'instalado_en' => null === $e['ACT_Activo_Padre'] ? null : Ident::aTexto((string) $e['ACT_Activo_Padre']),
             'actuales' => array_map(static fn (array $c): array => ['ACT_Activo' => Ident::aTexto((string) $c['ACT_Activo']),
                 'ACT_Codigo_Interno' => $c['ACT_Codigo_Interno'], 'ACT_Serie_Fabricante' => $c['ACT_Serie_Fabricante'],
-                'TAC_Tipo_Activo' => (int) $c['TAC_Tipo_Activo'], 'MOD_Modelo' => (int) $c['MOD_Modelo']], $this->componentesDe($equipo)),
+                'TAC_Tipo_Activo' => (int) $c['TAC_Tipo_Activo'], 'MOD_Modelo' => (int) $c['MOD_Modelo']] + $describir($c), $this->componentesDe($equipo)),
             'historial' => $this->kardex->historialDeComponentes($equipo),
         ];
     }

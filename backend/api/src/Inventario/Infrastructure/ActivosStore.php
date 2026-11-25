@@ -137,6 +137,36 @@ final readonly class ActivosStore
         return $this->conexion->fetchAllAssociative('SELECT '.self::select().' FROM "INV_ACTIVO" a WHERE a."ACT_Activo_Padre" = :e ORDER BY a."ACT_Codigo_Interno"', ['e' => $equipo]);
     }
 
+    /**
+     * Lo que se lee de cada componente instalado sin abrirlo: tipo, marca, modelo y sus especificaciones
+     * («RAM: 16 GB · Tipo de RAM: DDR4»).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function resumenComponentes(string $equipo): array
+    {
+        return $this->conexion->fetchAllAssociative(
+            'SELECT a."ACT_Activo", t."TAC_Nombre", ma."MAR_Nombre", m."MOD_Nombre", '
+            .'(SELECT LISTAGG(te."TES_Nombre" || \': \' || es."ESP_Valor" || CASE WHEN te."TES_Unidad_Medida" IS NULL THEN NULL ELSE \' \' || te."TES_Unidad_Medida" END, \' · \') '
+            .'WITHIN GROUP (ORDER BY te."TES_Nombre") FROM "INV_ESPECIFICACION" es JOIN "INV_TIPO_ESPECIFICACION" te ON te."TES_Tipo_Especificacion" = es."TES_Tipo_Especificacion" '
+            .'WHERE es."ACT_Activo" = a."ACT_Activo") AS "ESPECIFICACIONES" FROM "INV_ACTIVO" a '
+            .'LEFT JOIN "INV_TIPO_ACTIVO" t ON t."TAC_Tipo_Activo" = a."TAC_Tipo_Activo" LEFT JOIN "INV_MODELO" m ON m."MOD_Modelo" = a."MOD_Modelo" '
+            .'LEFT JOIN "INV_MARCA" ma ON ma."MAR_Marca" = m."MAR_Marca" WHERE a."ACT_Activo_Padre" = :e', ['e' => $equipo]);
+    }
+
+    /**
+     * Valores de fábrica del modelo para las especificaciones que usa el tipo: lo que un alta copia sin que nadie lo escriba.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function valoresDeFabrica(int $modelo, int $tipo): array
+    {
+        return $this->conexion->fetchAllAssociative(
+            'SELECT e."TES_Tipo_Especificacion", m.MSP_DEFAULT_VALUE AS "VALOR" FROM "INV_ESPECIFICACION_TIPO_ACTIVO" e '
+            .'JOIN CAT_MODEL_SPECIFICATION m ON m.MSP_TES_SPECIFICATION_TYPE = e."TES_Tipo_Especificacion" AND m.MSP_MOD_MODEL = :m '
+            .'WHERE e."TAC_Tipo_Activo" = :t AND m.MSP_DEFAULT_VALUE IS NOT NULL', ['m' => $modelo, 't' => $tipo]);
+    }
+
     /** @return mixed the asset this one is installed in (null if none); false when the asset does not exist */
     public function padreDe(mixed $activo): mixed
     {

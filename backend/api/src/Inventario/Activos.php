@@ -276,8 +276,15 @@ final readonly class Activos
             if (null !== ($d['ACT_Hostname'] ?? null) && '' !== $d['ACT_Hostname']) {
                 $this->exigirHostnameLibre((string) $d['ACT_Hostname'], null);
             }
-            if (null !== $d['ACT_Activo_Padre'] && null === $this->fila($d['ACT_Activo_Padre'])) {
-                throw ErrorDominio::noEncontrado('PARENT_ASSET_NOT_FOUND');
+            if (null !== $d['ACT_Activo_Padre']) {
+                // Alta como componente ya instalado: el equipo debe admitir ese tipo, y el componente queda donde está el equipo.
+                $padre = $this->fila($d['ACT_Activo_Padre']) ?? throw ErrorDominio::noEncontrado('PARENT_ASSET_NOT_FOUND');
+                $this->reglas->exigirComponenteValido($padre, ['TAC_Tipo_Activo' => (int) $d['TAC_Tipo_Activo']]);
+                if (EstadosActivo::BAJA === $this->estados->canonicoDeId((int) $padre['EOP_Estado_Operativo'])) {
+                    throw ErrorDominio::invalido('ASSET_DECOMMISSIONED');
+                }
+                $d['SED_Sede'] = null === $padre['SED_Sede'] ? $d['SED_Sede'] : (int) $padre['SED_Sede'];
+                $d['ARE_Area_Ubicacion'] = null === $padre['ARE_Area_Ubicacion'] ? null : (int) $padre['ARE_Area_Ubicacion'];
             }
             if (null === $d['ACT_Codigo_Interno']) {
                 $prefijo = $tipo['TAC_Prefijo'];
@@ -303,6 +310,13 @@ final readonly class Activos
 
             $id = Ident::nuevo();
             $this->insertar($id, $d);
+            // Lo que no se escribió lo pone el modelo (sus valores de fábrica): nadie teclea «16 GB» en cada RAM igual.
+            $escritas = array_map(static fn (array $e): int => (int) $e['TES_Tipo_Especificacion'], $especificaciones);
+            foreach ($this->datos->valoresDeFabrica((int) $d['MOD_Modelo'], (int) $d['TAC_Tipo_Activo']) as $f) {
+                if (!\in_array((int) $f['TES_Tipo_Especificacion'], $escritas, true)) {
+                    $especificaciones[] = ['TES_Tipo_Especificacion' => (int) $f['TES_Tipo_Especificacion'], 'ESP_Valor' => $f['VALOR']];
+                }
+            }
             foreach ($especificaciones as $e) {
                 $this->datosComunes->agregarEspecificacion($id, $e['TES_Tipo_Especificacion'],
                     $this->specificationRules->normalize((int) $d['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], (string) $e['ESP_Valor']));
@@ -328,6 +342,10 @@ final readonly class Activos
         foreach (['ACT_Codigo_Interno', 'ACT_Serie_Fabricante', 'ACT_Hostname', 'ACT_Costo', 'ACT_Moneda', 'PRV_Proveedor', 'ACT_Factura',
             'MOD_Modelo', 'TAC_Tipo_Activo', 'EOP_Estado_Operativo', 'ACT_Activo_Padre', 'SED_Sede'] as $c) {
             $columnas[$c] = $d[$c];
+        }
+        // El área solo llega heredada del equipo donde se instala el componente.
+        if (null !== ($d['ARE_Area_Ubicacion'] ?? null)) {
+            $columnas['ARE_Area_Ubicacion'] = $d['ARE_Area_Ubicacion'];
         }
         $this->datos->insertar($columnas, $d['ACT_Fecha_Compra'], $d['ACT_Fin_Garantia']);
     }

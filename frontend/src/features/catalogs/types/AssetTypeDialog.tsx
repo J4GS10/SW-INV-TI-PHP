@@ -13,6 +13,7 @@ import { Dialog } from '../../../components/ui/Dialog';
 import { withRowVersion } from '../../../api/rowVersion';
 import { catalogoConfigService } from '../../../api/catalogoService';
 import { accountingService } from '../../accounting/accountingService';
+import { prefijoDesde } from '../../../utils/prefijo';
 import type { AccountingCategory } from '../../accounting/accountingService';
 
 interface Props {
@@ -36,7 +37,14 @@ type Formulario = Omit<TipoActivoCreate, 'TAC_Clase'> & { TAC_Clase: ClaseActivo
  */
 export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props) => {
   const { t } = useTranslation();
-  const { register, handleSubmit, reset, control, watch } = useForm<Formulario>({ mode: 'onChange' });
+  const { register, handleSubmit, reset, control, watch, setValue } = useForm<Formulario>({ mode: 'onChange' });
+  // Alta: el prefijo se propone del nombre mientras nadie lo escriba a mano.
+  const [prefijoAMano, setPrefijoAMano] = useState(false);
+  const nombre = watch('TAC_Nombre');
+  useEffect(() => { if (open) setPrefijoAMano(!!typeToEdit); }, [open, typeToEdit]);
+  useEffect(() => {
+    if (!prefijoAMano && open && !typeToEdit) setValue('TAC_Prefijo', prefijoDesde(nombre ?? ''), { shouldValidate: !!nombre });
+  }, [nombre, prefijoAMano, open, typeToEdit, setValue]);
   const [loading, setLoading] = useState(false);
   const [componentes, setComponentes] = useState<number[]>([]);
   // Categoría contable: de ella sale la depreciación de los equipos del tipo.
@@ -67,9 +75,8 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
   // Tipos de componente creados desde este formulario (aún no están en la lista que llegó por props).
   const [nuevosComponentes, setNuevosComponentes] = useState<TipoActivo[]>([]);
   const crearComponente = async (nombre: string) => {
-    const base = nombre.normalize('NFD').replace(/[^A-Za-z]/g, '').toUpperCase();
     try {
-      const creado = await catalogService.createTipoActivo({ TAC_Nombre: nombre, TAC_Prefijo: (base.slice(0, 3) || 'CMP').padEnd(2, 'X'), TAC_Clase: 'COMPONENTE' });
+      const creado = await catalogService.createTipoActivo({ TAC_Nombre: nombre, TAC_Prefijo: prefijoDesde(nombre) || 'CMP', TAC_Clase: 'COMPONENTE' });
       setNuevosComponentes((l) => [...l, creado]);
       setComponentes((l) => [...l, creado.TAC_Tipo_Activo]);
       enqueueSnackbar(t('asset_class.components_created', { name: nombre }), { variant: 'success' });
@@ -133,7 +140,8 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
               <Box>
                 <TextField fullWidth label={t('catalogs.types.field_prefix')}
                   inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 5 }} placeholder="AAA"
-                  {...register('TAC_Prefijo', { required: true, minLength: 2, maxLength: 5 })}/>
+                  InputLabelProps={{ shrink: true }}
+                  {...register('TAC_Prefijo', { required: true, minLength: 2, maxLength: 5, onChange: () => setPrefijoAMano(true) })}/>
                 <Typography variant="caption" color="text.secondary">{t('catalogs.types.prefix_help')}</Typography>
               </Box>
               <Controller name="TAC_Clase" control={control} render={({ field }) => (

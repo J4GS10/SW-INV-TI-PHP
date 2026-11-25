@@ -621,7 +621,7 @@ export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS,
           </Stack>)}
 
         {tab === 2 && (<SectionCard title={t('components.title')} subtitle={t('components.subtitle')} icon={<ExtensionIcon fontSize="small"/>}>
-            <ComponentesSection activoId={asset.ACT_Activo} tipoEquipo={asset.TAC_Tipo_Activo} tipos={tipos} canOperate={canOperate && !deBaja} onChanged={() => { loadAll(); onChanged?.(); }}/>
+            <ComponentesSection activoId={asset.ACT_Activo} tipoEquipo={asset.TAC_Tipo_Activo} tipos={tipos} equipo={asset} canCreate={canAdminInventory} canOperate={canOperate && !deBaja} onChanged={() => { loadAll(); onChanged?.(); }}/>
           </SectionCard>)}
 
         {tab === 3 && (<SectionCard title={t('assets.detail.history_title')} subtitle={t('assets.detail.history_hint')} icon={<HistoryIcon fontSize="small"/>}>

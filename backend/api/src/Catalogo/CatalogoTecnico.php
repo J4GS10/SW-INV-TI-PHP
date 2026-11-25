@@ -160,7 +160,7 @@ final readonly class CatalogoTecnico
     /**
      * La marca de un modelo y el tipo de activo con que más se registra entre los activos que el usuario puede ver.
      *
-     * @return array{marca: ?array<string, mixed>, tipo_sugerido: ?array<string, mixed>}
+     * @return array{ultima_compra: ?array<string, mixed>, marca: ?array<string, mixed>, tipo_sugerido: ?array<string, mixed>}
      */
     public function contextoDeModelo(int $id): array
     {
@@ -168,8 +168,15 @@ final readonly class CatalogoTecnico
         $marca = $this->crud->repositorio->obtener(T::marca(), $modelo['MAR_Marca']);
         $tipoId = $this->datos->tipoMasUsadoDeModelo($modelo['MOD_Modelo']);
         $tipo = null === $tipoId ? null : $this->crud->repositorio->obtener(T::tipoActivo(), $tipoId);
+        $compra = $this->datos->ultimaCompraDeModelo($modelo['MOD_Modelo']);
 
         return [
+            // Lo que se pagó y la garantía de la última unidad igual: el alta los propone (el costo solo a quien ve costos).
+            'ultima_compra' => null === $compra ? null : [
+                'ACT_Costo' => null === $compra['ACT_Costo'] ? null : (float) $compra['ACT_Costo'], 'ACT_Moneda' => $compra['ACT_Moneda'],
+                'garantia_meses' => null === $compra['GARANTIA_MESES'] ? null : (int) $compra['GARANTIA_MESES'],
+                'PRV_Proveedor' => null === $compra['PRV_Proveedor'] ? null : (int) $compra['PRV_Proveedor'],
+            ],
             'marca' => null === $marca ? null : ['MAR_Marca' => $marca['MAR_Marca'], 'nombre' => $marca['MAR_Nombre']],
             'tipo_sugerido' => null === $tipo ? null : ['TAC_Tipo_Activo' => $tipo['TAC_Tipo_Activo'], 'nombre' => $tipo['TAC_Nombre'],
                 'prefijo' => $tipo['TAC_Prefijo'], 'origen' => 'activos_del_modelo'],

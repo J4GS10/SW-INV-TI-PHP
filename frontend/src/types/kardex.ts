@@ -156,6 +156,11 @@ export interface ComponenteResumen {
   ACT_Serie_Fabricante: string;
   TAC_Tipo_Activo: number;
   MOD_Modelo: number;
+  /** Para leerlo sin abrirlo: tipo, marca, modelo y «RAM: 16 GB · Tipo de RAM: DDR4». */
+  TAC_Nombre?: string | null;
+  MAR_Nombre?: string | null;
+  MOD_Nombre?: string | null;
+  especificaciones?: string | null;
 }
 
 export interface ComponentesActivo {

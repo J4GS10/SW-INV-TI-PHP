@@ -68,6 +68,19 @@ async function camaraFalsa(page: Page, pngBase64: string): Promise<void> {
   }, pngBase64);
 }
 
+/** Abre el escáner; si la redirección del inicio de sesión corta la navegación (Firefox: NS_BINDING_ABORTED), la repite. */
+async function irAlEscaner(page: Page): Promise<void> {
+  for (let intento = 0; ; intento++) {
+    try {
+      await page.goto('/scanner');
+      return;
+    } catch (e) {
+      if (intento >= 2 || !/NS_BINDING_ABORTED|ERR_ABORTED|interrupted/i.test(String(e))) throw e;
+      await page.waitForLoadState('load').catch(() => undefined);
+    }
+  }
+}
+
 function sinErrores(page: Page): string[] {
   const errores: string[] = [];
   page.on('console', (m) => { if (m.type() === 'error') errores.push(m.text()); });
@@ -85,7 +98,7 @@ test('escáner: cámara en vivo con la etiqueta real -> ficha del activo (una so
   await iniciarSesionUi(page, 'qa_tecnico_norte');
   const lecturas: string[] = [];
   page.on('response', (r) => { if (r.url().includes('/core/activos/by-code/')) lecturas.push(decodeURIComponent(r.url().split('/by-code/')[1])); });
-  await page.goto('/scanner');
+  await irAlEscaner(page);
   await page.getByRole('button', { name: 'Activar cámara' }).click();
   await page.waitForTimeout(3000);
   // Diagnóstico: ¿el <video> recibe cuadros del flujo simulado? (readyState >= 2 y tiempo que avanza)
@@ -108,7 +121,7 @@ test('escáner: «Leer desde foto» con la imagen de la etiqueta y con una foto 
   const a = await altaApi(jefe, cat.modelo, cat.tipo);
   const png = Buffer.from(await etiqueta(a.ACT_Activo), 'base64');
   await iniciarSesionUi(page, 'qa_tecnico_norte');
-  await page.goto('/scanner');
+  await irAlEscaner(page);
   const archivo = page.locator('input[type="file"][accept="image/*"]').first();
   await archivo.setInputFiles({ name: 'etiqueta.png', mimeType: 'image/png', buffer: png });
   await expect(page.getByText('Activo encontrado')).toBeVisible({ timeout: 30_000 });
@@ -125,7 +138,7 @@ test('escáner: lector USB (código + Enter), código ajeno a la sede y modo lot
   const a2 = await altaApi(jefe, cat.modelo, cat.tipo);
   const ajeno = await altaApi(jefe, cat.modelo, cat.tipo, { SED_Sede: SEDES.B });
   await iniciarSesionUi(page, 'qa_tecnico_norte');
-  await page.goto('/scanner');
+  await irAlEscaner(page);
   const campo = page.getByLabel('Código del activo');
   // El lector USB "teclea" muy rápido y termina con Enter; admite asset:CÓDIGO y URL.
   await campo.pressSequentially(`asset:${a1.ACT_Codigo_Interno}`, { delay: 5 });
@@ -220,7 +233,7 @@ for (const [idioma, textos] of [['en', { camara: 'Start camera', codigo: 'Asset 
     // Se entra en español y luego se cambia el idioma guardado (el que usa el selector de idioma).
     await iniciarSesionUi(page, 'qa_tecnico_norte');
     await page.evaluate((l) => window.localStorage.setItem('app_language', l), idioma);
-    await page.goto('/scanner');
+    await irAlEscaner(page);
     await expect(page.getByRole('button', { name: textos.camara })).toBeVisible();
     await expect(page.getByText(textos.foto)).toBeVisible();
     await page.getByLabel(textos.codigo).fill(a.ACT_Codigo_Interno);

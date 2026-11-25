@@ -19,14 +19,26 @@ final readonly class PlantillaEspecificaciones
         'desktop' => [['RAM', 'GB', true], ['Almacenamiento', 'GB', true], ['Procesador', null, true], ['Sistema Operativo', null, false]],
         'monitor' => [['Tamaño Pantalla', 'PULGADAS', false]],
         'ups' => [['Potencia', 'VA', false]],
-        'memoria ram' => [['RAM', 'GB', true]],
-        'disco' => [['Almacenamiento', 'GB', true]],
-        'batería' => [['Salud de batería', 'PORCENTAJE', false]],
     ];
 
     private const array SI_NO = ['Sí', 'No'];
     private const array TIPOS_RAM = ['DDR3', 'DDR4', 'DDR5', 'LPDDR4', 'LPDDR4X', 'LPDDR5', 'LPDDR5X'];
     private const array TIPOS_DISCO = ['SSD', 'NVMe', 'HDD'];
+
+    /**
+     * Componentes por palabra del nombre («Memoria DDR5», «Disco NVMe 1 TB», «Batería de laptop»…):
+     * el tipo nace con lo que se pregunta de esa pieza. Gana la primera palabra que aparezca.
+     */
+    private const array POR_PALABRA = [
+        ['palabras' => ['ram', 'memoria'], 'specs' => [['RAM', 'GB', true, null], ['Tipo de RAM', null, true, self::TIPOS_RAM], ['Velocidad', 'MHZ', false, null]]],
+        ['palabras' => ['disco', 'ssd', 'hdd', 'nvme', 'almacenamiento'], 'specs' => [['Almacenamiento', 'GB', true, null],
+            ['Tipo de disco', null, true, self::TIPOS_DISCO], ['Interfaz', null, false, ['SATA', 'M.2 SATA', 'M.2 NVMe', 'USB']]]],
+        ['palabras' => ['bater'], 'specs' => [['Capacidad', 'MAH', false, null], ['Salud de batería', 'PORCENTAJE', false, null], ['Ciclos de carga', 'CICLOS', false, null]]],
+        ['palabras' => ['gráfica', 'grafica', 'gpu', 'video'], 'specs' => [['Memoria de video', 'GB', true, null], ['Chipset', null, false, null]]],
+        ['palabras' => ['procesador', 'cpu'], 'specs' => [['Procesador', null, true, null], ['Núcleos', 'NUCLEOS', false, null], ['Frecuencia', 'GHZ', false, null]]],
+        ['palabras' => ['fuente', 'cargador', 'adaptador de corriente'], 'specs' => [['Potencia', 'W', true, null]]],
+        ['palabras' => ['tarjeta de red', 'wifi', 'wi-fi', 'ethernet'], 'specs' => [['Velocidad de red', null, false, ['100 Mbps', '1 Gbps', '2.5 Gbps', '10 Gbps', 'Wi-Fi 5', 'Wi-Fi 6', 'Wi-Fi 6E', 'Wi-Fi 7']], ['Dirección MAC', null, false, null]]],
+    ];
 
     /** (especificación, código de unidad, obligatoria, valores permitidos) por clase. */
     private const array POR_CLASE = [
@@ -60,6 +72,9 @@ final readonly class PlantillaEspecificaciones
         foreach (self::POR_TIPO[mb_strtolower(trim($tipo['TAC_Nombre']))] ?? [] as [$n, $u, $o]) {
             $especificaciones[] = [$n, $u, $o, null];
         }
+        if ([] === $especificaciones && 'COMPONENTE' === $tipo['TAC_Clase']) {
+            $especificaciones = self::porPalabra($tipo['TAC_Nombre']);
+        }
         if ([] === $especificaciones) {
             $especificaciones = self::POR_CLASE[$tipo['TAC_Clase']] ?? [];
         }
@@ -77,6 +92,21 @@ final readonly class PlantillaEspecificaciones
         }
 
         return $creadas;
+    }
+
+    /** @return list<array{0: string, 1: ?string, 2: bool, 3: list<string>|null}> */
+    private static function porPalabra(string $nombre): array
+    {
+        $texto = mb_strtolower($nombre);
+        foreach (self::POR_PALABRA as $plantilla) {
+            foreach ($plantilla['palabras'] as $palabra) {
+                if (preg_match('/(^|[^\p{L}])'.preg_quote($palabra, '/').'/u', $texto)) {
+                    return $plantilla['specs'];
+                }
+            }
+        }
+
+        return [];
     }
 
     /** Tipo de especificación por nombre (sin distinguir mayúsculas); se crea si no existe. */

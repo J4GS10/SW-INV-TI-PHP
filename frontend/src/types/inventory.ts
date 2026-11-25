@@ -61,6 +61,8 @@ export interface Activo {
   EOP_Estado_Operativo: number;
   ACT_Activo_Padre: string | null;
   ARE_Area_Ubicacion?: number | null;
+  PRV_Proveedor?: number | null;
+  ACT_Factura?: string | null;
   ACT_Baja_Motivo?: string | null;
   ACT_Baja_Destino?: string | null;
   ACT_Baja_Fecha?: string | null;
@@ -89,5 +91,9 @@ export interface ActivoCreate {
   EOP_Estado_Operativo: number;
   SED_Sede?: number | null;
 
+  /** Alta como componente ya instalado en ese equipo (hereda su sede y área). */
+  ACT_Activo_Padre?: string;
+  PRV_Proveedor?: number;
+  ACT_Factura?: string;
   especificaciones?: { TES_Tipo_Especificacion: number; ESP_Valor: string }[];
 }
