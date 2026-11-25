@@ -3596,7 +3596,7 @@
         "supply_notice": "A supply is not registered as an asset: it is tracked by quantity in Consumables. Existing assets of this type can be converted with “Reclassify”.",
         "components_title": "Internal components it accepts",
         "components_field": "Component types",
-        "components_help": "For example, a laptop accepts RAM, disk and battery. Empty: any type of the “Component” class.",
+        "components_help": "Only types of the “Component” class are listed (RAM, disk…). If one is missing, type its name and choose “Create”. Empty: any component.",
         "components_none": "There are no types of the “Component” class.",
         "names": {
             "COMPUTO": "Computing",
@@ -3623,7 +3623,9 @@
             "HERRAMIENTA": "IT team tool; lent or assigned to a person.",
             "INSUMO": "Not an asset: tracked by quantity in Consumables.",
             "OTRO": "Assigned to a person; no software or components."
-        }
+        },
+        "components_create": "Create «{{name}}» as a component type",
+        "components_created": "Component type «{{name}}» created and added"
     },
     "reclassify": {
         "action": "Reclassify as consumable",

@@ -386,6 +386,7 @@ export const AssetsPage = () => {
                     <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 200 } }}>
                         <InputLabel id="filtro-tipo-etiqueta">{t('assets.filter_type')}</InputLabel>
                         <Select labelId="filtro-tipo-etiqueta" label={t('assets.filter_type')} value={tipos.length ? tipoFilter : 'all'}
+                            name="filtro-tipo" inputProps={{ 'aria-label': t('assets.filter_type') }}
                             onChange={(e) => setFiltros({ tipo: e.target.value as number | 'all' })}>
                             <MenuItem value="all">{t('assets.all_types')}</MenuItem>
                             {tipos.map((tp) => (
@@ -396,6 +397,7 @@ export const AssetsPage = () => {
                     <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 200 } }}>
                         <InputLabel id="filtro-estado-etiqueta">{t('assets.filter_state')}</InputLabel>
                         <Select labelId="filtro-estado-etiqueta" label={t('assets.filter_state')} value={estados.length ? estadoFilter : 'all'}
+                            name="filtro-estado" inputProps={{ 'aria-label': t('assets.filter_state') }}
                             onChange={(e) => setFiltros({ estado: e.target.value as number | 'all' })}>
                             <MenuItem value="all">{t('assets.all_states')}</MenuItem>
                             {estados.map((e) => (

@@ -23,7 +23,8 @@ interface Props {
   max?: number;
 }
 
-const SECRETOS: CampoCredencial[] = ['secreto', 'clave'];
+// Se escriben ocultos (con el ojo para verlos) y no se muestran en la vista previa: activan el software.
+const SECRETOS: CampoCredencial[] = ['secreto', 'clave', 'serial'];
 
 /**
  * Editor de credenciales o cupos: formulario con los campos que pide el método

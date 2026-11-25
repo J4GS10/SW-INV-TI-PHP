@@ -1,4 +1,5 @@
 import client from '../../api/axios';
+import { saveBlob } from '../../api/downloadCsv';
 
 export interface Adjunto {
   ADJ_Adjunto: string;
@@ -35,12 +36,7 @@ export const attachmentService = {
   // token) y disparamos la descarga en el navegador.
   download: async (adj: Adjunto): Promise<void> => {
     const r = await client.get(`/adjuntos/${adj.ADJ_Adjunto}/download`, { responseType: 'blob' });
-    const url = URL.createObjectURL(r.data as Blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = adj.ADJ_Nombre_Original;
-    a.click();
-    URL.revokeObjectURL(url);
+    saveBlob(r.data as Blob, adj.ADJ_Nombre_Original);
   },
 
   /** Dirección local (blob:) del archivo, para mostrar una foto; quien la pide la libera con URL.revokeObjectURL. */

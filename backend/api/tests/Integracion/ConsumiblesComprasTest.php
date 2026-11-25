@@ -108,6 +108,25 @@ final class ConsumiblesComprasTest extends PruebaApi
         self::assertSame($credencial, $this->ok(201, 'POST', '/api/v1/soft/instalaciones', ['ACT_Activo' => $activo, 'LIC_Licencia' => $lic['LIC_Licencia']])['LCL_Licencia_Clave']);
     }
 
+    public function testElSerialDeUnaLicenciaSoloSeVeAlRevelarloYQuedaRegistrado(): void
+    {
+        $metodo = (int) D::conexion()->fetchOne("SELECT \"MAC_Metodo\" FROM \"INV_METODO_ACTIVACION\" WHERE \"MAC_Codigo\" = 'SERIAL'");
+        I::formaConteo('EQUIPO');
+        $serial = 'SER-'.strtoupper(D::sufijo()).'-9876';
+        $lic = $this->ok(201, 'POST', '/api/v1/soft/licencias', ['SOF_Software' => I::software(), 'TLI_Tipo_Licencia' => I::tipoLicencia(), 'LIC_Cantidad_Total' => 1,
+            'MAC_Metodo_Activacion' => $metodo, 'LIC_Credenciales' => [['serial' => $serial]]]);
+
+        $lista = $this->ok(200, 'GET', "/api/v1/soft/licencias/{$lic['LIC_Licencia']}/credenciales");
+        self::assertArrayNotHasKey('serial', $lista[0], 'El listado nunca trae el serial completo.');
+        self::assertSame(['•••• 9876', true], [$lista[0]['serial_mascara'], $lista[0]['tiene_serial']]);
+        self::assertStringNotContainsString($serial, (string) json_encode($lista));
+
+        $visto = $this->ok(200, 'POST', "/api/v1/soft/credenciales/{$lista[0]['LCL_Licencia_Clave']}/revelar", []);
+        self::assertSame([$serial, 30], [$visto['serial'], $visto['ocultar_en_segundos']]);
+        self::assertSame(1, D::contar("SELECT COUNT(*) FROM \"INV_AUDITORIA_SISTEMA\" WHERE \"AUD_Accion\" = 'LICENSE_SECRET_VIEWED' AND \"AUD_Snapshot_JSON\" LIKE :c",
+            ['c' => '%"credencial":'.$lista[0]['LCL_Licencia_Clave'].'%']));
+    }
+
     public function testLicenciasCuposClavesYCredenciales(): void
     {
         $sw = I::software();

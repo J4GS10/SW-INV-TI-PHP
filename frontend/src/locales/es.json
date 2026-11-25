@@ -3596,7 +3596,7 @@
         "supply_notice": "Un insumo no se registra como activo: se controla por cantidad en Consumibles. Los activos que ya tenga este tipo se pueden convertir con «Reclasificar».",
         "components_title": "Componentes internos que admite",
         "components_field": "Tipos de componente",
-        "components_help": "Por ejemplo, una laptop admite memoria RAM, disco y batería. Vacío: cualquier tipo de clase «Componente».",
+        "components_help": "Solo aparecen los tipos de clase «Componente» (RAM, disco…). Si falta uno, escriba su nombre y elija «Crear». Vacío: admite cualquier componente.",
         "components_none": "No hay tipos de clase «Componente».",
         "names": {
             "COMPUTO": "Cómputo",
@@ -3623,7 +3623,9 @@
             "HERRAMIENTA": "Herramienta del equipo de TI; se presta o asigna a una persona.",
             "INSUMO": "No es un activo: se controla por cantidad en Consumibles.",
             "OTRO": "Se asigna a una persona; sin software ni componentes."
-        }
+        },
+        "components_create": "Crear «{{name}}» como tipo de componente",
+        "components_created": "Tipo de componente «{{name}}» creado y agregado"
     },
     "reclassify": {
         "action": "Reclasificar como consumible",

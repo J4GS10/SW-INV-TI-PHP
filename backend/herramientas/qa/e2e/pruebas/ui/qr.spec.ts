@@ -142,7 +142,9 @@ test('escáner: lector USB (código + Enter), código ajeno a la sede y modo lot
     await campo.press('Enter');
   }
   await expect(page.getByText('2 equipos en la lista')).toBeVisible();
-  const descarga = page.waitForEvent('download');
+  // Los avisos de «agregado» tapan la barra del lote en Firefox: se espera a que se cierren antes del clic.
+  await expect(page.locator('#notistack-snackbar')).toHaveCount(0, { timeout: 15_000 });
+  const descarga = page.waitForEvent('download', { timeout: 30_000 });
   await page.getByRole('button', { name: 'Etiquetas' }).click();
   const pdf = await (await descarga).createReadStream();
   const trozos: Buffer[] = [];
@@ -187,7 +189,8 @@ test('toma física desde la interfaz: lecturas por teclado y por cámara; result
     const leida = page.waitForResponse((r) => r.url().includes(`/tomas/${toma.TOM_Toma}/lecturas`));
     await campo.fill(codigo);
     await campo.press('Enter');
-    expect((await leida).status()).toBe(201);
+    const r = await leida;
+    expect(r.status(), await r.text()).toBe(201);
   }
   const porCam = page.waitForResponse((r) => r.url().includes(`/tomas/${toma.TOM_Toma}/lecturas`));
   if (browserName === 'webkit') {
@@ -201,9 +204,12 @@ test('toma física desde la interfaz: lecturas por teclado y por cámara; result
     .catch(async () => consulta<any>('SELECT "TLE_Resultado" R FROM "INV_TOMA_LECTURA" WHERE "TOM_Toma" = :t', { t: toma.TOM_Toma }));
   expect(resultados.map((f) => f.R).sort()).toEqual(['ENCONTRADO', 'NO_REGISTRADO', 'OTRA_UBICACION', 'REPETIDO'].sort());
   await page.getByRole('button', { name: 'Cerrar toma' }).first().click();
-  const cierre = page.waitForResponse((r) => r.url().includes(`/tomas/${toma.TOM_Toma}/cerrar`));
+  // Solo el POST del cierre (no otra petición que pase por la misma ruta), y si no es 200 se ve por qué.
+  const cierre = page.waitForResponse((r) => r.url().includes(`/tomas/${toma.TOM_Toma}/cerrar`) && r.request().method() === 'POST');
   await page.getByRole('dialog').last().getByRole('button', { name: 'Cerrar toma' }).click();
-  const resumen = await (await cierre).json();
+  const respuesta = await cierre;
+  expect(respuesta.status(), await respuesta.text()).toBe(200);
+  const resumen = await respuesta.json();
   expect(resumen.resumen.faltantes.map((f: any) => f.codigo)).toContain(faltara.ACT_Codigo_Interno);
 });
 

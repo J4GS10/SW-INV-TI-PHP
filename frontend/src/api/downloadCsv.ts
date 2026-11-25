@@ -20,7 +20,8 @@ function filenameFrom(disposition: string | undefined, fallback: string): string
   return ascii ? ascii[1] : fallback;
 }
 
-function saveBlob(blob: Blob, filename: string): void {
+/** Descarga un Blob como archivo; la dirección se libera después, para que Firefox y Safari no corten la descarga. */
+export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

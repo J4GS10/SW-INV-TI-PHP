@@ -1,4 +1,5 @@
 import client from './axios';
+import { saveBlob } from './downloadCsv';
 
 export type ResultadoBusqueda =
   | { tipo: 'activo'; id: string; codigo: string; titulo: string; subtitulo: string; estado: string; custodio: string | null }
@@ -124,14 +125,7 @@ export const productividadService = {
     })).data,
 };
 
-/** Descarga un Blob como archivo. */
+/** Descarga un Blob como archivo (la misma descarga de toda la app: Firefox no la corta). */
 export function guardarArchivo(blob: Blob, nombre: string): void {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = nombre;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.URL.revokeObjectURL(url);
+  saveBlob(blob, nombre);
 }

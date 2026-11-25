@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { saveBlob } from '../../../api/downloadCsv';
 import { Box, Button, Checkbox, FormControlLabel, Paper, Stack, Typography } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -40,14 +41,7 @@ export const RecoveryCodesPanel = ({ codes, requireAck = true, onContinue, conti
       ...codes,
       '',
     ].join('\r\n');
-    const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `recovery-codes-${username || 'account'}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    saveBlob(new Blob([content], { type: 'text/plain;charset=utf-8' }), `recovery-codes-${username || 'account'}.txt`);
   };
 
   return (

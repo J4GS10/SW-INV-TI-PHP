@@ -111,7 +111,9 @@ export interface Credencial {
   LIC_Licencia: number;
   referencia: string | null;
   usuario: string | null;
-  serial: string | null;
+  /** Últimos caracteres del serial (nunca el serial completo: se revela con registro, como la key). */
+  serial_mascara: string | null;
+  tiene_serial: boolean;
   servidor: string | null;
   dispositivo: string | null;
   archivo: { id: string; nombre: string | null } | null;
@@ -133,6 +135,7 @@ export interface Credencial {
 export interface SecretoRevelado {
   secreto: string | null;
   clave: string | null;
+  serial: string | null;
   ocultar_en_segundos: number;
 }
 

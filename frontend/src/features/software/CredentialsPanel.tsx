@@ -13,7 +13,7 @@ import { getApiErrorMessage } from '../../api/errors';
 import { useCatalogo } from '../../hooks/useCatalogo';
 import { usePermissions } from '../../hooks/usePermissions';
 import { formatDate } from '../../utils/dates';
-import type { Credencial, CredencialIn, Licencia } from '../../types/software';
+import type { CampoCredencial, Credencial, CredencialIn, Licencia } from '../../types/software';
 import { softwareService } from './softwareService';
 import { CredentialsEditor } from './CredentialsEditor';
 import { camposDelMetodo, etiquetaCampo, generarSecreto } from './credenciales';
@@ -41,10 +41,11 @@ export const CredentialsPanel = ({ licencia, onChanged }: Props) => {
   const { items: metodos } = useCatalogo('metodos-activacion');
   const metodo = metodos.find((m) => m.id === licencia.MAC_Metodo_Activacion) ?? null;
   const campos = useMemo(() => camposDelMetodo(metodo), [metodo]);
-  const conSecreto = campos.includes('secreto') || campos.includes('clave') || !metodo;
+  const conSecreto = campos.includes('secreto') || campos.includes('clave') || campos.includes('serial') || !metodo;
   const [filas, setFilas] = useState<Credencial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [visibles, setVisibles] = useState<Record<number, { valor: string; hasta: number }>>({});
+  // Lo revelado de cada credencial (secreto, key y serial, cada uno con su etiqueta) y hasta cuándo se ve.
+  const [visibles, setVisibles] = useState<Record<number, { valores: [CampoCredencial, string][]; hasta: number }>>({});
   const [ahora, setAhora] = useState(() => Date.now());
   const [agregando, setAgregando] = useState(false);
   const [nuevas, setNuevas] = useState<CredencialIn[]>([]);
@@ -80,12 +81,13 @@ export const CredentialsPanel = ({ licencia, onChanged }: Props) => {
   const revelar = async (c: Credencial, copiar: boolean) => {
     try {
       const r = await softwareService.revelarCredencial(c.LCL_Licencia_Clave);
-      const valor = r.secreto ?? r.clave ?? '';
+      const valores = ([['secreto', r.secreto], ['clave', r.clave], ['serial', r.serial]] as [CampoCredencial, string | null][])
+        .filter((x): x is [CampoCredencial, string] => !!x[1]);
       if (copiar) {
-        await navigator.clipboard.writeText(valor);
+        await navigator.clipboard.writeText(r.secreto ?? r.clave ?? r.serial ?? '');
         enqueueSnackbar(t('software.cred.copied_logged'), { variant: 'success' });
       } else {
-        setVisibles((v) => ({ ...v, [c.LCL_Licencia_Clave]: { valor, hasta: Date.now() + r.ocultar_en_segundos * 1000 } }));
+        setVisibles((v) => ({ ...v, [c.LCL_Licencia_Clave]: { valores, hasta: Date.now() + r.ocultar_en_segundos * 1000 } }));
         enqueueSnackbar(t('software.cred.shown_logged'), { variant: 'info' });
       }
     } catch (err) {
@@ -131,7 +133,7 @@ export const CredentialsPanel = ({ licencia, onChanged }: Props) => {
   };
 
   const identificador = (c: Credencial) =>
-    [c.usuario, c.serial, c.servidor, c.dispositivo, c.archivo?.nombre, c.clave_mascara].filter(Boolean).join(' · ') || '—';
+    [c.usuario, c.serial_mascara, c.servidor, c.dispositivo, c.archivo?.nombre, c.clave_mascara].filter(Boolean).join(' · ') || '—';
 
   return (
     <Box>
@@ -165,7 +167,12 @@ export const CredentialsPanel = ({ licencia, onChanged }: Props) => {
                       {c.referencia && <Typography variant="caption" color="text.secondary">{c.referencia}</Typography>}
                       {visible && (
                         <Alert severity="info" icon={<KeyIcon fontSize="small" />} sx={{ mt: 0.5, py: 0 }}>
-                          <Box component="span" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{visible.valor}</Box>
+                          {visible.valores.map(([campo, valor]) => (
+                            <Box key={campo}>
+                              <Typography variant="caption" color="text.secondary" component="span">{etiquetaCampo(t, metodo, campo)}: </Typography>
+                              <Box component="span" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{valor}</Box>
+                            </Box>
+                          ))}
                           <Typography variant="caption" display="block" color="text.secondary">
                             {t('software.cred.hides_in', { seconds: Math.max(0, Math.ceil((visible.hasta - ahora) / 1000)) })}
                           </Typography>
@@ -192,7 +199,7 @@ export const CredentialsPanel = ({ licencia, onChanged }: Props) => {
                     </TableCell>
                     <TableCell>{c.vence ? formatDate(c.vence) : '—'}</TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                      {canAdminInventory && conSecreto && (c.tiene_secreto || c.tiene_clave) && !c.legada && (
+                      {canAdminInventory && conSecreto && (c.tiene_secreto || c.tiene_clave || c.tiene_serial) && !c.legada && (
                         <>
                           <Tooltip title={t('software.cred.show')}>
                             <IconButton size="small" aria-label={t('software.cred.show')} onClick={() => void revelar(c, false)}>

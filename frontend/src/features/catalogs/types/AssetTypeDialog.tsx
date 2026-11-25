@@ -63,6 +63,20 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
     }
   }, [open, typeToEdit, reset]);
 
+  // Tipos de componente creados desde este formulario (aún no están en la lista que llegó por props).
+  const [nuevosComponentes, setNuevosComponentes] = useState<TipoActivo[]>([]);
+  const crearComponente = async (nombre: string) => {
+    const base = nombre.normalize('NFD').replace(/[^A-Za-z]/g, '').toUpperCase();
+    try {
+      const creado = await catalogService.createTipoActivo({ TAC_Nombre: nombre, TAC_Prefijo: (base.slice(0, 3) || 'CMP').padEnd(2, 'X'), TAC_Clase: 'COMPONENTE' });
+      setNuevosComponentes((l) => [...l, creado]);
+      setComponentes((l) => [...l, creado.TAC_Tipo_Activo]);
+      enqueueSnackbar(t('asset_class.components_created', { name: nombre }), { variant: 'success' });
+    } catch (error: unknown) {
+      enqueueSnackbar(getApiErrorMessage(error, t('common.error_create')), { variant: 'error' });
+    }
+  };
+
   const candidatos = useMemo(
     () => tipos.filter((x) => x.TAC_Tipo_Activo !== typeToEdit?.TAC_Tipo_Activo && x.TAC_Clase === 'COMPONENTE'),
     [tipos, typeToEdit],
@@ -130,9 +144,21 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
           </SectionCard>
           {clase && CON_COMPONENTES.includes(clase) && (
             <Box sx={{ mt: 2 }}><SectionCard title={t('asset_class.components_title')}>
-              <Autocomplete multiple options={candidatos} value={candidatos.filter((c) => componentes.includes(c.TAC_Tipo_Activo))}
-                getOptionLabel={(o) => o.TAC_Nombre} isOptionEqualToValue={(a, b) => a.TAC_Tipo_Activo === b.TAC_Tipo_Activo}
-                onChange={(_, v) => setComponentes(v.map((x) => x.TAC_Tipo_Activo))}
+              <Autocomplete multiple options={[...candidatos, ...nuevosComponentes]} value={[...candidatos, ...nuevosComponentes].filter((c) => componentes.includes(c.TAC_Tipo_Activo))}
+                getOptionLabel={(o) => (o.TAC_Tipo_Activo < 0 ? t('asset_class.components_create', { name: o.TAC_Nombre }) : o.TAC_Nombre)}
+                isOptionEqualToValue={(a, b) => a.TAC_Tipo_Activo === b.TAC_Tipo_Activo}
+                // Si lo escrito no existe, se ofrece crearlo como tipo de clase «Componente» sin salir del formulario.
+                filterOptions={(opciones, { inputValue }) => {
+                  const texto = inputValue.trim();
+                  const visibles = opciones.filter((o) => o.TAC_Nombre.toLowerCase().includes(texto.toLowerCase()));
+                  return texto.length >= 2 && !opciones.some((o) => o.TAC_Nombre.toLowerCase() === texto.toLowerCase())
+                    ? [...visibles, { TAC_Tipo_Activo: -1, TAC_Nombre: texto, TAC_Prefijo: null }] : visibles;
+                }}
+                onChange={(_, v) => {
+                  const crear = v.find((x) => x.TAC_Tipo_Activo < 0);
+                  if (crear) { void crearComponente(crear.TAC_Nombre); }
+                  setComponentes(v.filter((x) => x.TAC_Tipo_Activo > 0).map((x) => x.TAC_Tipo_Activo));
+                }}
                 renderTags={(v, getTagProps) => v.map((o, i) => <Chip {...getTagProps({ index: i })} key={o.TAC_Tipo_Activo} size="small" label={o.TAC_Nombre}/>)}
                 renderInput={(params) => <TextField {...params} label={t('asset_class.components_field')}
                   helperText={t('asset_class.components_help')}/>}

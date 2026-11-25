@@ -3596,7 +3596,7 @@
         "supply_notice": "Un materiale non si registra come asset: si gestisce a quantità in Materiali di consumo. Gli asset già registrati di questo tipo si possono convertire con «Riclassifica».",
         "components_title": "Componenti interni ammessi",
         "components_field": "Tipi di componente",
-        "components_help": "Ad esempio, un laptop ammette RAM, disco e batteria. Vuoto: qualsiasi tipo della classe «Componente».",
+        "components_help": "Compaiono solo i tipi della classe «Componente» (RAM, disco…). Se ne manca uno, scriva il nome e scelga «Crea». Vuoto: qualsiasi componente.",
         "components_none": "Non ci sono tipi della classe «Componente».",
         "names": {
             "COMPUTO": "Informatica",
@@ -3623,7 +3623,9 @@
             "HERRAMIENTA": "Attrezzo del team IT; si presta o assegna a una persona.",
             "INSUMO": "Non è un asset: si gestisce a quantità in Materiali di consumo.",
             "OTRO": "Si assegna a una persona; senza software né componenti."
-        }
+        },
+        "components_create": "Crea «{{name}}» come tipo di componente",
+        "components_created": "Tipo di componente «{{name}}» creato e aggiunto"
     },
     "reclassify": {
         "action": "Riclassifica come materiale di consumo",

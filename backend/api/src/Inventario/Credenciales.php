@@ -47,6 +47,14 @@ final readonly class Credenciales
         return '' === $clave ? null : '•••• '.mb_substr($clave, -5);
     }
 
+    /** Un dato que no está cifrado en la base (el serial), con la misma máscara que la key. */
+    private static function mascaraTexto(?string $valor): ?string
+    {
+        $valor = null === $valor ? '' : trim($valor);
+
+        return '' === $valor ? null : '•••• '.mb_substr($valor, -4);
+    }
+
     /** @return array<string, mixed> licencia con su método y forma */
     private function licencia(int $id): array
     {
@@ -250,7 +258,9 @@ final readonly class Credenciales
             $tieneSecreto = null !== $c['LCL_Secreto_Enc'] && '' !== $c['LCL_Secreto_Enc'];
             $salida[] = [
                 'LCL_Licencia_Clave' => (int) $c['LCL_Licencia_Clave'], 'LIC_Licencia' => (int) $c['LIC_Licencia'], 'referencia' => $c['LCL_Referencia'],
-                'usuario' => $c['LCL_Usuario'], 'serial' => $c['LCL_Serial'], 'servidor' => $c['LCL_Servidor'], 'dispositivo' => $c['LCL_Dispositivo'],
+                // El serial activa el software como la key: se muestra enmascarado y se revela con registro, igual que ella.
+                'usuario' => $c['LCL_Usuario'], 'serial_mascara' => self::mascaraTexto($c['LCL_Serial']),
+                'tiene_serial' => null !== $c['LCL_Serial'] && '' !== $c['LCL_Serial'], 'servidor' => $c['LCL_Servidor'], 'dispositivo' => $c['LCL_Dispositivo'],
                 'archivo' => null === $c['LCL_Archivo'] ? null : ['id' => Ident::aTexto((string) $c['LCL_Archivo']), 'nombre' => $c['ADJ_Nombre_Original']],
                 'clave_mascara' => $this->mascara($c['LCL_Clave_Activacion']), 'tiene_secreto' => $tieneSecreto,
                 'tiene_clave' => null !== $c['LCL_Clave_Activacion'] && '' !== $c['LCL_Clave_Activacion'],
@@ -265,7 +275,7 @@ final readonly class Credenciales
         }
         // Licencia anterior con una sola key en la cabecera (sin credenciales).
         if ([] === $salida && null !== $lic['LIC_Clave_Activacion'] && '' !== $lic['LIC_Clave_Activacion']) {
-            $salida[] = ['LCL_Licencia_Clave' => -$licencia, 'LIC_Licencia' => $licencia, 'referencia' => null, 'usuario' => null, 'serial' => null,
+            $salida[] = ['LCL_Licencia_Clave' => -$licencia, 'LIC_Licencia' => $licencia, 'referencia' => null, 'usuario' => null, 'serial_mascara' => null, 'tiene_serial' => false,
                 'servidor' => null, 'dispositivo' => null, 'archivo' => null, 'clave_mascara' => $this->mascara($lic['LIC_Clave_Activacion']),
                 'tiene_secreto' => false, 'tiene_clave' => true, 'vence' => null, 'estado' => 0 !== (int) $lic['LIC_Cantidad_Usada'] ? 'ASIGNADA' : 'DISPONIBLE',
                 'creado' => null, 'ultimo_cambio_secreto' => null, 'requiere_cambio' => false, 'sin_rotar' => false, 'asignada_en' => null, 'destino' => null,
@@ -317,14 +327,15 @@ final readonly class Credenciales
         });
     }
 
-    /** @return array{secreto: ?string, clave: ?string, ocultar_en_segundos: int} */
+    /** @return array{secreto: ?string, clave: ?string, serial: ?string, ocultar_en_segundos: int} */
     public function revelar(int $id, string $usuario, ?string $ip): array
     {
         return $this->transaccion->ejecutar(function () use ($id, $usuario, $ip): array {
             $c = $this->credencial($id);
             $secreto = $c['LCL_Secreto_Enc'];
             $clave = $c['LCL_Clave_Activacion'];
-            if ((null === $secreto || '' === $secreto) && (null === $clave || '' === $clave)) {
+            $serial = null === $c['LCL_Serial'] || '' === trim((string) $c['LCL_Serial']) ? null : (string) $c['LCL_Serial'];
+            if ((null === $secreto || '' === $secreto) && (null === $clave || '' === $clave) && null === $serial) {
                 throw ErrorDominio::noEncontrado('LICENSE_CREDENTIAL_HAS_NO_SECRET');
             }
             $this->gobierno->registrarAuditoria('LICENSE_SECRET_VIEWED', 'INV_LICENCIA_CLAVE', ['credencial' => $id, 'licencia' => (int) $c['LIC_Licencia'],
@@ -333,7 +344,7 @@ final readonly class Credenciales
                 usuario: $usuario);
 
             return ['secreto' => null === $secreto || '' === $secreto ? null : $this->cifrado->descifrar($secreto),
-                'clave' => null === $clave || '' === $clave ? null : $this->cifrado->descifrar($clave), 'ocultar_en_segundos' => 30];
+                'clave' => null === $clave || '' === $clave ? null : $this->cifrado->descifrar($clave), 'serial' => $serial, 'ocultar_en_segundos' => 30];
         });
     }
 
