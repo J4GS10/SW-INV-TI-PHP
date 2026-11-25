@@ -100,6 +100,8 @@ export function permissionsFor(role: UserRole | undefined) {
     canSeeCosts: !!role && !HIDE_COST_ROLES.includes(role),
     canSeeSoftware: !!role && SOFTWARE_PAGE_ROLES.includes(role),
     canPurchase: !!role && PURCHASE_WRITE_ROLES.includes(role),
+    /** Abrir la factura o foto de un ingreso (muestra precios); el técnico solo ve que existe. */
+    canOpenPurchaseDocs: !!role && PURCHASE_READ_ROLES.includes(role),
     canApprove: !!role && APPROVER_ROLES.includes(role),
     canVerifyKardex: !!role && KARDEX_VERIFIER_ROLES.includes(role),
     /** Aprobaciones y demás lecturas de control (espejo de LECTURA_CONTROL del backend). */

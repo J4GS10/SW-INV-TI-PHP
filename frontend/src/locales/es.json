@@ -356,7 +356,16 @@
             "spec_range": "Debe estar entre {{min}} y {{max}}.",
             "supplier_required": "Elija el proveedor.",
             "warranty_invalid": "De 0 a 600 meses."
-        }
+        },
+        "purchase_section": "Lo que registró Compras",
+        "purchase_section_help": "Documento, notas y archivos con los que llegó el ingreso.",
+        "registered_by": "Registrado por",
+        "no_notes": "Sin notas.",
+        "files": "Archivos adjuntos",
+        "no_files": "Compras no adjuntó archivos.",
+        "download": "Descargar",
+        "download_file": "Descargar {{name}}",
+        "files_restricted": "Solo Compras, Administración de TI y Auditoría abren los archivos: pueden mostrar precios."
     },
     "field_names": {
         "SYS_Color_Fondo": "Color de fondo",

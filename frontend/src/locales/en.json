@@ -356,7 +356,16 @@
             "spec_range": "Must be between {{min}} and {{max}}.",
             "supplier_required": "Choose the supplier.",
             "warranty_invalid": "From 0 to 600 months."
-        }
+        },
+        "purchase_section": "What Purchasing registered",
+        "purchase_section_help": "Document, notes and files the receipt arrived with.",
+        "registered_by": "Registered by",
+        "no_notes": "No notes.",
+        "files": "Attached files",
+        "no_files": "Purchasing attached no files.",
+        "download": "Download",
+        "download_file": "Download {{name}}",
+        "files_restricted": "Only Purchasing, IT Administration and Audit open the files: they may show prices."
     },
     "field_names": {
         "SYS_Color_Fondo": "Background color",

@@ -1,3 +1,4 @@
+import type { Adjunto } from '../attachments/attachmentService';
 import client from '../../api/axios';
 import type { Pagina, PedidoPagina } from '../../types/paging';
 
@@ -157,6 +158,8 @@ export const goodsReceiptService = {
   createModel: async (assetTypeId: number, brand: string, model: string) =>
     (await client.post<{ model_id: number; brand_id: number; created: boolean }>(`${BASE}/catalog/models`, { asset_type_id: assetTypeId, brand, model })).data,
   act: async (id: number, lang: string) => (await client.get<Blob>(`${BASE}/${id}/act.pdf`, { responseType: 'blob', params: { lang } })).data,
+  /** Archivos del ingreso (factura, foto): nombre, tipo y fecha. */
+  attachments: async (id: number): Promise<Adjunto[]> => (await client.get<Adjunto[]>(`/adjuntos/ingresos/${id}`)).data,
   attach: async (id: number, file: File) => {
     const form = new FormData();
     form.append('file', file);

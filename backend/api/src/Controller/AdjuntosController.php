@@ -49,7 +49,8 @@ final readonly class AdjuntosController
     }
 
     #[Route('/ingresos/{id}', methods: ['GET'])]
-    #[Autenticado(roles: Roles::LECTURA_COMPRAS)]
+    // El técnico ve qué se adjuntó para confirmar lo recibido; descargarlo exige LECTURA_COMPRAS (TipoDueno::lectores).
+    #[Autenticado(roles: Roles::LISTADO_ADJUNTOS_INGRESO)]
     public function deIngreso(int $id): JsonResponse
     {
         return new JsonResponse($this->adjuntos->listar(Dueno::ingreso($id)));

@@ -42,6 +42,8 @@ final class Roles
     public const array LECTURA_SOFTWARE = [self::ADMIN_TI, self::TECNICO, self::AUDITOR];
     public const array ESCRITURA_COMPRAS = [self::ADMIN_TI, self::COMPRAS];
     public const array LECTURA_COMPRAS = [...self::ESCRITURA_COMPRAS, self::AUDITOR];
+    /** Qué archivos trae un ingreso (nombre, tipo, fecha): también el técnico que lo confirma. Abrirlos sigue en LECTURA_COMPRAS (la factura muestra precios). */
+    public const array LISTADO_ADJUNTOS_INGRESO = [...self::LECTURA_COMPRAS, self::TECNICO];
     public const array LECTURA_CONTROL = [self::ADMIN_TI, self::AUDITOR];
     public const array EXPORTACION_FINANZAS = [self::ADMIN_TI, self::AUDITOR, self::COMPRAS];
     /** Exportes de control (kardex, custodia, movimientos, tomas). */

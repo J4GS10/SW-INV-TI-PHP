@@ -1,5 +1,7 @@
 # Pendientes
 
+El estado de la última tanda de trabajo y cómo retomarla están en [estado](ESTADO.md).
+
 ## Antes de cargar datos reales
 
 Reinstalado de cero otra vez el 2026-11-25, a pedido: respaldo previo `inventario_20261125_171204.dmp` y copia de MinIO y adjuntos en `reinstalacion_20261125_111203` (carpeta de respaldos), volúmenes de Oracle, MinIO y adjuntos borrados, y despliegue nuevo con `sa`, las cuentas de prueba (`app:test-accounts`) y los datos de muestra (`app:demo-data`, ver [pruebas por rol](PRUEBAS_POR_ROL.md)). Caddy conservó su volumen: la raíz de su CA sigue instalada en Windows.
