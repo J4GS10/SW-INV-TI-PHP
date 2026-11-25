@@ -82,7 +82,7 @@ final readonly class EspecificacionesDeActivo
     {
         $this->transaccion->ejecutar(function () use ($id, $valor, $motivo, $usuario, $ip): void {
             $e = $this->especificacionBloqueada($id);
-            $valor = $this->specificationRules->normalize((int) $this->activos->fila((string) $e['ACT_Activo'])['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], $valor);
+            $valor = $this->specificationRules->normalize((int) ($this->activos->fila((string) $e['ACT_Activo']) ?? throw \App\Dominio\ErrorDominio::noEncontrado('ASSET_NOT_FOUND'))['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], $valor);
             $this->datosComunes->cambiarEspecificacion($id, $valor);
             if ($e['ESP_Valor'] !== $valor) {
                 $this->kardex->registrar('ESPECIFICACION', activo: $this->activos->fila((string) $e['ACT_Activo']), usuario: $usuario, motivo: $motivo,

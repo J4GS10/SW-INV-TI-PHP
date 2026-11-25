@@ -191,8 +191,9 @@ final readonly class Tokens
         if (!empty($payload['iat_ms'])) {
             $ms = (int) $payload['iat_ms'];
 
-            return \DateTimeImmutable::createFromFormat('U.u', \sprintf('%d.%06d', intdiv($ms, 1000), ($ms % 1000) * 1000), $utc)
-                ->setTimezone($utc);
+            $emitido = \DateTimeImmutable::createFromFormat('U.u', \sprintf('%d.%06d', intdiv($ms, 1000), ($ms % 1000) * 1000), $utc);
+
+            return false === $emitido ? null : $emitido->setTimezone($utc);
         }
         if (!empty($payload['iat'])) {
             return (new \DateTimeImmutable('@'.(int) $payload['iat']))->setTimezone($utc);

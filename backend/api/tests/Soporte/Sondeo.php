@@ -177,6 +177,9 @@ final class Sondeo
     private static function cambiar(array $datos, array $ubicacion, mixed $valor): array
     {
         $k = array_shift($ubicacion);
+        if (null === $k) {
+            return $datos;
+        }
         $datos[$k] = [] === $ubicacion ? $valor : self::cambiar((array) $datos[$k], $ubicacion, $valor);
 
         return $datos;

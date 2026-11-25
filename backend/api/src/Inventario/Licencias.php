@@ -120,7 +120,7 @@ final readonly class Licencias
      * Alta dentro de la transacción en curso (también la usa la recepción de compras).
      *
      * @param array<string, mixed>                                              $d            columnas de INV_LICENCIA (clave en claro)
-     * @param list<array{LCL_Clave_Activacion: string, LCL_Referencia: ?string}> $claves
+     * @param list<array<string, mixed>>                                        $claves       LCL_Clave_Activacion y LCL_Referencia
      * @param list<array<string, mixed>>                                        $credenciales
      * @param array{0: string, 1: ?string}|null                                 $documento
      *

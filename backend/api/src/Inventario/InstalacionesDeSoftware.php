@@ -137,7 +137,7 @@ final readonly class InstalacionesDeSoftware
             $this->gobierno->registrarAuditoria('INSTALL', 'INV_INSTALACION', ['activo' => null === $activo ? null : Ident::aTexto($activo),
                 'persona' => null === $persona ? null : Ident::aTexto($persona), 'licencia' => $licencia, 'licencia_clave' => $reservada], $usuario, $ip);
 
-            return self::instalacionAApi((array) $this->datos->instalacion($id));
+            return self::instalacionAApi($this->datos->instalacion($id) ?: throw new \LogicException('La instalación recién creada no se encuentra.'));
         });
     }
 

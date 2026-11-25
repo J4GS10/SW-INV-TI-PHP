@@ -104,9 +104,11 @@ final readonly class ConsumiblesController
     #[Limite('60/minute')]
     public function entrada(int $id, Request $request): JsonResponse
     {
-        $m = $this->movimiento($request);
+        $m = $this->movimiento($request) + ['precio_unitario' => null, 'moneda' => null];
         // Quien no ve costos tampoco los registra.
-        $m = OcultarCostosListener::descartarCostos($m, $this->actual->usuario()->rol, 'precio_unitario', 'moneda') + ['precio_unitario' => null, 'moneda' => null];
+        if (OcultarCostosListener::ocultaCostos($this->actual->usuario()->rol)) {
+            $m = ['precio_unitario' => null, 'moneda' => null] + $m;
+        }
 
         return new JsonResponse($this->consumibles->mover($id, $m, 'ENTRADA',
             $this->actual->usuario()->id, ClienteHttp::ip($request)), 201);
@@ -118,7 +120,7 @@ final readonly class ConsumiblesController
     #[Limite('60/minute')]
     public function salida(int $id, Request $request): JsonResponse
     {
-        $m = $this->movimiento($request);
+        $m = $this->movimiento($request) + ['precio_unitario' => null, 'moneda' => null];
 
         return new JsonResponse($this->consumibles->mover($id, $m, 'SALIDA',
             $this->actual->usuario()->id, ClienteHttp::ip($request)), 201);

@@ -16,6 +16,8 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
  */
 final class UbicacionTest extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private KernelBrowser $cliente;
 
     protected function setUp(): void
@@ -129,7 +131,7 @@ final class UbicacionTest extends WebTestCase
     /** @param array{username: string} $u */
     private function token(array $u): string
     {
-        return static::getContainer()->get(Tokens::class)->crearAcceso($u['username'], 'x');
+        return self::servicio(Tokens::class)->crearAcceso($u['username'], 'x');
     }
 
     /**
@@ -142,7 +144,7 @@ final class UbicacionTest extends WebTestCase
         $this->cliente->request($metodo, $ruta, server: array_filter([
             'CONTENT_TYPE' => 'application/json',
             'HTTP_AUTHORIZATION' => null === $token ? null : "Bearer {$token}",
-        ]), content: null === $cuerpo ? '' : json_encode($cuerpo));
+        ]), content: null === $cuerpo ? '' : (string) json_encode($cuerpo));
         $r = $this->cliente->getResponse();
         $json = json_decode((string) $r->getContent(), true);
 

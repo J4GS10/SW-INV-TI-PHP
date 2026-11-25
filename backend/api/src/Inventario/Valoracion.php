@@ -32,7 +32,7 @@ final class Valoracion
         if (null !== $monedaValoracion && '' !== $monedaValoracion && $moneda !== $monedaValoracion) {
             throw ErrorDominio::invalido("CURRENCY_DIFFERS_FROM_VALUATION:{$monedaValoracion}");
         }
-        $total = bcadd(bcmul((string) $existencia, $promedio, 10), bcmul((string) $cantidad, $precio, 10), 10);
+        $total = bcadd(bcmul((string) $existencia, \App\Dominio\Decimal::de($promedio), 10), bcmul((string) $cantidad, \App\Dominio\Decimal::de($precio), 10), 10);
 
         return [self::redondear(bcdiv($total, (string) ($existencia + $cantidad), 10), 4), $moneda, $precio];
     }
@@ -43,7 +43,7 @@ final class Valoracion
             return null;
         }
 
-        return self::redondear(bcmul((string) $saldo, $promedio, 10), 2);
+        return self::redondear(bcmul((string) $saldo, \App\Dominio\Decimal::de($promedio), 10), 2);
     }
 
     /**
@@ -55,7 +55,7 @@ final class Valoracion
     {
         $suma = '0';
         foreach ($valores as $v) {
-            $suma = bcadd($suma, $v, 10);
+            $suma = bcadd($suma, \App\Dominio\Decimal::de($v), 10);
         }
 
         return self::redondear(bcdiv($suma, (string) \count($valores), 10), 2);
@@ -64,6 +64,6 @@ final class Valoracion
     /** Redondeo mitad hacia arriba (alejándose de cero), como Decimal.quantize(ROUND_HALF_UP). */
     public static function redondear(string $valor, int $escala): string
     {
-        return bcround($valor, $escala, \RoundingMode::HalfAwayFromZero);
+        return bcround(\App\Dominio\Decimal::de($valor), $escala, \RoundingMode::HalfAwayFromZero);
     }
 }

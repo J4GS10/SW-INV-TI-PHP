@@ -133,7 +133,7 @@ final class Peticion
                 ? ErrorDominio::demasiadoGrande('FILE_TOO_LARGE')
                 : ErrorDominio::invalido('UPLOAD_FAILED');
         }
-        $contenido = file_get_contents($archivo->getPathname(), length: null === $maximo ? null : $maximo + 1);
+        $contenido = file_get_contents($archivo->getPathname(), length: null === $maximo ? null : max(0, $maximo + 1));
 
         return new Subida($archivo->getClientOriginalName(), false === $contenido ? '' : $contenido);
     }

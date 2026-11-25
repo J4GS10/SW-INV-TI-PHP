@@ -60,7 +60,7 @@ final class InventarioTest extends PruebaApi
 
         $jefe = $this->tokenDe(D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]));
         $v = $this->ok(200, 'GET', '/api/v1/inventario/kardex/verificar', token: $jefe);
-        self::assertTrue($v['integro'], json_encode($v['problemas']));
+        self::assertTrue($v['integro'], (string) json_encode($v['problemas']));
         self::assertSame(64, \strlen((string) $v['ultimo_hash']));
         self::assertSame(403, $this->pedir('GET', '/api/v1/inventario/kardex/verificar', token: $this->tokenDe(D::crearUsuario(['rol' => 'TECNICO', 'sedes' => [$this->sede]])))[0], 'TECNICO no verifica el sellado.');
         // Solo inserción: Oracle rechaza alterar un evento (ORA-20002).

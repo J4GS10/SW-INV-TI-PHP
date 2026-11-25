@@ -13,6 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
 /** Base de las pruebas HTTP: cliente, tokens y peticiones JSON (caja negra sobre la API). */
 abstract class PruebaApi extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     protected KernelBrowser $cliente;
     protected string $token = '';
 
@@ -24,7 +26,7 @@ abstract class PruebaApi extends WebTestCase
     /** @param array{username: string} $u */
     protected function tokenDe(array $u): string
     {
-        return static::getContainer()->get(Tokens::class)->crearAcceso($u['username'], 'x');
+        return self::servicio(Tokens::class)->crearAcceso($u['username'], 'x');
     }
 
     /**

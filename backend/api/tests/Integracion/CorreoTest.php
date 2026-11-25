@@ -27,6 +27,8 @@ use Symfony\Component\HttpClient\Response\MockResponse;
  */
 final class CorreoTest extends KernelTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     protected function setUp(): void
     {
         self::bootKernel();
@@ -36,7 +38,7 @@ final class CorreoTest extends KernelTestCase
 
     public function testPlantillasEscapanDatosYMuestranFechasEnLaZonaDeLaOrganizacion(): void
     {
-        [$asunto, $html] = $this->servicio(Plantillas::class)->renderizar('nuevo_dispositivo', [
+        [$asunto, $html] = self::servicio(Plantillas::class)->renderizar('nuevo_dispositivo', [
             'persona_nombre' => '<script>alert(1)</script>Ana',
             'username' => 'ana',
             'dispositivo' => 'Chrome · Windows',
@@ -53,18 +55,18 @@ final class CorreoTest extends KernelTestCase
         self::assertStringContainsString('Dispositivo: Chrome · Windows', $texto);
         self::assertStringNotContainsString('font-family', $texto);
 
-        [$asunto] = $this->servicio(Plantillas::class)->renderizar('offboarding', ['persona_nombre' => "Ana\r\nBcc: x@y.z"]);
+        [$asunto] = self::servicio(Plantillas::class)->renderizar('offboarding', ['persona_nombre' => "Ana\r\nBcc: x@y.z"]);
         self::assertSame('[Inventario] Salida de empleado: Ana Bcc: x@y.z', $asunto, 'Sin saltos de línea en la cabecera.');
     }
 
     public function testUnCorreoEfimeroSeEntregaPorSmtpTrasLaRespuestaYNoSeEncola(): void
     {
         $antes = $this->filasCola();
-        $this->servicio(Notificador::class)->enviar('password_reset', [
+        self::servicio(Notificador::class)->enviar('password_reset', [
             'persona_nombre' => 'Ana Prueba', 'username' => 'ana', 'token' => 'TOKEN-SECRETO', 'reset_url' => 'https://x/reset?token=TOKEN-SECRETO', 'minutos' => 30,
         ], ['ana@pruebas.local'], false);
 
-        $tareas = $this->servicio(TareasPosteriores::class);
+        $tareas = self::servicio(TareasPosteriores::class);
         self::assertSame(['correo:password_reset'], $tareas->pendientes());
         self::assertSame([], Mailpit::mensajes(), 'Nada se envía antes de terminar la petición.');
         $tareas->ejecutar();
@@ -82,7 +84,7 @@ final class CorreoTest extends KernelTestCase
     public function testUnAvisoDeSeguridadSeEncolaConElFormatoDelWorker(): void
     {
         $marca = 'cola_'.D::sufijo().'@pruebas.local';
-        $this->servicio(Notificador::class)->contrasenaCambiada('Ana', 'ana', $marca, 'Autoservicio', '10.1.1.1');
+        self::servicio(Notificador::class)->contrasenaCambiada('Ana', 'ana', $marca, 'Autoservicio', '10.1.1.1');
 
         $fila = D::conexion()->fetchAssociative(
             'SELECT "EOB_Plantilla", "EOB_Asunto", "EOB_Para", "EOB_Afectados", "EOB_Cc_Admins", "EOB_Resolver", '
@@ -99,13 +101,13 @@ final class CorreoTest extends KernelTestCase
             'EOB_Estado' => 'PENDIENTE',
             'EOB_Intentos' => '0',
         ], $fila);
-        self::assertSame([], $this->servicio(TareasPosteriores::class)->pendientes());
+        self::assertSame([], self::servicio(TareasPosteriores::class)->pendientes());
     }
 
     public function testUnEventoNoConfigurableConCopiaIncluyeAdministradores(): void
     {
         $marca = 'cc_'.D::sufijo().'@pruebas.local';
-        $this->servicio(Notificador::class)->enviar('cuenta_desactivada_inactividad',
+        self::servicio(Notificador::class)->enviar('cuenta_desactivada_inactividad',
             ['persona_nombre' => 'Ana', 'username' => 'ana', 'dias' => 90], [$marca, $marca, ' ']);
 
         $para = D::conexion()->fetchOne(
@@ -122,17 +124,17 @@ final class CorreoTest extends KernelTestCase
             ."VALUES (1, 'DESACTIVADO', 'SMTP', 587, 'STARTTLS', 0, 1, 0, 1, 1)",
         );
         $antes = $this->filasCola();
-        $notificador = $this->servicio(Notificador::class);
+        $notificador = self::servicio(Notificador::class);
         $notificador->contrasenaCambiada('Ana', 'ana', 'ana@pruebas.local', 'x', null);
         $notificador->enviar('2fa_code', ['code' => '123456'], ['ana@pruebas.local'], false);
 
         self::assertSame($antes, $this->filasCola());
-        self::assertSame([], $this->servicio(TareasPosteriores::class)->pendientes());
+        self::assertSame([], self::servicio(TareasPosteriores::class)->pendientes());
     }
 
     public function testLaConfiguracionDeLaInterfazDescifraElSecretoYTienePrioridad(): void
     {
-        $cifrado = $this->servicio(CifradoCampos::class)->cifrar('clave-de-la-cuenta');
+        $cifrado = self::servicio(CifradoCampos::class)->cifrar('clave-de-la-cuenta');
         D::conexion()->executeStatement(
             'INSERT INTO "SYS_INTEGRACION_CORREO" ("INT_Id", "INT_Modo", "INT_Proveedor", "INT_Cuenta_Email", "INT_Cuenta_Password_Enc", '
             .'"INT_Nombre_Remitente", "INT_SMTP_Host", "INT_SMTP_Puerto", "INT_SMTP_Seguridad", "INT_AD_Start_TLS", "INT_AD_Verificar_Cert", '
@@ -140,7 +142,7 @@ final class CorreoTest extends KernelTestCase
             ."VALUES (1, 'CORREO', 'SMTP', 'servicio@pruebas.local', :p, 'Inventario', 'mailpit', 1025, 'NINGUNA', 0, 1, 0, 1, 1)",
             ['p' => $cifrado],
         );
-        $config = $this->servicio(\App\Integracion\FuenteIntegracion::class)->obtener()->correo;
+        $config = self::servicio(\App\Integracion\FuenteIntegracion::class)->obtener()->correo;
 
         self::assertSame('interfaz', $config->fuente);
         self::assertSame('clave-de-la-cuenta', $config->password);
@@ -189,7 +191,7 @@ final class CorreoTest extends KernelTestCase
         D::conexion()->executeStatement('INSERT INTO "SYS_EMAIL_OUTBOX" ("EOB_Id", "EOB_Plantilla", "EOB_Asunto", "EOB_Html", "EOB_Para", "EOB_Cc_Admins", '
             .'"EOB_Resolver", "EOB_Estado", "EOB_Intentos", "EOB_Proximo_Intento", "EOB_Creado_En") '
             ."VALUES (:id, 'prueba', 'x', 'x', '[]', 0, 0, 'PENDIENTE', 3, :antes, :antes)", ['id' => $id, 'antes' => $antes]);
-        $reclamados = $this->servicio(\App\Correo\Infrastructure\ColaCorreos::class)->reclamar(20, 300, 3);
+        $reclamados = self::servicio(\App\Correo\Infrastructure\ColaCorreos::class)->reclamar(20, 300, 3);
         self::assertNotContains($id, $reclamados);
         self::assertSame('FALLIDO', D::conexion()->fetchOne('SELECT "EOB_Estado" FROM "SYS_EMAIL_OUTBOX" WHERE "EOB_Id" = :id', ['id' => $id]));
         D::conexion()->executeStatement('DELETE FROM "SYS_EMAIL_OUTBOX" WHERE "EOB_Id" = :id', ['id' => $id]);
@@ -208,17 +210,5 @@ final class CorreoTest extends KernelTestCase
     private function filasCola(): int
     {
         return D::contar('SELECT COUNT(*) FROM "SYS_EMAIL_OUTBOX"');
-    }
-
-    /**
-     * @template T of object
-     *
-     * @param class-string<T> $clase
-     *
-     * @return T
-     */
-    private function servicio(string $clase): object
-    {
-        return static::getContainer()->get($clase);
     }
 }

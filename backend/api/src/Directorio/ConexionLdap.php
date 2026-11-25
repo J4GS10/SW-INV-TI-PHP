@@ -86,9 +86,11 @@ final class ConexionLdap
             if (!ldap_parse_result($this->enlace, $resultado, $codigo, $dn, $mensaje, $referencias, $controles) || 0 !== $codigo) {
                 throw $this->errorDeBusqueda($codigo ?? ldap_errno($this->enlace));
             }
-            $lote = ldap_get_entries($this->enlace, $resultado);
-            for ($i = 0; $i < ($lote['count'] ?? 0); ++$i) {
-                $entradas[] = self::normalizar($lote[$i]);
+            $lote = ldap_get_entries($this->enlace, $resultado) ?: ['count' => 0];
+            for ($i = 0; $i < (int) $lote['count']; ++$i) {
+                if (\is_array($lote[$i] ?? null)) {
+                    $entradas[] = self::normalizar($lote[$i]);
+                }
             }
             ldap_free_result($resultado);
             $cookie = (string) ($controles[\LDAP_CONTROL_PAGEDRESULTS]['value']['cookie'] ?? '');

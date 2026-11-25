@@ -18,6 +18,8 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
  */
 final class RoleResponsibilitiesTest extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private const array BUSINESS_ROUTES = ['/api/v1/core/activos', '/api/v1/consumibles', '/api/v1/mantenimiento/',
         '/api/v1/trazabilidad/movimientos', '/api/v1/inventario/tomas',
         '/api/v1/compras/proveedores', '/api/v1/compras/garantias', '/api/v1/aprobaciones',
@@ -55,8 +57,8 @@ final class RoleResponsibilitiesTest extends WebTestCase
     {
         $site = D::crearSede('Roles '.D::sufijo());
         $person = D::crearPersona($site);
-        $connection = static::getContainer()->get(Connection::class);
-        $rls = static::getContainer()->get(ContextoRls::class);
+        $connection = self::servicio(Connection::class);
+        $rls = self::servicio(ContextoRls::class);
 
         foreach (['SUPER_ADMIN', 'ADMIN_SEGURIDAD'] as $role) {
             $rls->fijarUsuario(D::crearUsuario(['rol' => $role, 'global' => true])['id']);
@@ -110,7 +112,7 @@ final class RoleResponsibilitiesTest extends WebTestCase
     /** @param array<string, mixed> $options */
     private function tokenFor(array $options): string
     {
-        return static::getContainer()->get(Tokens::class)->crearAcceso(D::crearUsuario($options)['username'], 'x');
+        return self::servicio(Tokens::class)->crearAcceso(D::crearUsuario($options)['username'], 'x');
     }
 
     private function statusOf(string $method, string $route, string $token): int

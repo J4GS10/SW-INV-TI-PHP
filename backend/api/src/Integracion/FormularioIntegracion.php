@@ -47,7 +47,7 @@ final class FormularioIntegracion
                 'smtp_puerto' === $campo => self::entero($e, $campo, 1, 65535, 587),
                 'ad_intervalo_min' === $campo => self::entero($e, $campo, 0, 10080, 0),
                 isset(self::LOGICOS[$campo]) => self::logico($e, $campo, self::LOGICOS[$campo]),
-                default => $e->texto($campo, max: self::TEXTOS[$campo], opcional: true),
+                default => $e->texto($campo, max: self::TEXTOS[$campo] ?? 255, opcional: true),
             };
         }
 

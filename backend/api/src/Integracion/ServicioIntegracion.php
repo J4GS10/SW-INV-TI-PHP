@@ -188,6 +188,7 @@ final readonly class ServicioIntegracion
      */
     private function salida(array $v, string $origen): array
     {
+        /** @var array<string, mixed> $publico */
         $publico = [];
         foreach (self::PUBLICOS as $campo) {
             $publico[$campo] = $v[$campo] ?? null;
@@ -220,7 +221,7 @@ final readonly class ServicioIntegracion
     {
         $fecha = \DateTimeImmutable::createFromFormat('U.u', \sprintf('%.6F', $epoch), new \DateTimeZone('UTC'));
 
-        return false === $fecha ? gmdate('Y-m-d\TH:i:s', (int) $epoch) : \App\Dominio\Reloj::iso($fecha);
+        return false === $fecha ? gmdate('Y-m-d\TH:i:s', (int) $epoch) : (\App\Dominio\Reloj::iso($fecha) ?? gmdate('Y-m-d\TH:i:s', (int) $epoch));
     }
 
     /** @return array{ok: bool, codigo: string, mensaje: string, usuarios_encontrados: int} */

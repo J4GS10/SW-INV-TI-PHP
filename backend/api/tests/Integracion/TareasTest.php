@@ -34,6 +34,8 @@ use Symfony\Component\Scheduler\Trigger\PeriodicalTrigger;
  */
 final class TareasTest extends KernelTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     protected function setUp(): void
     {
         self::bootKernel();
@@ -47,13 +49,13 @@ final class TareasTest extends KernelTestCase
     public function testElProgramaTieneLasCuatroTareasConSusIntervalos(): void
     {
         $intervalos = [];
-        foreach ($this->servicio(ProgramaTareas::class)->getSchedule()->getRecurringMessages() as $m) {
+        foreach (self::servicio(ProgramaTareas::class)->getSchedule()->getRecurringMessages() as $m) {
             $trigger = $m->getTrigger();
             self::assertInstanceOf(PeriodicalTrigger::class, $trigger);
             $intervalos[(string) $trigger] = true;
         }
         self::assertEqualsCanonicalizing(['email_outbox', 'purge_security', 'security_housekeeping', 'ad_sync', 'close_inventory_counts', 'operational_alerts'],
-            array_keys($this->servicio(EjecutorTareas::class)->tareas()));
+            array_keys(self::servicio(EjecutorTareas::class)->tareas()));
         self::assertEqualsCanonicalizing(['every 15 seconds', 'every 21600 seconds', 'every 60 seconds', 'every 300 seconds'], array_keys($intervalos));
     }
 
@@ -64,9 +66,9 @@ final class TareasTest extends KernelTestCase
         $ahora = Reloj::ahora();
         $c->executeStatement("INSERT INTO \"SYS_TOKEN_REVOCADO\" (\"TRV_Jti\", \"TRV_Tipo\", \"TRV_Fecha_Revocacion\", \"TRV_Expira\") VALUES (:j, 'access', :f, :f)",
             ['j' => 'vencido-'.D::sufijo(), 'f' => Reloj::aBd($ahora->modify('-2 days'))]);
-        $r = $this->servicio(EjecutorTareas::class)->ejecutar('purge_security');
+        $r = self::servicio(EjecutorTareas::class)->ejecutar('purge_security');
         self::assertTrue($r['ejecutada']);
-        self::assertGreaterThanOrEqual(1, $r['resultado']['tokens_revocados_eliminados']);
+        self::assertGreaterThanOrEqual(1, ($r['resultado'] ?? self::fail('Sin resultado.'))['tokens_revocados_eliminados'] ?? 0);
 
         // Sesión que agotó su vida absoluta y cuenta sin inicio de sesión en más de 90 días.
         $sesion = Ident::nuevo();
@@ -74,17 +76,18 @@ final class TareasTest extends KernelTestCase
             ['s' => $sesion, 'u' => $u['id'], 'c' => Reloj::aBd($ahora->modify('-2 days')), 'e' => Reloj::aBd($ahora->modify('-1 day'))]);
         $inactiva = D::crearUsuario();
         $c->executeStatement('UPDATE "INV_USUARIO" SET "USU_Ultimo_Login" = :f WHERE "USU_Usuario" = :u', ['f' => Reloj::aBd($ahora->modify('-120 days')), 'u' => $inactiva['id']]);
-        $r = $this->servicio(EjecutorTareas::class)->ejecutar('security_housekeeping');
+        $r = self::servicio(EjecutorTareas::class)->ejecutar('security_housekeeping');
         self::assertNull($r['error']);
-        self::assertGreaterThanOrEqual(1, $r['resultado']['sesiones_expiradas']);
-        self::assertGreaterThanOrEqual(1, $r['resultado']['cuentas_desactivadas']);
+        $resultado = $r['resultado'] ?? self::fail('Sin resultado.');
+        self::assertGreaterThanOrEqual(1, $resultado['sesiones_expiradas'] ?? 0);
+        self::assertGreaterThanOrEqual(1, $resultado['cuentas_desactivadas'] ?? 0);
         self::assertSame('expirada', $c->fetchOne('SELECT "SES_Motivo_Cierre" FROM "SYS_SESION" WHERE "SES_Sesion" = :s', ['s' => $sesion]));
         self::assertSame('0', (string) $c->fetchOne('SELECT "USU_Estado" FROM "INV_USUARIO" WHERE "USU_Usuario" = :u', ['u' => $inactiva['id']]));
         self::assertSame('1', (string) $c->fetchOne('SELECT "USU_Estado" FROM "INV_USUARIO" WHERE "USU_Usuario" = :u', ['u' => $u['id']]));
         self::assertSame(1, D::contar("SELECT COUNT(*) FROM \"INV_AUDITORIA_SISTEMA\" WHERE \"AUD_Accion\" = 'ACCOUNT_AUTO_DISABLED' AND \"AUD_Snapshot_JSON\" LIKE :u",
             ['u' => '%'.$inactiva['username'].'%']));
         // El aviso al titular pasa por la cola.
-        $this->servicio(ProcesadorCola::class)->drenar();
+        self::servicio(ProcesadorCola::class)->drenar();
         self::assertSame('[Inventario] Su cuenta fue desactivada por inactividad', Mailpit::para($inactiva['correo'])[0]['Subject'] ?? null);
     }
 
@@ -96,8 +99,8 @@ final class TareasTest extends KernelTestCase
             ['id' => Ident::nuevo(), 'f' => Reloj::aBd(Reloj::ahora()->modify('-800 days')), 'a' => $marca, 'e' => 'PRUEBA']);
         $ajustes = Ajustes::desdeEntorno([...$_SERVER, ...$_ENV, 'AUDIT_RETENTION_DAYS' => '30']);
         $mantenimiento = new MantenimientoSeguridad(new \App\Tareas\Infrastructure\MantenimientoStore($this->conexionApp()),
-            $this->servicio(\App\Db\Transaccion::class), $this->servicio(\App\Organizacion\Identidades::class),
-            $this->servicio(\App\Repositorio\GobiernoRepositorio::class), $this->servicio(Notificador::class), $ajustes);
+            self::servicio(\App\Db\Transaccion::class), self::servicio(\App\Organizacion\Identidades::class),
+            self::servicio(\App\Repositorio\GobiernoRepositorio::class), self::servicio(Notificador::class), $ajustes);
 
         self::assertGreaterThanOrEqual(1, $mantenimiento->aplicarRetencion());
         self::assertSame(0, D::contar('SELECT COUNT(*) FROM "INV_AUDITORIA_SISTEMA" WHERE "AUD_Accion" = :a', ['a' => $marca]));
@@ -114,10 +117,10 @@ final class TareasTest extends KernelTestCase
         $c = D::conexion();
         $persona = D::crearUsuario();
         $c->executeStatement("INSERT INTO \"INV_REGLA_NOTIFICACION\" (\"RNO_Evento\", \"RNO_Activa\", \"RNO_Notificar_Afectado\", \"RNO_Notificar_Jefe\", \"RNO_Copiar_Admins\", \"RNO_Correos_Extra\") VALUES ('asignacion', 1, 1, 0, 0, 'extra@pruebas.local')");
-        $this->servicio(Notificador::class)->enviar('asignacion', ['persona_nombre' => 'Ana', 'codigo' => 'ACT-1'], [$persona['correo']]);
+        self::servicio(Notificador::class)->enviar('asignacion', ['persona_nombre' => 'Ana', 'codigo' => 'ACT-1'], [$persona['correo']]);
         $id = (string) $c->fetchOne("SELECT \"EOB_Id\" FROM \"SYS_EMAIL_OUTBOX\" WHERE \"EOB_Estado\" = 'PENDIENTE' AND \"EOB_Plantilla\" = 'asignacion' ORDER BY \"EOB_Creado_En\" DESC FETCH FIRST 1 ROWS ONLY");
 
-        self::assertSame(1, $this->servicio(ProcesadorCola::class)->drenar());
+        self::assertSame(1, self::servicio(ProcesadorCola::class)->drenar());
         $fila = $c->fetchAssociative('SELECT * FROM "SYS_EMAIL_OUTBOX" WHERE "EOB_Id" = :id', ['id' => $id]);
         self::assertIsArray($fila);
         self::assertSame(['ENVIADO', '0', '1', null], [$fila['EOB_Estado'], (string) $fila['EOB_Resolver'], (string) $fila['EOB_Intentos'], $fila['EOB_Ultimo_Error']]);
@@ -126,8 +129,8 @@ final class TareasTest extends KernelTestCase
 
         // Regla inactiva: el correo se da por enviado sin destinatarios.
         $c->executeStatement("UPDATE \"INV_REGLA_NOTIFICACION\" SET \"RNO_Activa\" = 0 WHERE \"RNO_Evento\" = 'asignacion'");
-        $this->servicio(Notificador::class)->enviar('asignacion', ['persona_nombre' => 'Ana', 'codigo' => 'ACT-1'], [$persona['correo']]);
-        $this->servicio(ProcesadorCola::class)->drenar();
+        self::servicio(Notificador::class)->enviar('asignacion', ['persona_nombre' => 'Ana', 'codigo' => 'ACT-1'], [$persona['correo']]);
+        self::servicio(ProcesadorCola::class)->drenar();
         self::assertSame(1, D::contar("SELECT COUNT(*) FROM \"SYS_EMAIL_OUTBOX\" WHERE \"EOB_Ultimo_Error\" = 'SIN_DESTINATARIOS' AND \"EOB_Creado_En\" > SYSTIMESTAMP - INTERVAL '1' MINUTE"));
     }
 
@@ -140,7 +143,7 @@ final class TareasTest extends KernelTestCase
         self::assertSame(['PENDIENTE', '0', 'AUTH_FAILED: 535 credenciales'], [$f['EOB_Estado'], (string) $f['EOB_Intentos'], $f['EOB_Ultimo_Error']]);
         self::assertGreaterThan(Reloj::ahora()->modify('+14 minutes'), Reloj::desdeBd((string) $f['EOB_Proximo_Intento']));
         self::assertSame(0, $this->procesador(null)->procesarVencidos(), 'Retenido: no se vuelve a intentar hasta la pausa.');
-        self::assertGreaterThanOrEqual(1, $this->servicio(ColaCorreos::class)->reanudarRetenidos());
+        self::assertGreaterThanOrEqual(1, self::servicio(ColaCorreos::class)->reanudarRetenidos());
         self::assertLessThanOrEqual(Reloj::ahora(), Reloj::desdeBd((string) $this->fila($id)['EOB_Proximo_Intento']));
 
         // Error de entrega: espera creciente (1 min tras el primer intento)…
@@ -155,14 +158,14 @@ final class TareasTest extends KernelTestCase
 
         // Con el cortacircuitos de correo activo no se reclama nada.
         $this->encolar('pausa@pruebas.local');
-        $cortacircuitos = $this->servicio(Cortacircuitos::class);
+        $cortacircuitos = self::servicio(Cortacircuitos::class);
         $cortacircuitos->disparar('smtp', 'prueba');
         try {
-            self::assertSame(0, $this->servicio(ProcesadorCola::class)->procesarVencidos());
+            self::assertSame(0, self::servicio(ProcesadorCola::class)->procesarVencidos());
         } finally {
             $cortacircuitos->reiniciar();
         }
-        self::assertSame(1, $this->servicio(ProcesadorCola::class)->procesarVencidos());
+        self::assertSame(1, self::servicio(ProcesadorCola::class)->procesarVencidos());
         self::assertCount(1, Mailpit::para('pausa@pruebas.local'));
     }
 
@@ -261,8 +264,8 @@ final class TareasTest extends KernelTestCase
             {
             }
         };
-        $fuente = $this->servicio(FuenteIntegracion::class);
-        $tarea = new \App\Tareas\SincronizacionPeriodicaAd($fuente, $this->servicio(\App\Directorio\SincronizacionDirectorio::class), $cerrojo);
+        $fuente = self::servicio(FuenteIntegracion::class);
+        $tarea = new \App\Tareas\SincronizacionPeriodicaAd($fuente, self::servicio(\App\Directorio\SincronizacionDirectorio::class), $cerrojo);
         $atrasar = static function (\App\Tareas\SincronizacionPeriodicaAd $t, int $segundos): void {
             $p = new \ReflectionProperty($t, 'ultima');
             $p->setValue($t, $p->getValue($t) - $segundos);
@@ -326,7 +329,7 @@ final class TareasTest extends KernelTestCase
     /** Procesador real con una entrega que falla con el error indicado (o entrega a Mailpit si es null). */
     private function procesador(?ErrorEnvioCorreo $error): ProcesadorCola
     {
-        $entrega = null === $error ? $this->servicio(EntregaCorreo::class) : new class($error) implements EntregaCorreo {
+        $entrega = null === $error ? self::servicio(EntregaCorreo::class) : new class($error) implements EntregaCorreo {
             public function __construct(private readonly ErrorEnvioCorreo $error)
             {
             }
@@ -337,8 +340,8 @@ final class TareasTest extends KernelTestCase
             }
         };
 
-        return new ProcesadorCola($this->servicio(ColaCorreos::class), $entrega, $this->servicio(FuenteIntegracion::class),
-            $this->servicio(Cortacircuitos::class), $this->servicio(ResolutorDestinatarios::class), $this->servicio(Ajustes::class), new NullLogger());
+        return new ProcesadorCola(self::servicio(ColaCorreos::class), $entrega, self::servicio(FuenteIntegracion::class),
+            self::servicio(Cortacircuitos::class), self::servicio(ResolutorDestinatarios::class), self::servicio(Ajustes::class), new NullLogger());
     }
 
     /**
@@ -365,6 +368,7 @@ final class TareasTest extends KernelTestCase
             proc_close($p);
             $json = json_decode(trim((string) strrchr("\n".trim($salida), "\n")), true);
             self::assertIsArray($json, $salida.$errores);
+            /** @var array{ejecutada: bool, resultado: array<string, mixed>|null, error: string|null} $json */
             $resultados[] = $json;
         }
 
@@ -389,19 +393,6 @@ final class TareasTest extends KernelTestCase
     /** Conexión de la aplicación (la del contenedor), no la auxiliar de las pruebas. */
     private function conexionApp(): \Doctrine\DBAL\Connection
     {
-        return $this->servicio(\Doctrine\DBAL\Connection::class);
-    }
-
-    /**
-     * @template T of object
-     *
-     * @param class-string<T> $clase
-     *
-     * @return T
-     */
-    private function servicio(string $clase): object
-    {
-        /** @var T */
-        return static::getContainer()->get($clase);
+        return self::servicio(\Doctrine\DBAL\Connection::class);
     }
 }

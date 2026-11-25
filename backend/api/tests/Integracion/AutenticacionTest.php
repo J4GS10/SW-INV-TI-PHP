@@ -22,6 +22,8 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
  */
 final class AutenticacionTest extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private const string SECRETO = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 
     private KernelBrowser $cliente;
@@ -175,7 +177,7 @@ final class AutenticacionTest extends WebTestCase
     public function testCodigoDeRecuperacionDeUnSoloUsoYDesafioLigadoALaContrasena(): void
     {
         $u = D::crearUsuario(['metodo_2fa' => 'TOTP', 'secreto_totp' => self::SECRETO]);
-        $codigos = static::getContainer()->get(CodigosSeguridad::class);
+        $codigos = self::servicio(CodigosSeguridad::class);
         D::conexion()->executeStatement(
             'INSERT INTO "SYS_2FA_RECOVERY" ("TRC_Id", "TRC_Code_Hash", "TRC_Usado", "TRC_Creado_En", "USU_Usuario") '
             .'VALUES (:id, :h, 0, SYSTIMESTAMP, :u)',
@@ -253,10 +255,10 @@ final class AutenticacionTest extends WebTestCase
 
     public function testElSistemaPermiteApagarYEncenderElMfaObligatorio(): void
     {
-        $super = static::getContainer()->get(\App\Seguridad\Tokens::class)
+        $super = self::servicio(\App\Seguridad\Tokens::class)
             ->crearAcceso(D::crearUsuario(['rol' => 'SUPER_ADMIN', 'global' => true])['username'], 'x');
         $admin = D::crearUsuario(['rol' => 'ADMIN_TI']);
-        $tokenAdmin = static::getContainer()->get(\App\Seguridad\Tokens::class)->crearAcceso($admin['username'], 'x');
+        $tokenAdmin = self::servicio(\App\Seguridad\Tokens::class)->crearAcceso($admin['username'], 'x');
 
         try {
             // Solo el administrador del sistema lo cambia; no es parte de la configuración pública.
@@ -320,7 +322,7 @@ final class AutenticacionTest extends WebTestCase
         $correos = Mailpit::para($u['correo']);
         self::assertCount(1, $correos);
         self::assertSame(1, preg_match('~/reset-password#token=([A-Za-z0-9_-]{43})~', (string) $correos[0]['HTML'], $m));
-        $token = $m[1];
+        $token = $m[1] ?? self::fail('El correo no trae el enlace.');
 
         $debil = $this->post('/api/v1/login/password-reset/confirm', ['token' => $token, 'new_password' => 'corta']);
         self::assertSame([400, 'PASSWORD_POLICY_VIOLATION:min_length:10,require_upper,require_digit'], $this->estadoYDetalle($debil));
@@ -423,13 +425,13 @@ final class AutenticacionTest extends WebTestCase
         self::assertSame(['tema' => 'sistema', 'guias_desactivadas' => false, 'guias_vistas' => []], $this->get('/api/v1/me/preferencias', $acceso));
 
         $this->cliente->request('PATCH', '/api/v1/me/preferencias', server: $this->json($acceso),
-            content: json_encode(['tema' => 'oscuro', 'guias_vistas' => ['activos', 'activos', ' compras ']]));
+            content: (string) json_encode(['tema' => 'oscuro', 'guias_vistas' => ['activos', 'activos', ' compras ']]));
         self::assertResponseIsSuccessful();
-        $this->cliente->request('PATCH', '/api/v1/me/preferencias', server: $this->json($acceso), content: json_encode(['guias_desactivadas' => true]));
+        $this->cliente->request('PATCH', '/api/v1/me/preferencias', server: $this->json($acceso), content: (string) json_encode(['guias_desactivadas' => true]));
         self::assertSame(['tema' => 'oscuro', 'guias_desactivadas' => true, 'guias_vistas' => ['activos', 'compras']], $this->get('/api/v1/me/preferencias', $acceso));
 
         foreach ([['tema' => 'rosa'], ['guias_vistas' => ['<script>']], ['guias_desactivadas' => 'si'], ['guias_vistas' => array_fill(0, 51, 'a')]] as $malo) {
-            $this->cliente->request('PATCH', '/api/v1/me/preferencias', server: $this->json($acceso), content: json_encode($malo));
+            $this->cliente->request('PATCH', '/api/v1/me/preferencias', server: $this->json($acceso), content: (string) json_encode($malo));
             self::assertResponseStatusCodeSame(422);
         }
     }
@@ -452,7 +454,7 @@ final class AutenticacionTest extends WebTestCase
      */
     private function post(string $ruta, array $cuerpo = [], ?string $acceso = null): array
     {
-        $this->cliente->request('POST', $ruta, server: $this->json($acceso), content: [] === $cuerpo ? '' : json_encode($cuerpo));
+        $this->cliente->request('POST', $ruta, server: $this->json($acceso), content: [] === $cuerpo ? '' : (string) json_encode($cuerpo));
 
         return $this->respuesta();
     }
@@ -521,7 +523,7 @@ final class AutenticacionTest extends WebTestCase
         self::assertNotEmpty($mensajes, 'No llegó el código por correo.');
         self::assertSame(1, preg_match('/\b(\d{6})\b/', (string) $mensajes[0]['Text'], $m));
 
-        return $m[1];
+        return $m[1] ?? self::fail('El correo no trae el código.');
     }
 
     private function avisosDispositivo(string $correo): int

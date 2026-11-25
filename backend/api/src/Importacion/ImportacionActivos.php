@@ -87,11 +87,14 @@ final readonly class ImportacionActivos
 
             $creados = [];
             foreach ($validas as $f) {
+                // Una fila válida trae tipo y área.
+                $tipo = $f->tipo ?? throw new \LogicException('Fila válida sin tipo de activo.');
+                $area = $f->area ?? throw new \LogicException('Fila válida sin área.');
                 $marca = $marcas[Texto::normalizar($f->marca)] ??= $this->datos->crearMarca(mb_substr($f->marca, 0, 100));
-                $modelo = $modelos[$marca.'|'.Texto::normalizar($f->modelo)] ??= $this->datos->crearModelo($f->modelo, $marca, (int) $f->tipo['TAC_Tipo_Activo']);
+                $modelo = $modelos[$marca.'|'.Texto::normalizar($f->modelo)] ??= $this->datos->crearModelo($f->modelo, $marca, (int) $tipo['TAC_Tipo_Activo']);
                 $codigo = $f->texto('codigo');
                 if ('' === $codigo) {
-                    $prefijo = (string) $f->tipo['TAC_Prefijo'];
+                    $prefijo = (string) $tipo['TAC_Prefijo'];
                     $codigo = $this->secuencias->siguiente("ASSET_{$prefijo}", $prefijo);
                 }
                 $serie = $f->texto('serie');
@@ -107,13 +110,13 @@ final readonly class ImportacionActivos
                         'ACT_Codigo_Interno' => $codigo, 'ACT_Serie_Fabricante' => '' === $serie ? $codigo : $serie,
                         'ACT_Hostname' => '' === $f->texto('hostname') ? null : $f->texto('hostname'), 'ACT_Fecha_Compra' => $f->fecha,
                         'ACT_Fin_Garantia' => null, 'ACT_Costo' => $f->costo, 'ACT_Moneda' => $f->moneda, 'PRV_Proveedor' => null, 'ACT_Factura' => null,
-                        'MOD_Modelo' => $modelo, 'TAC_Tipo_Activo' => $f->tipo['TAC_Tipo_Activo'], 'EOP_Estado_Operativo' => $disponible,
-                        'ACT_Activo_Padre' => null, 'SED_Sede' => $this->sedeDeArea($f->area['ARE_Area']),
+                        'MOD_Modelo' => $modelo, 'TAC_Tipo_Activo' => $tipo['TAC_Tipo_Activo'], 'EOP_Estado_Operativo' => $disponible,
+                        'ACT_Activo_Padre' => null, 'SED_Sede' => $this->sedeDeArea($area['ARE_Area']),
                     ], $specs, $usuario);
                 } catch (ErrorDominio $e) {
                     throw new ErrorDominio($e->motivo, "IMPORT_ROW_FAILED:{$f->numero}:{$e->detalle}");
                 }
-                $this->datos->ubicarActivo(\App\Dominio\Ident::aHex((string) $activo['ACT_Activo']), (int) $f->area['ARE_Area']);
+                $this->datos->ubicarActivo(\App\Dominio\Ident::aHex((string) $activo['ACT_Activo']), (int) $area['ARE_Area']);
                 $creados[] = $codigo;
             }
             $this->ajustarSecuencias();
@@ -348,7 +351,7 @@ final readonly class ImportacionActivos
             $costo = sprintf('%.4F', (float) $costo);
         }
         if ('' !== $costo) {
-            if (is_numeric($costo) && bccomp($costo = bcround(trim($costo), 2, \RoundingMode::HalfEven), '0', 2) >= 0
+            if (is_numeric($costo) && bccomp($costo = bcround(\App\Dominio\Decimal::de($costo), 2, \RoundingMode::HalfEven), '0', 2) >= 0
                 && bccomp($costo, self::COSTO_MAXIMO, 2) <= 0) {
                 $f->costo = $costo;
             } else {

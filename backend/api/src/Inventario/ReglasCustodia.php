@@ -169,7 +169,7 @@ final readonly class ReglasCustodia
                 throw ErrorDominio::noProcesable('MOVEMENT_REASON_REQUIRED');
             }
 
-            return ['MMO_Motivo' => null, 'MOV_Motivo' => $d['MOV_Motivo'], 'MOV_Motivo_Detalle' => null];
+            return ['MMO_Motivo' => null, 'MOV_Motivo' => $d['MOV_Motivo'] ?? null, 'MOV_Motivo_Detalle' => null];
         }
         $m = $this->datos->motivo($id);
         if (false === $m || 1 !== (int) $m['MMO_Activo']) {

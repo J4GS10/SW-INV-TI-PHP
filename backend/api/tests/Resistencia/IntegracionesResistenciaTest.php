@@ -23,6 +23,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 #[Group('resistencia')]
 final class IntegracionesResistenciaTest extends KernelTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     use PeticionesSimultaneas;
 
     private string $url;
@@ -112,6 +114,6 @@ final class IntegracionesResistenciaTest extends KernelTestCase
 
     private function nuevoToken(string $rol): string
     {
-        return static::getContainer()->get(Tokens::class)->crearAcceso(D::crearUsuario(['rol' => $rol, 'global' => true])['username'], 'x');
+        return self::servicio(Tokens::class)->crearAcceso(D::crearUsuario(['rol' => $rol, 'global' => true])['username'], 'x');
     }
 }

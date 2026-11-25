@@ -47,7 +47,7 @@ final class ActivosTest extends PruebaApi
         self::assertSame([substr($a['ACT_Codigo_Interno'], 0, -1).'2', 'USD'], [$b['ACT_Codigo_Interno'], $b['ACT_Moneda']]);
 
         $kardex = D::conexion()->fetchAssociative("SELECT \"KDX_Tipo\", \"KDX_Hash\", \"KDX_Secuencia\", \"KDX_Costo\" FROM \"INV_KARDEX\" WHERE \"ACT_Activo\" = :a",
-            ['a' => str_replace('-', '', $a['ACT_Activo'])]);
+            ['a' => str_replace('-', '', $a['ACT_Activo'])]) ?: self::fail('Sin evento de alta en el kardex.');
         self::assertSame('ALTA', $kardex['KDX_Tipo']);
         self::assertSame(64, \strlen((string) $kardex['KDX_Hash']), 'Oracle sella cada evento.');
         self::assertTrue(I::cadenaKardexIntegra());
@@ -168,7 +168,7 @@ final class ActivosTest extends PruebaApi
         self::assertSame(['Baja', 'OBSOLESCENCIA', 'RECICLAJE', 'ACTA-1'], [$final['estado_operativo']['EOP_Nombre'], $final['ACT_Baja_Motivo'],
             $final['ACT_Baja_Destino'], $final['ACT_Baja_Documento']]);
         $baja = D::conexion()->fetchAssociative("SELECT \"KDX_Detalle\" FROM \"INV_KARDEX\" WHERE \"ACT_Activo\" = :a AND \"KDX_Tipo\" = 'BAJA'",
-            ['a' => str_replace('-', '', $id)]);
+            ['a' => str_replace('-', '', $id)]) ?: self::fail('Sin evento de baja en el kardex.');
         $detalle = json_decode((string) $baja['KDX_Detalle'], true);
         self::assertSame([$solicitud['APR_Aprobacion'], 'OBSOLESCENCIA'], [$detalle['aprobacion'], $detalle['motivo']]);
         self::assertSame([409, 'APPROVAL_ALREADY_RESOLVED:APROBADA'], $this->detalle('POST', "/api/v1/aprobaciones/{$solicitud['APR_Aprobacion']}/rechazar",

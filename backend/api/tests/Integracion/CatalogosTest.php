@@ -12,6 +12,8 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 /** /cat y /catalogos contra Oracle real. */
 final class CatalogosTest extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private KernelBrowser $cliente;
     private string $admin;
 
@@ -203,7 +205,7 @@ final class CatalogosTest extends WebTestCase
     /** @param array{username: string} $u */
     private function token(array $u): string
     {
-        return static::getContainer()->get(Tokens::class)->crearAcceso($u['username'], 'x');
+        return self::servicio(Tokens::class)->crearAcceso($u['username'], 'x');
     }
 
     /**
@@ -214,7 +216,7 @@ final class CatalogosTest extends WebTestCase
     private function pedir(string $metodo, string $ruta, ?array $cuerpo = null, ?string $token = null): array
     {
         $this->cliente->request($metodo, $ruta, server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.($token ?? $this->admin)],
-            content: null === $cuerpo ? '' : json_encode($cuerpo));
+            content: null === $cuerpo ? '' : (string) json_encode($cuerpo));
         $r = $this->cliente->getResponse();
 
         return [$r->getStatusCode(), json_decode((string) $r->getContent(), true)];

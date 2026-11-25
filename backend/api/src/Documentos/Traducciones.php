@@ -210,7 +210,7 @@ final class Traducciones
     private static function clave(string $valor): string
     {
         $sinAcentos = preg_replace('/\p{Mn}+/u', '', \Normalizer::normalize($valor, \Normalizer::FORM_KD) ?: $valor) ?? $valor;
-        $plano = mb_strtolower(str_replace(['_', '.'], ' ', $sinAcentos));
+        $plano = mb_strtolower(str_replace(['_', '.'], ' ', (string) $sinAcentos));
 
         return implode(' ', preg_split('/\s+/u', $plano, -1, \PREG_SPLIT_NO_EMPTY) ?: []);
     }

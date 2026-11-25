@@ -18,7 +18,7 @@ final class ConsistencyTest extends PruebaApi
 {
     protected function tearDown(): void
     {
-        static::getContainer()->get(ContextoRls::class)->reset();
+        self::servicio(ContextoRls::class)->reset();
         parent::tearDown();
     }
 
@@ -80,10 +80,10 @@ final class ConsistencyTest extends PruebaApi
 
         // During a request (user set) the database refuses a physical DELETE on a business table.
         $other = $this->ok(201, 'POST', '/api/v1/compras/proveedores', ['PRV_Nombre' => 'Proveedor intocable '.D::sufijo()], $token);
-        $rls = static::getContainer()->get(ContextoRls::class);
+        $rls = self::servicio(ContextoRls::class);
         $rls->fijarUsuario($admin['id']);
         try {
-            static::getContainer()->get(\Doctrine\DBAL\Connection::class)
+            self::servicio(\Doctrine\DBAL\Connection::class)
                 ->executeStatement('DELETE FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :id', ['id' => (int) $other['PRV_Proveedor']]);
             self::fail('The physical DELETE should have been refused.');
         } catch (\Doctrine\DBAL\Exception $e) {
@@ -203,13 +203,13 @@ final class ConsistencyTest extends PruebaApi
         // Somebody saves between the first check (when the request arrives) and this request's own write.
         $token = $this->tokenDe(D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]));
         [, $supplier] = $this->pedir('POST', '/api/v1/compras/proveedores', ['PRV_Nombre' => 'Proveedor bloqueado '.D::sufijo()], $token);
-        $versions = static::getContainer()->get(\App\Db\RowVersions::class);
+        $versions = self::servicio(\App\Db\RowVersions::class);
         $versions->expect('INV_PROVEEDOR', 'PRV_Proveedor', $supplier['PRV_Proveedor'], $supplier['row_version']);
         D::conexion()->executeStatement('UPDATE "INV_PROVEEDOR" SET "PRV_Contacto" = :c WHERE "PRV_Proveedor" = :p', ['c' => 'Otro', 'p' => $supplier['PRV_Proveedor']]);
 
         $wrote = false;
         try {
-            static::getContainer()->get(\App\Db\Transaccion::class)->ejecutar(static function () use (&$wrote): void {
+            self::servicio(\App\Db\Transaccion::class)->ejecutar(static function () use (&$wrote): void {
                 $wrote = true;
             });
             self::fail('Se esperaba RowChangedByAnotherUser');

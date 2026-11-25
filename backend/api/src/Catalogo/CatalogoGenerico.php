@@ -481,7 +481,7 @@ final class CatalogoGenerico
                         || \count(array_filter($valor, 'is_string')) !== \count($valor) || [] !== array_diff($valor, RegistroCatalogos::APLICA_A))) {
                         throw $invalido;
                     }
-                    $valor = [] === ($valor ?? []) ? null : array_values(array_unique($valor));
+                    $valor = null === $valor || [] === $valor ? null : array_values(array_unique($valor));
                     if (null !== $valor) {
                         sort($valor);
                     }

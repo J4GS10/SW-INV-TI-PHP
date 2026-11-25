@@ -171,7 +171,7 @@ final readonly class CatalogosController
             }
         }
         $entrada->validar();
-        $this->catalogos->reordenar($clave, $ids, $this->auditor($r));
+        $this->catalogos->reordenar($clave, array_map(intval(...), $ids ?? []), $this->auditor($r));
 
         return new Response(null, 204);
     }

@@ -15,14 +15,16 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  */
 final class RlsTest extends KernelTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private ContextoRls $rls;
     private Connection $conexion;
 
     protected function setUp(): void
     {
         self::bootKernel();
-        $this->rls = static::getContainer()->get(ContextoRls::class);
-        $this->conexion = static::getContainer()->get(Connection::class);
+        $this->rls = self::servicio(ContextoRls::class);
+        $this->conexion = self::servicio(Connection::class);
     }
 
     protected function tearDown(): void

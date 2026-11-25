@@ -42,7 +42,7 @@ final readonly class BajaDeActivos
     /**
      * Reglas de la baja, al solicitarla y otra vez al aprobarla.
      *
-     * @param array{motivo: string, destino: string, fecha?: ?string, documento?: ?string, observacion?: ?string, retirar_componentes?: bool} $baja
+     * @param array<string, mixed> $baja motivo, destino, fecha, documento, observacion y retirar_componentes
      *
      * @return array{0: array<string, mixed>, 1: int, 2: list<array<string, mixed>>} [activo, estado Baja, componentes]
      */

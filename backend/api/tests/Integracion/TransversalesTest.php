@@ -17,6 +17,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 /** Piezas comunes a todos los módulos. */
 final class TransversalesTest extends KernelTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     protected function setUp(): void
     {
         self::bootKernel();
@@ -24,8 +26,8 @@ final class TransversalesTest extends KernelTestCase
 
     protected function tearDown(): void
     {
-        static::getContainer()->get(ContextoRls::class)->reset();
-        static::getContainer()->get(UsuarioActual::class)->reset();
+        self::servicio(ContextoRls::class)->reset();
+        self::servicio(UsuarioActual::class)->reset();
         parent::tearDown();
     }
 
@@ -35,19 +37,19 @@ final class TransversalesTest extends KernelTestCase
         $b = D::crearSede('B '.D::sufijo());
         $personas = [D::crearPersona($a), D::crearPersona($b), D::crearPersona(null)];
         $u = D::crearUsuario(['rol' => 'TECNICO', 'sedes' => [$a]]);
-        $usuario = static::getContainer()->get(UsuarioRepositorio::class)->porId($u['id']);
-        static::getContainer()->get(UsuarioActual::class)->establecer($usuario, []);
-        $conexion = static::getContainer()->get(Connection::class);
+        $usuario = self::servicio(UsuarioRepositorio::class)->porId($u['id']) ?? self::fail('El usuario creado no está.');
+        self::servicio(UsuarioActual::class)->establecer($usuario, []);
+        $conexion = self::servicio(Connection::class);
         $marcas = ['p0' => $personas[0], 'p1' => $personas[1], 'p2' => $personas[2]];
 
         // Capa 1 sola (sin contexto VPD en la sesión).
-        [$filtro, $parametros] = static::getContainer()->get(Alcance::class)->lectura('INV_PERSONA', 'p');
+        [$filtro, $parametros] = self::servicio(Alcance::class)->lectura('INV_PERSONA', 'p');
         $capaUno = $conexion->fetchFirstColumn(
             'SELECT p."PER_Persona" FROM "INV_PERSONA" p WHERE p."PER_Persona" IN (:p0, :p1, :p2) AND '.$filtro,
             [...$marcas, ...$parametros],
         );
         // Capa 2 sola (VPD con el usuario fijado).
-        static::getContainer()->get(ContextoRls::class)->fijarUsuario($u['id']);
+        self::servicio(ContextoRls::class)->fijarUsuario($u['id']);
         $vpd = $conexion->fetchFirstColumn('SELECT "PER_Persona" FROM "INV_PERSONA" WHERE "PER_Persona" IN (:p0, :p1, :p2)', $marcas);
 
         self::assertSame([$personas[0]], $capaUno);

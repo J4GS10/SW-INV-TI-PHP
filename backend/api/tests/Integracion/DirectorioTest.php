@@ -291,7 +291,7 @@ final class DirectorioTest extends PruebaApi
         $this->ok(200, 'POST', self::BASE.'/sincronizar', token: $this->super);
         // Base mal configurada (una OU sin usuarios): el AD «devuelve» 0 personas.
         AD::configurar(['INT_AD_Base_DN' => AD::BASE_GRUPOS]);
-        $this->servicio(\App\Integracion\FuenteIntegracion::class)->invalidar();
+        self::servicio(\App\Integracion\FuenteIntegracion::class)->invalidar();
         $r = $this->ok(200, 'POST', self::BASE.'/sincronizar', token: $this->super);
         self::assertSame([0, 0, 2, 'AD_SYNC_MASS_DEACTIVATION_BLOCKED'], [$r['total_ad'], $r['desactivados'], $r['bajas_retenidas'], $r['advertencia']]);
         self::assertSame(2, D::contar('SELECT COUNT(*) FROM "INV_PERSONA" WHERE "PER_AD_GUID" IS NOT NULL AND "PER_Estado" = 1'));
@@ -367,26 +367,14 @@ final class DirectorioTest extends PruebaApi
         self::assertSame([], $this->ok(200, 'GET', self::BASE.'/grupos', token: $this->super), 'Grupos: lista vacía mientras está pausado.');
 
         AD::configurar();
-        $this->servicio(\App\Integracion\FuenteIntegracion::class)->invalidar();
+        self::servicio(\App\Integracion\FuenteIntegracion::class)->invalidar();
         self::assertSame(204, $this->pedir('POST', self::BASE.'/integracion/desbloquear', token: $this->super)[0]);
         self::assertNull($this->ok(200, 'GET', self::BASE.'/integracion', token: $this->super)['bloqueo']['ad_hasta']);
         self::assertSame(3, $this->ok(200, 'POST', self::BASE.'/probar', token: $this->super)['usuarios_encontrados']);
         // Directorio caído: sincronizar responde 502 AD_UNAVAILABLE.
         AD::configurar(['INT_AD_Servidor' => 'ldaps://no-existe.invalid']);
-        $this->servicio(\App\Integracion\FuenteIntegracion::class)->invalidar();
+        self::servicio(\App\Integracion\FuenteIntegracion::class)->invalidar();
         self::assertSame([502, 'AD_UNAVAILABLE'], $this->detalle('POST', self::BASE.'/sincronizar', null, $this->super));
     }
 
-    /**
-     * @template T of object
-     *
-     * @param class-string<T> $clase
-     *
-     * @return T
-     */
-    private function servicio(string $clase): object
-    {
-        /** @var T */
-        return $this->cliente->getContainer()->get($clase);
-    }
 }

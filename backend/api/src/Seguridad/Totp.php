@@ -38,7 +38,8 @@ final class Totp
         $clave = self::base32Decodificar($secreto);
         $hmac = hash_hmac('sha1', pack('J', $paso), $clave, true);
         $desplazamiento = \ord($hmac[19]) & 0x0F;
-        $numero = (unpack('N', substr($hmac, $desplazamiento, 4))[1] & 0x7FFFFFFF) % 1_000_000;
+        $entero = unpack('N', substr($hmac, $desplazamiento, 4)) ?: throw new \LogicException('HMAC incompleto.');
+        $numero = ($entero[1] & 0x7FFFFFFF) % 1_000_000;
 
         return str_pad((string) $numero, 6, '0', \STR_PAD_LEFT);
     }
@@ -87,7 +88,7 @@ final class Totp
         $bytes = '';
         foreach (str_split($bits, 8) as $octeto) {
             if (8 === \strlen($octeto)) {
-                $bytes .= \chr((int) bindec($octeto));
+                $bytes .= \chr((int) bindec($octeto) & 0xFF);
             }
         }
 

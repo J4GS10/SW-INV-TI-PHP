@@ -193,6 +193,15 @@ export async function iniciarSesionUi(page: Page, nombre: string): Promise<void>
     await expect(page).not.toHaveURL(/\/login/);
     // Termina la navegación posterior al login (WebKit interrumpe un goto inmediato).
     await page.waitForLoadState('networkidle');
+    // La pantalla de inicio redirige según el rol cuando ya lo conoce (SUPER_ADMIN a /usuarios):
+    // se espera a que la dirección quede quieta medio segundo antes de seguir.
+    let previa = page.url();
+    await expect.poll(async () => {
+      await page.waitForTimeout(500);
+      const estable = page.url() === previa;
+      previa = page.url();
+      return estable;
+    }, { timeout: 10_000 }).toBe(true);
   });
 }
 

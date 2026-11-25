@@ -110,10 +110,10 @@ final readonly class Actas
     private function fechaDelHecho(array $movimientos, TipoActa $tipo): \DateTimeImmutable
     {
         if ($tipo->exigeDevolucion() && null !== $movimientos[0]['MOV_Fecha_Devolucion']) {
-            return $this->formato->aLocal(Reloj::desdeBd((string) $movimientos[0]['MOV_Fecha_Devolucion']));
+            return $this->formato->aLocal(Reloj::desdeBd((string) $movimientos[0]['MOV_Fecha_Devolucion']) ?? throw new \UnexpectedValueException('Movimiento sin fecha de devolución.'));
         }
         if (null !== $movimientos[0]['MOV_Fecha_Asignacion']) {
-            return $this->formato->aLocal(Reloj::desdeBd(min(array_map(static fn (array $m): string => (string) $m['MOV_Fecha_Asignacion'], $movimientos))));
+            return $this->formato->aLocal(Reloj::desdeBd(min(array_map(static fn (array $m): string => (string) $m['MOV_Fecha_Asignacion'], $movimientos))) ?? throw new \UnexpectedValueException('Movimiento sin fecha de asignación.'));
         }
 
         return $this->formato->ahora();

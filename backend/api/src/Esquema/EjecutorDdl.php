@@ -21,6 +21,7 @@ final readonly class EjecutorDdl
 
     public function ejecutar(string $ddl): void
     {
+        /** @var resource $nativa conexión OCI8 */
         $nativa = $this->conexion->getNativeConnection();
         $sentencia = oci_parse($nativa, $ddl);
         if (false === $sentencia) {

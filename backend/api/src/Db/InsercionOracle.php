@@ -37,6 +37,7 @@ final class InsercionOracle
         $sql = "INSERT INTO \"{$tabla}\" (".implode(', ', $columnas).') VALUES ('.implode(', ', $marcas)
             .") RETURNING \"{$clave}\" INTO :retorno";
 
+        /** @var resource $nativa conexión OCI8 */
         $nativa = $conexion->getNativeConnection();
         $sentencia = oci_parse($nativa, $sql);
         if (false === $sentencia) {

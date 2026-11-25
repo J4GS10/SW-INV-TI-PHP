@@ -25,6 +25,8 @@ use Symfony\Component\HttpClient\Response\MockResponse;
  */
 final class SsoTest extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private const string FRONTEND = 'https://inventario.pruebas.local';
 
     private KernelBrowser $cliente;
@@ -38,10 +40,10 @@ final class SsoTest extends WebTestCase
     {
         $this->cliente = static::createClient();
         $this->cliente->disableReboot();
-        $this->privada = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => \OPENSSL_KEYTYPE_RSA]);
+        $this->privada = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => \OPENSSL_KEYTYPE_RSA]) ?: self::fail('OpenSSL no generó la clave.');
         $c = static::getContainer();
-        $c->set(Sso::class, new Sso(new MockHttpClient($this->proveedorSimulado(...)), $c->get(UsuarioRepositorio::class),
-            $c->get(GobiernoRepositorio::class), $c->get(\App\Db\Transaccion::class), $c->get(Ajustes::class)));
+        $c->set(Sso::class, new Sso(new MockHttpClient($this->proveedorSimulado(...)), self::servicio(UsuarioRepositorio::class),
+            self::servicio(GobiernoRepositorio::class), self::servicio(\App\Db\Transaccion::class), self::servicio(Ajustes::class)));
     }
 
     public function testListaLosProveedoresConfigurados(): void
@@ -137,14 +139,14 @@ final class SsoTest extends WebTestCase
     {
         $secreto = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
         $u = D::crearUsuario(['sso' => 'google', 'metodo_2fa' => 'TOTP', 'secreto_totp' => $secreto]);
-        $destino = $this->volverDelProveedor($u['correo']);
+        $destino = $this->volverDelProveedor($u['correo']) ?? self::fail('El proveedor no redirigió.');
 
         self::assertStringStartsWith(self::FRONTEND.'/sso/callback#sso=2fa&method=TOTP&challenge=', $destino);
         self::assertNull($this->cliente->getCookieJar()->get('rtk', '/api/v1/login'), 'Sin sesión hasta el segundo factor.');
         parse_str((string) parse_url($destino, \PHP_URL_FRAGMENT), $fragmento);
 
         $this->cliente->request('POST', '/api/v1/login/2fa/verify', server: ['CONTENT_TYPE' => 'application/json'],
-            content: json_encode(['challenge_token' => $fragmento['challenge'], 'code' => Totp::codigoEn($secreto, time())]));
+            content: (string) json_encode(['challenge_token' => $fragmento['challenge'], 'code' => Totp::codigoEn($secreto, time())]));
         self::assertResponseIsSuccessful();
         $acceso = json_decode((string) $this->cliente->getResponse()->getContent(), true)['access_token'];
         $sid = ((array) JWT::decode($acceso, new Key($_SERVER['SECRET_KEY'], 'HS256')))['sid'];
@@ -153,7 +155,7 @@ final class SsoTest extends WebTestCase
 
     public function testElDestinoSoloPuedeSerDelFrontend(): void
     {
-        $sso = static::getContainer()->get(Sso::class);
+        $sso = self::servicio(Sso::class);
         foreach (['https://malicioso.example/x', 'https://inventario.pruebas.local.malicioso.example/', '//malicioso.example',
             'javascript:alert(1)', 'https://user@inventario.pruebas.local/', 'http://inventario.pruebas.local/', "https://inventario.pruebas.local/\\\\malo"] as $malo) {
             self::assertSame(self::FRONTEND.'/sso/callback', $sso->volverASeguro($malo), $malo);
@@ -172,7 +174,7 @@ final class SsoTest extends WebTestCase
         parse_str((string) parse_url($url, \PHP_URL_QUERY), $q);
         self::assertSame('openid email profile', $q['scope']);
 
-        return ['state' => $q['state'], 'nonce' => $q['nonce']];
+        return ['state' => \is_string($q['state'] ?? null) ? $q['state'] : self::fail('Sin state.'), 'nonce' => \is_string($q['nonce'] ?? null) ? $q['nonce'] : self::fail('Sin nonce.')];
     }
 
     /** @param array<string, mixed> $extra */
@@ -202,13 +204,13 @@ final class SsoTest extends WebTestCase
         $google = 'google' === $this->proveedor;
         $emisor = $google ? 'https://accounts.google.com' : 'https://login.microsoftonline.com/{tenantid}/v2.0';
         if (str_ends_with($url, '/.well-known/openid-configuration')) {
-            return new MockResponse(json_encode(['issuer' => $emisor, 'token_endpoint' => 'https://idp.example/token', 'jwks_uri' => 'https://idp.example/jwks']));
+            return new MockResponse((string) json_encode(['issuer' => $emisor, 'token_endpoint' => 'https://idp.example/token', 'jwks_uri' => 'https://idp.example/jwks']));
         }
         if ('https://idp.example/jwks' === $url) {
-            $detalle = openssl_pkey_get_details($this->privada);
+            $detalle = openssl_pkey_get_details($this->privada) ?: self::fail('Sin detalles de la clave.');
             $b64 = static fn (string $v): string => rtrim(strtr(base64_encode($v), '+/', '-_'), '=');
 
-            return new MockResponse(json_encode(['keys' => [['kty' => 'RSA', 'kid' => 'k1', 'use' => 'sig', 'alg' => 'RS256',
+            return new MockResponse((string) json_encode(['keys' => [['kty' => 'RSA', 'kid' => 'k1', 'use' => 'sig', 'alg' => 'RS256',
                 'n' => $b64($detalle['rsa']['n']), 'e' => $b64($detalle['rsa']['e'])]]]));
         }
         if ('https://idp.example/token' === $url) {
@@ -221,7 +223,7 @@ final class SsoTest extends WebTestCase
                 default => JWT::encode($claims, $this->privada, 'RS256', 'k1'),
             };
 
-            return new MockResponse(json_encode(['id_token' => $token, 'access_token' => 'x']));
+            return new MockResponse((string) json_encode(['id_token' => $token, 'access_token' => 'x']));
         }
 
         return new MockResponse('', ['http_code' => 404]);

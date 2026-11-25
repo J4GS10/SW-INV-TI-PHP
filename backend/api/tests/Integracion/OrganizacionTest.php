@@ -13,6 +13,8 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 /** /org: personas con alcance por sede y gestión de identidades (IAM). */
 final class OrganizacionTest extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private KernelBrowser $cliente;
 
     protected function setUp(): void
@@ -162,7 +164,7 @@ final class OrganizacionTest extends WebTestCase
     /** @param array{username: string} $u */
     private function token(array $u): string
     {
-        return static::getContainer()->get(Tokens::class)->crearAcceso($u['username'], 'x');
+        return self::servicio(Tokens::class)->crearAcceso($u['username'], 'x');
     }
 
     /**
@@ -173,7 +175,7 @@ final class OrganizacionTest extends WebTestCase
     private function pedir(string $metodo, string $ruta, string $token, ?array $cuerpo = null): array
     {
         $this->cliente->request($metodo, $ruta, server: ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => "Bearer {$token}"],
-            content: null === $cuerpo ? '' : json_encode($cuerpo));
+            content: null === $cuerpo ? '' : (string) json_encode($cuerpo));
         $r = $this->cliente->getResponse();
 
         return [$r->getStatusCode(), json_decode((string) $r->getContent(), true)];

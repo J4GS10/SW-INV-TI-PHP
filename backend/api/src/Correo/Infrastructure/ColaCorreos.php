@@ -111,7 +111,7 @@ final readonly class ColaCorreos
      */
     public function reanudarRetenidos(): int
     {
-        return $this->conexion->executeStatement(
+        return (int) $this->conexion->executeStatement(
             'UPDATE "SYS_EMAIL_OUTBOX" SET "EOB_Proximo_Intento" = :ahora WHERE "EOB_Estado" = :pendiente AND "EOB_Ultimo_Error" LIKE \'AUTH_%\'',
             ['ahora' => Reloj::aBd(Reloj::ahora()), 'pendiente' => CorreoEnCola::PENDIENTE],
         );

@@ -38,7 +38,9 @@ final class RowVersionTest extends TestCase
     {
         $marked = 0;
         foreach (glob(\dirname(__DIR__, 2).'/src/Controller/*.php') ?: [] as $file) {
-            $class = new \ReflectionClass('App\\Controller\\'.basename($file, '.php'));
+            /** @var class-string $name */
+            $name = 'App\\Controller\\'.basename($file, '.php');
+            $class = new \ReflectionClass($name);
             foreach ($class->getMethods() as $method) {
                 foreach ($method->getAttributes(Versioned::class) as $attribute) {
                     $versioned = $attribute->newInstance();

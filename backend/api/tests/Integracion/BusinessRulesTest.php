@@ -103,8 +103,8 @@ final class BusinessRulesTest extends PruebaApi
         $id = Ident::nuevo();
         D::conexion()->executeStatement('INSERT INTO "INV_ADJUNTO" ("ADJ_Adjunto", "ADJ_Nombre_Original", "ADJ_Nombre_Almacenado", "ADJ_Categoria", "ADJ_Tamano_Bytes", "ADJ_Fecha_Subida", "LIC_Licencia") '
             ."VALUES (:id, 'a.pdf', :n, 'otro', 1, SYSTIMESTAMP, :l)", ['id' => $id, 'n' => "{$id}.pdf", 'l' => $license]);
-        $connection = static::getContainer()->get(Connection::class);
-        $rls = static::getContainer()->get(ContextoRls::class);
+        $connection = self::servicio(Connection::class);
+        $rls = self::servicio(ContextoRls::class);
         $visible = static function (array $user) use ($connection, $rls, $id): int {
             $rls->fijarUsuario($user['id']);
             try {
@@ -178,7 +178,7 @@ final class BusinessRulesTest extends PruebaApi
         self::assertSame(0, D::contar("SELECT COUNT(*) FROM \"INV_KARDEX\" WHERE \"KDX_Tipo\" = 'INVENTARIO_FISICO' AND \"KDX_Documento_Ref\" = :d", ['d' => (string) $id]));
         self::assertSame([409, 'INVENTORY_COUNT_NOT_OPEN'], $this->detalle('POST', "/api/v1/inventario/tomas/{$id}/cerrar", token: $this->admin));
 
-        $worker = static::getContainer()->get(\App\Tareas\CierreTomasPendientes::class);
+        $worker = self::servicio(\App\Tareas\CierreTomasPendientes::class);
         $worker->ejecutar();
         self::assertSame('CERRADA', $this->ok(200, 'GET', "/api/v1/inventario/tomas/{$id}", token: $this->admin)['TOM_Estado']);
         self::assertSame(501, D::contar("SELECT COUNT(*) FROM \"INV_KARDEX\" WHERE \"KDX_Tipo\" = 'INVENTARIO_FISICO' AND \"KDX_Documento_Ref\" = :d", ['d' => (string) $id]));

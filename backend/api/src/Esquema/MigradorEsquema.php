@@ -43,15 +43,15 @@ final readonly class MigradorEsquema
         }
         $this->migraciones->getMigrator()->migrate($plan, (new MigratorConfiguration())->setAllOrNothing(false));
 
-        return array_map(static fn ($item): string => (string) $item->getVersion(), $plan->getItems());
+        return array_values(array_map(static fn ($item): string => (string) $item->getVersion(), $plan->getItems()));
     }
 
     /** @return list<string> migraciones disponibles que aún no se aplicaron (sin crear nada) */
     public function pendientes(): array
     {
         // Sin la tabla de registro (base sin migrar) Doctrine las da todas por pendientes.
-        return array_map(static fn ($m): string => (string) $m->getVersion(),
-            $this->migraciones->getMigrationStatusCalculator()->getNewMigrations()->getItems());
+        return array_values(array_map(static fn ($m): string => (string) $m->getVersion(),
+            $this->migraciones->getMigrationStatusCalculator()->getNewMigrations()->getItems()));
     }
 
     /** @return list<string> */

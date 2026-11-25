@@ -56,6 +56,8 @@ export const EntregaPuestoForm = ({ personaFija, personaInicial, activosIniciale
   const [estados, setEstados] = useState<EstadoOperativo[]>([]);
   const [persona, setPersona] = useState<PersonaResumen | null>(personaFija ?? personaInicial ?? null);
   const [area, setArea] = useState<Area | null>(null);
+  // Texto escrito en el área sin elegir todavía: también es del usuario y la sugerencia no lo pisa.
+  const [areaTexto, setAreaTexto] = useState('');
   const [lista, setLista] = useState<Activo[]>(activosIniciales ?? []);
   const [custodios, setCustodios] = useState<Record<string, string | null>>({});
   const [busqueda, setBusqueda] = useState('');
@@ -96,7 +98,7 @@ export const EntregaPuestoForm = ({ personaFija, personaInicial, activosIniciale
   // Contexto de la persona: área habitual, línea informativa y kit sugerido.
   const personCtx = useEntityContext(persona?.PER_Persona ?? null, suggestionService.persona);
   const areaHint = useSuggestion<number | null>({
-    current: area?.ARE_Area ?? null,
+    current: area?.ARE_Area ?? (areaTexto.trim() !== '' ? -1 : null),
     empty: null,
     apply: (id) => setArea(areas.find((a) => a.ARE_Area === id) ?? null),
     suggestion: personCtx.loading ? undefined : personCtx.data?.area_sugerida ? {
@@ -234,6 +236,7 @@ export const EntregaPuestoForm = ({ personaFija, personaInicial, activosIniciale
               getOptionLabel={(a) => a.ARE_Nombre}
               isOptionEqualToValue={(a, b) => a.ARE_Area === b.ARE_Area}
               onChange={(_, a) => setArea(a)}
+              onInputChange={(_, texto, razon) => { if (razon === 'input' || razon === 'clear') setAreaTexto(texto); }}
               renderInput={(params) => <TextField {...params} label={t('handover.area')} />}
             />
             <SuggestionHint hint={areaHint} />

@@ -87,7 +87,7 @@ final readonly class RepositorioEntidad
             return 0;
         }
 
-        return $this->conexion->update('"'.$e->tabla.'"', self::citar($e, $datos), ['"'.$e->clave.'"' => $this->clave($e, $id)]);
+        return (int) $this->conexion->update('"'.$e->tabla.'"', self::citar($e, $datos), ['"'.$e->clave.'"' => $this->clave($e, $id)]);
     }
 
     /**

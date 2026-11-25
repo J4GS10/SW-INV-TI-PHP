@@ -41,7 +41,7 @@ final class UpdatePublisherTest extends TestCase
         self::assertCount(1, $this->sent, 'Two identical writes in one request are one event.');
         parse_str($this->sent[0]['body'], $form);
         self::assertSame([UpdatePublisher::TOPIC_CHANGES, ['r' => 'core/activos', 'o' => 'tab-1'], 'on'],
-            [$form['topic'], json_decode((string) $form['data'], true), $form['private']]);
+            [$form['topic'], json_decode(\is_string($form['data']) ? $form['data'] : '', true), $form['private']]);
 
         $claims = $this->claims($this->sent[0]['headers']);
         self::assertSame([UpdatePublisher::ISSUER, UpdatePublisher::AUDIENCE, ['publish'], [['match' => '*']]],

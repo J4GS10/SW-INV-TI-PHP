@@ -40,7 +40,7 @@ final readonly class PurgaSeguridad implements TareaExclusiva
         $ahora = Reloj::ahora();
         $p = ['ahora' => Reloj::aBd($ahora)];
 
-        return $this->conexion->transactional(fn (): array => [
+        return $this->conexion->transactional(fn (): array => array_map(intval(...), [
             'tokens_revocados_eliminados' => $this->conexion->executeStatement('DELETE FROM "SYS_TOKEN_REVOCADO" WHERE "TRV_Expira" < :ahora', $p),
             'idempotency_keys_eliminadas' => $this->conexion->executeStatement('DELETE FROM "SYS_IDEMPOTENCY_KEY" WHERE "IDK_Creada_En" < :corte',
                 ['corte' => Reloj::aBd($ahora->modify('-24 hours'))]),
@@ -49,6 +49,6 @@ final readonly class PurgaSeguridad implements TareaExclusiva
             'correos_enviados_eliminados' => $this->conexion->executeStatement(
                 "DELETE FROM \"SYS_EMAIL_OUTBOX\" WHERE \"EOB_Estado\" = 'ENVIADO' AND \"EOB_Enviado_En\" < :corte",
                 ['corte' => Reloj::aBd($ahora->modify("-{$this->ajustes->outboxRetencionDias} days"))]),
-        ]);
+        ]));
     }
 }

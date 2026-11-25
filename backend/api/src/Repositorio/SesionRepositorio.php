@@ -60,7 +60,7 @@ final readonly class SesionRepositorio
             .'COUNT(CASE WHEN "SES_Dispositivo" = :dispositivo THEN 1 END) AS "CONOCIDAS" '
             .'FROM "SYS_SESION" WHERE "USU_Usuario" = :usuario AND "SES_Creada_En" >= :desde',
             ['usuario' => $usuarioHex, 'desde' => Reloj::aBd($desde), 'dispositivo' => $dispositivo],
-        );
+        ) ?: ['PREVIAS' => 0, 'CONOCIDAS' => 0];
         $id = Ident::nuevo();
         $this->conexion->executeStatement(
             'INSERT INTO "SYS_SESION" ("SES_Sesion", "USU_Usuario", "SES_Creada_En", "SES_Ultima_Actividad", '
@@ -200,6 +200,12 @@ final readonly class SesionRepositorio
         ];
     }
 
+    /** Fecha obligatoria de una sesión (creada, última actividad, expira). */
+    private static function fecha(mixed $valor): \DateTimeImmutable
+    {
+        return Reloj::desdeBd(null === $valor ? null : (string) $valor) ?? throw new \UnexpectedValueException('Sesión sin fecha obligatoria.');
+    }
+
     private const string SELECCION = 'SELECT "SES_Sesion", "USU_Usuario", "SES_Creada_En", "SES_Ultima_Actividad", "SES_Expira", '
         .'"SES_IP", "SES_Dispositivo", "SES_Metodo", "SES_Refresh_Jti", "SES_Cerrada_En" FROM "SYS_SESION"';
 
@@ -215,9 +221,9 @@ final readonly class SesionRepositorio
         return [
             'id' => (string) $f['SES_Sesion'],
             'usuario' => (string) $f['USU_Usuario'],
-            'creada' => Reloj::desdeBd($f['SES_Creada_En']),
-            'ultima' => Reloj::desdeBd($f['SES_Ultima_Actividad']),
-            'expira' => Reloj::desdeBd($f['SES_Expira']),
+            'creada' => self::fecha($f['SES_Creada_En']),
+            'ultima' => self::fecha($f['SES_Ultima_Actividad']),
+            'expira' => self::fecha($f['SES_Expira']),
             'ip' => $f['SES_IP'],
             'dispositivo' => $f['SES_Dispositivo'],
             'metodo' => (string) $f['SES_Metodo'],

@@ -140,7 +140,7 @@ final readonly class FotoCierreMensual
                 $k = ($s ?? '').'|'.$moneda;
                 $grupos[$k] ??= ['SED_Sede' => null === $s ? null : (int) $s, 'moneda' => $moneda];
                 $grupos[$k]["{$clave}_cantidad"] = ($grupos[$k]["{$clave}_cantidad"] ?? 0) + (int) $n;
-                $grupos[$k]["{$clave}_valor"] = bcadd($grupos[$k]["{$clave}_valor"] ?? '0', (string) $valor, 2);
+                $grupos[$k]["{$clave}_valor"] = bcadd(\App\Dominio\Decimal::de($grupos[$k]["{$clave}_valor"] ?? '0'), \App\Dominio\Decimal::de($valor), 2);
                 $grupos[$k]["{$clave}_sin_costo"] = ($grupos[$k]["{$clave}_sin_costo"] ?? 0) + ((int) $n - (int) $conCosto);
             }
         };

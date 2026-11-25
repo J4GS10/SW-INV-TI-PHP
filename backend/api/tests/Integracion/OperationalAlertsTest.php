@@ -42,7 +42,7 @@ final class OperationalAlertsTest extends PruebaApi
 
         $data = new \App\Repositorio\OperationsOracle(D::conexion());
 
-        return new OperationalAlerts($data, new HealthChecks($data, $this->backups, $replica), $container->get(Notificador::class), $container->get(GobiernoRepositorio::class));
+        return new OperationalAlerts($data, new HealthChecks($data, $this->backups, $replica), self::servicio(Notificador::class), self::servicio(GobiernoRepositorio::class));
     }
 
     private function backupAged(int $hours): void

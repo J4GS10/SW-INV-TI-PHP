@@ -14,7 +14,7 @@ trait PeticionesSimultaneas
     /**
      * Lanza todas las peticiones a la vez y espera las respuestas.
      *
-     * @param list<array{0: string, 1: string, 2?: array<string, mixed>|null, 3?: string|null, 4?: array<string, mixed>|null, 5?: list<string>}> $peticiones
+     * @param list<array{0: non-empty-string, 1: string, 2?: array<string, mixed>|null, 3?: string|null, 4?: array<string, mixed>|null, 5?: list<string>}> $peticiones
      *     [método, ruta, cuerpo JSON, token, formulario multipart, cabeceras extra ("If-Match: \"3\"")]
      *
      * @return list<array{estado: int, cuerpo: mixed, ms: float, ruta: string|null, error: string|null}>
@@ -31,7 +31,7 @@ trait PeticionesSimultaneas
             if (isset($p[4])) {
                 curl_setopt($h, \CURLOPT_POSTFIELDS, $p[4]);
             } elseif (null !== ($p[2] ?? null)) {
-                curl_setopt($h, \CURLOPT_POSTFIELDS, [] === $p[2] ? '{}' : json_encode($p[2]));
+                curl_setopt($h, \CURLOPT_POSTFIELDS, [] === $p[2] ? '{}' : (string) json_encode($p[2]));
             }
             curl_multi_add_handle($multi, $h);
             $handles[$i] = $h;

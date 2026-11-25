@@ -38,7 +38,7 @@ final readonly class GoodsReceiptAct
         $rows = '';
         foreach ($this->receipts->lines($id) as $line) {
             $rows .= '<tr><td>'.$e($line['GRL_ITEM_TEXT']).'</td><td class="n">'.(int) $line['GRL_QUANTITY_DECLARED'].'</td><td class="n">'.(int) $line['GRL_QUANTITY_RECEIVED'].'</td><td class="n">'
-                .$e(bcadd((string) $line['GRL_UNIT_COST'], '0', 2)).' '.$e($receipt['GRC_CURRENCY']).'</td></tr>';
+                .$e(bcadd(\App\Dominio\Decimal::de($line['GRL_UNIT_COST']), '0', 2)).' '.$e($receipt['GRC_CURRENCY']).'</td></tr>';
         }
         $company = $this->lookups->nombreDeEmpresa();
         $reason = null === $receipt['GRC_DIFFERENCE_REASON'] ? '' : '<p><b>'.$e($t['reason']).':</b> '.$e($receipt['GRC_DIFFERENCE_REASON']).'</p>';

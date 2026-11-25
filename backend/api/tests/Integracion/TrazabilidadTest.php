@@ -169,7 +169,7 @@ final class TrazabilidadTest extends PruebaApi
         self::assertSame([400, 'CANNOT_ADD_DETAILS_TO_CLOSED_TICKET'], $this->detalle('POST', "/api/v1/mantenimiento/{$t['MAN_Mantenimiento']}/detalles",
             ['DMA_Accion_Realizada' => 'Otra acción']));
         $salida = D::conexion()->fetchAssociative("SELECT \"KDX_Costo\", \"KDX_Moneda\" FROM \"INV_KARDEX\" WHERE \"ACT_Activo\" = :a AND \"KDX_Tipo\" = 'MANTENIMIENTO_SALIDA'",
-            ['a' => str_replace('-', '', $a)]);
+            ['a' => str_replace('-', '', $a)]) ?: self::fail('Sin salida de mantenimiento en el kardex.');
         self::assertSame([370.0, 'USD'], [(float) $salida['KDX_Costo'], $salida['KDX_Moneda']]);
         // El listado se pagina y filtra en el servidor, con el total de lo que coincide.
         $codigo = rawurlencode((string) D::conexion()->fetchOne('SELECT "ACT_Codigo_Interno" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => str_replace('-', '', $a)]));

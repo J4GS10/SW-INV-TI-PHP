@@ -387,6 +387,7 @@ final readonly class Sso
             ['provider' => $proveedor, 'email' => $correo, 'reason' => $motivo], $u?->id, $ip, $ua));
     }
 
+    /** @param positive-int $bytes */
     private static function aleatorio(int $bytes): string
     {
         return rtrim(strtr(base64_encode(random_bytes($bytes)), '+/', '-_'), '=');

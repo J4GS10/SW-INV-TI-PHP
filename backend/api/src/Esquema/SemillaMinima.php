@@ -163,14 +163,14 @@ final readonly class SemillaMinima
         foreach (self::POR_NOMBRE as $tabla => [$columnaNombre, $filas]) {
             $existentes = array_map('strval', $this->conexion->fetchFirstColumn("SELECT \"{$columnaNombre}\" FROM \"{$tabla}\""));
             foreach ($filas as $fila) {
-                if (!\in_array($fila[$columnaNombre], $existentes, true)) {
+                if (!\in_array($fila[$columnaNombre] ?? null, $existentes, true)) {
                     $this->conexion->insert($tabla, self::comillas($fila));
                     ++$creadas;
                 }
             }
         }
 
-        return $creadas;
+        return (int) $creadas;
     }
 
     private function porCodigo(): int
@@ -209,7 +209,7 @@ final readonly class SemillaMinima
             }
         }
 
-        return $creadas;
+        return (int) $creadas;
     }
 
     /**

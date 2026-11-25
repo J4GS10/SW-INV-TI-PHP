@@ -198,7 +198,7 @@ final readonly class AccesoCuenta
         // A session closed on its own (or expired): its refresh is worth nothing.
         $sid = isset($payload['sid']) ? (string) $payload['sid'] : null;
         $sesion = null === $sid ? null : $this->sesiones->obtener($sid);
-        if (null !== $sid && (!SesionRepositorio::activa($sesion) || $sesion['usuario'] !== $usuario->id)) {
+        if (null !== $sid && (null === $sesion || !SesionRepositorio::activa($sesion) || $sesion['usuario'] !== $usuario->id)) {
             throw ErrorDominio::noAutenticado('TOKEN_REVOKED');
         }
 

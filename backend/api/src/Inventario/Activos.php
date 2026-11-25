@@ -307,7 +307,7 @@ final readonly class Activos
                 $this->datosComunes->agregarEspecificacion($id, $e['TES_Tipo_Especificacion'],
                     $this->specificationRules->normalize((int) $d['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], (string) $e['ESP_Valor']));
             }
-            $activo = $this->datos->porId($id);
+            $activo = $this->datos->porId($id) ?: throw new \LogicException('El activo recién escrito no se encuentra.');
             $this->kardex->registrar('ALTA', activo: $activo, usuario: $usuario, destino: ['sede' => $d['SED_Sede']],
                 costo: $d['ACT_Costo'], moneda: $d['ACT_Moneda'], motivo: 'Alta manual en el inventario');
             if (null !== $d['ACT_Activo_Padre']) {
@@ -396,7 +396,7 @@ final readonly class Activos
                 $this->exigirHostnameLibre((string) $cambios['ACT_Hostname'], $id);
             }
             $this->escribirCambios($id, $cambios);
-            $activo = $this->datos->porId($id);
+            $activo = $this->datos->porId($id) ?: throw new \LogicException('El activo recién escrito no se encuentra.');
             if (null !== $estadoNuevo && (int) $estadoNuevo !== (int) $actual['EOP_Estado_Operativo']) {
                 $this->kardex->registrar('CAMBIO_ESTADO', activo: $activo, usuario: $usuario, motivo: 'Cambio de estado de almacén',
                     detalle: ['estado_antes' => (int) $actual['EOP_Estado_Operativo'], 'estado_despues' => (int) $estadoNuevo]);
@@ -422,7 +422,7 @@ final readonly class Activos
      */
     private function registrarCambiosEnKardex(array $antes, array $despues, array $cambios, string $usuario): void
     {
-        if (\array_key_exists('ACT_Costo', $cambios) && 0 !== bccomp((string) ($antes['ACT_Costo'] ?? '0'), (string) ($despues['ACT_Costo'] ?? '0'), 2)) {
+        if (\array_key_exists('ACT_Costo', $cambios) && 0 !== bccomp(\App\Dominio\Decimal::de($antes['ACT_Costo'] ?? '0'), \App\Dominio\Decimal::de($despues['ACT_Costo'] ?? '0'), 2)) {
             $this->kardex->registrar('CAMBIO_COSTO', activo: $despues, usuario: $usuario, costo: $despues['ACT_Costo'], moneda: $despues['ACT_Moneda'],
                 motivo: 'Cambio de costo', detalle: ['antes' => $antes['ACT_Costo'], 'despues' => $despues['ACT_Costo']]);
         }

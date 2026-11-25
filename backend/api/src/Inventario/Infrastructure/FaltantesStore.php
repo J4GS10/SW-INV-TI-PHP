@@ -24,7 +24,7 @@ final readonly class FaltantesStore
      *
      * @param list<string> $activos at most 1000
      */
-    public function registrar(int $toma, int $sede, string $fecha, array $activos): int
+    public function registrar(int $toma, ?int $sede, string $fecha, array $activos): int
     {
         return (int) $this->conexion->executeStatement(
             'INSERT INTO "INV_FALTANTE" ("TOM_Toma", "ACT_Activo", "SED_Sede", "FAL_Estado", "FAL_Fecha") '

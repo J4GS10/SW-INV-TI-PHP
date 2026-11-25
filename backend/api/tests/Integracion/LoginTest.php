@@ -21,6 +21,8 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
  */
 final class LoginTest extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private KernelBrowser $cliente;
 
     protected function setUp(): void
@@ -226,7 +228,7 @@ final class LoginTest extends WebTestCase
     {
         $u = D::crearUsuario(['sedes' => [D::crearSede('Sede '.D::sufijo())]]);
         $this->cliente->disableReboot();
-        $conexion = static::getContainer()->get(\Doctrine\DBAL\Connection::class);
+        $conexion = self::servicio(\Doctrine\DBAL\Connection::class);
         $contexto = "SELECT SYS_CONTEXT('INVENTARIO_CTX', 'USUARIO') FROM DUAL";
 
         $this->cliente->request('GET', '/api/v1/me', server: $this->bearer($u['username']));
@@ -249,7 +251,7 @@ final class LoginTest extends WebTestCase
         self::assertSame('DENY', $h->get('X-Frame-Options'));
 
         $u = D::crearUsuario();
-        $expirado = static::getContainer()->get(\App\Seguridad\Tokens::class)->crearAcceso($u['username'], 'TECNICO', segundos: -5);
+        $expirado = self::servicio(\App\Seguridad\Tokens::class)->crearAcceso($u['username'], 'TECNICO', segundos: -5);
         $this->me($expirado);
         self::assertSame(['detail' => 'TOKEN_EXPIRED'], $this->json(401));
 
@@ -282,7 +284,7 @@ final class LoginTest extends WebTestCase
      */
     private function bearer(string $username): array
     {
-        $token = static::getContainer()->get(\App\Seguridad\Tokens::class)->crearAcceso($username, 'TECNICO');
+        $token = self::servicio(\App\Seguridad\Tokens::class)->crearAcceso($username, 'TECNICO');
 
         return ['HTTP_AUTHORIZATION' => "Bearer {$token}"];
     }

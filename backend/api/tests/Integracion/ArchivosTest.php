@@ -69,17 +69,18 @@ final class ArchivosTest extends PruebaApi
         $contenido = (string) $r->getContent();
         self::assertStringStartsWith("\u{FEFF}", $contenido, 'BOM para que Excel detecte UTF-8.');
         $filas = [];
-        $flujo = fopen('php://memory', 'r+b');
+        $flujo = fopen('php://memory', 'r+b') ?: self::fail('Sin memoria temporal.');
         fwrite($flujo, substr($contenido, 3));
         rewind($flujo);
         while (false !== ($f = fgetcsv($flujo, escape: ''))) {
-            $filas[] = $f;
+            $filas[] = array_map(strval(...), $f);
         }
         fclose($flujo);
 
         return $filas;
     }
 
+    /** @param non-empty-string $tipo */
     private static function adjuntoComo(Response $r, string $tipo, string $patronNombre): void
     {
         self::assertSame(200, $r->getStatusCode(), (string) $r->getContent());
@@ -223,7 +224,7 @@ final class ArchivosTest extends PruebaApi
         $libro = (new Xlsx())->load($temporal);
         unlink($temporal);
         self::assertSame(['Assets', 'Additions', 'Disposals', 'Consumables', 'Active licenses', 'Maintenance'], $libro->getSheetNames());
-        $altas = $libro->getSheetByName('Additions');
+        $altas = $libro->getSheetByName('Additions') ?? self::fail('Falta la hoja Additions.');
         self::assertSame(['Code', 'Serial'], [$altas->getCell('A1')->getValue(), $altas->getCell('B1')->getValue()]);
         $fila = null;
         foreach ($altas->getRowIterator(2) as $f) {

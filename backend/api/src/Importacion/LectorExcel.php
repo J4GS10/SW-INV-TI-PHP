@@ -125,7 +125,7 @@ final class LectorExcel
                 }
             });
 
-            return $lector->load($temporal)->getAllSheets();
+            return array_values($lector->load($temporal)->getAllSheets());
         } catch (ErrorDominio $e) {
             throw $e;
         } catch (\Throwable) {

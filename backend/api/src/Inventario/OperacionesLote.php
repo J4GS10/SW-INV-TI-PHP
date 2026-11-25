@@ -174,7 +174,7 @@ final readonly class OperacionesLote
             foreach ($movimientos as $id) {
                 $mov = $this->datos->movimiento($id) ?: throw ErrorDominio::noEncontrado('MOVEMENT_NOT_FOUND');
                 $codigo = (string) $this->datosActivos->codigoDe($mov['ACT_Activo']);
-                $asignado = Reloj::desdeBd((string) $mov['MOV_Fecha_Asignacion']);
+                $asignado = Reloj::desdeBd((string) $mov['MOV_Fecha_Asignacion']) ?? throw new \UnexpectedValueException('Movimiento sin fecha de asignación.');
                 try {
                     if (null !== $mov['MOV_Fecha_Devolucion']) {
                         throw ErrorDominio::conflicto('MOVEMENT_UNDO_NOT_CURRENT');

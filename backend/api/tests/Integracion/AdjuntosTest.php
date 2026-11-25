@@ -57,7 +57,7 @@ final class AdjuntosTest extends PruebaApi
     {
         $antes = D::contar("SELECT COUNT(*) FROM \"INV_AUDITORIA_SISTEMA\" WHERE \"AUD_Entidad_Afectada\" = 'INV_ADJUNTO'");
         [$estado, $adj] = $this->subir("/api/v1/adjuntos/activos/{$this->activo}", '../../factura «octubre».PDF', self::PDF, ['categoria' => 'FACTURA', 'descripcion' => 'Compra']);
-        self::assertSame(201, $estado, json_encode($adj));
+        self::assertSame(201, $estado, (string) json_encode($adj));
         self::assertSame(['factura «octubre».PDF', 'application/pdf', 'factura', 'local', \strlen(self::PDF), hash('sha256', self::PDF), $this->activo],
             [$adj['ADJ_Nombre_Original'], $adj['ADJ_Tipo_MIME'], $adj['ADJ_Categoria'], $adj['ADJ_Storage_Backend'], $adj['ADJ_Tamano_Bytes'],
                 $adj['ADJ_Checksum_SHA256'], $adj['ACT_Activo']]);

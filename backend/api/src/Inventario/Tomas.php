@@ -163,7 +163,7 @@ final readonly class Tomas
             $leidos = array_flip(array_filter([...array_map(static fn (array $l): string => (string) $l['ACT_Activo'], $lecturas), $id]));
             // De otra sede solo se informa el código (no sus datos: fuera del alcance).
             $visible = null !== $activo && 'OTRA_SEDE' !== $resultado;
-            $fila = $this->datos->lectura($lectura);
+            $fila = $this->datos->lectura($lectura) ?: throw new \LogicException('La lectura recién registrada no se encuentra.');
 
             return [...self::lecturaAApi($fila), 'ACT_Activo' => $visible ? Ident::aTexto((string) $id) : null,
                 'activo_codigo' => $activo['ACT_Codigo_Interno'] ?? null, 'activo_descripcion' => $visible ? $activo['ACT_Hostname'] : null,
@@ -282,7 +282,7 @@ final readonly class Tomas
             }
             $resumen['ubicaciones_actualizadas'] = $actualizarUbicacion;
             // Lo que no apareció queda para investigar (Tomas → Faltantes).
-            $resumen['faltantes_nuevos'] = $this->faltantes->registrarDeToma($id, $sede, array_map(static fn (array $f): string => Ident::aHex($f['activo']), $resumen['faltantes']));
+            $resumen['faltantes_nuevos'] = $this->faltantes->registrarDeToma($id, $sede, array_values(array_map(static fn (array $f): string => Ident::aHex($f['activo']), $resumen['faltantes'])));
             $this->datos->cerrar($id, $resumen, Reloj::ahora());
             $this->gobierno->registrarAuditoria('INVENTORY_COUNT_CLOSE', 'INV_TOMA_INVENTARIO', ['toma' => $id, 'esperados' => $resumen['esperados'],
                 'faltantes' => \count($resumen['faltantes']), 'otra_ubicacion' => \count($resumen['otra_ubicacion']), 'no_registrados' => \count($resumen['no_registrados'])],

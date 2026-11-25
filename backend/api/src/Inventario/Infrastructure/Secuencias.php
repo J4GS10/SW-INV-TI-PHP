@@ -21,7 +21,7 @@ final readonly class Secuencias
     {
         $this->crearSiFalta($contexto, $relleno);
         $fila = $this->conexion->fetchAssociative(
-            'SELECT "SEC_Ultimo_Numero", "SEC_Relleno" FROM "SYS_SECUENCIA" WHERE "SEC_Contexto" = :c FOR UPDATE', ['c' => $contexto]);
+            'SELECT "SEC_Ultimo_Numero", "SEC_Relleno" FROM "SYS_SECUENCIA" WHERE "SEC_Contexto" = :c FOR UPDATE', ['c' => $contexto]) ?: throw new \LogicException("Falta la secuencia {$contexto}.");
         $numero = (int) $fila['SEC_Ultimo_Numero'] + 1;
         $this->conexion->executeStatement('UPDATE "SYS_SECUENCIA" SET "SEC_Ultimo_Numero" = :n WHERE "SEC_Contexto" = :c',
             ['n' => $numero, 'c' => $contexto]);

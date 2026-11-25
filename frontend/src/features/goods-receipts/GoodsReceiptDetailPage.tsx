@@ -48,10 +48,13 @@ export const GoodsReceiptDetailPage = () => {
   const [newModel, setNewModel] = useState<{ line: number; typeId: number; brand: string; model: string } | null>(null);
   const [cancelReason, setCancelReason] = useState<string | null>(null);
   const [keys, setKeys] = useState<Record<number, string>>({});
+  /** Hay cambios del técnico sin guardar: la recarga en vivo no los pisa. */
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     const data = await goodsReceiptService.get(receiptId);
     setReceipt(data);
+    setEditing(false);
     const initial: Record<number, Draft> = {};
     for (const line of data.lines ?? []) {
       initial[line.id] = { received: String(line.received_quantity ?? line.quantity), line_type: line.line_type ?? '', asset_type_id: line.asset_type_id, model_id: line.model_id, consumable_id: line.consumable_id,
@@ -60,7 +63,7 @@ export const GoodsReceiptDetailPage = () => {
     setDrafts(initial);
     return data;
   }, [receiptId]);
-  useLiveRefresh(load);
+  useLiveRefresh(load, { enabled: !editing });
 
   const canConfirm = !!receipt && receipt.status === 'REGISTERED' && canOperate && !receipt.mine;
 
@@ -89,12 +92,18 @@ export const GoodsReceiptDetailPage = () => {
     softwareService.getTiposLicencia().then((tipos) => setLicenseTypes(tipos.map((x) => ({ id: x.TLI_Tipo_Licencia, label: x.TLI_Nombre })))).catch(avisar);
   }, [canOperate, enqueueSnackbar, t]);
 
-  const update = (line: number, patch: Partial<Draft>) => setDrafts((all) => ({ ...all, [line]: { ...all[line], ...patch } }));
+  const update = (line: number, patch: Partial<Draft>) => {
+    setEditing(true);
+    setDrafts((all) => ({ ...all, [line]: { ...all[line], ...patch } }));
+  };
   // Varias líneas iguales: se clasifica una y se copia a las que falten, sin tocar lo recibido.
-  const copyClassification = (from: number) => setDrafts((all) => {
-    const source = all[from];
-    return Object.fromEntries(Object.entries(all).map(([id, draft]) => [id, Number(id) === from || draft.line_type ? draft : { ...source, received: draft.received }]));
-  });
+  const copyClassification = (from: number) => {
+    setEditing(true);
+    setDrafts((all) => {
+      const source = all[from];
+      return Object.fromEntries(Object.entries(all).map(([id, draft]) => [id, Number(id) === from || draft.line_type ? draft : { ...source, received: draft.received }]));
+    });
+  };
 
   const lineComplete = (draft?: Draft) => {
     if (!draft || !/^\d+$/.test(draft.received)) return false;
@@ -217,13 +226,13 @@ export const GoodsReceiptDetailPage = () => {
                   </Stack>)}
                 {canConfirm && d.line_type && (receipt.lines?.length ?? 0) > 1 && (<Button size="small" sx={{ mt: 0.5 }} onClick={() => copyClassification(line.id)}>{t('goods_receipt.copy_to_all')}</Button>)}
                 {entered && canOperate && line.line_type === 'LICENSE' && !line.keys_completed && (<Stack direction={{ xs: 'column', md: 'row' }} spacing={1} sx={{ mt: 1 }} alignItems="flex-start">
-                    <TextField fullWidth multiline minRows={2} size="small" label={t('goods_receipt.license_keys')} helperText={t('goods_receipt.license_keys_help')} value={keys[line.id] ?? ''} onChange={(e) => setKeys((all) => ({ ...all, [line.id]: e.target.value }))}/>
+                    <TextField fullWidth multiline minRows={2} size="small" label={t('goods_receipt.license_keys')} helperText={t('goods_receipt.license_keys_help')} value={keys[line.id] ?? ''} onChange={(e) => { setEditing(true); setKeys((all) => ({ ...all, [line.id]: e.target.value })); }}/>
                     <Button variant="outlined" onClick={() => { void saveKeys(line); }}>{t('goods_receipt.save_keys')}</Button>
                   </Stack>)}
               </Box>);
           })}
           {canConfirm && (<>
-              {hasDifference && <TextField required fullWidth multiline minRows={2} label={t('goods_receipt.difference_reason')} helperText={t('goods_receipt.difference_help')} value={reason} onChange={(e) => setReason(e.target.value)} inputProps={{ maxLength: 500 }}/>}
+              {hasDifference && <TextField required fullWidth multiline minRows={2} label={t('goods_receipt.difference_reason')} helperText={t('goods_receipt.difference_help')} value={reason} onChange={(e) => { setEditing(true); setReason(e.target.value); }} inputProps={{ maxLength: 500 }}/>}
               <Box display="flex" justifyContent="flex-end"><Button variant="contained" disabled={!ready || saving} onClick={() => { void confirm(); }}>{hasDifference ? t('goods_receipt.send_for_approval') : t('goods_receipt.confirm')}</Button></Box>
             </>)}
         </Stack>

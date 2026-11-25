@@ -44,7 +44,7 @@ final readonly class Faltantes
         // En bloques de 1000 (límite de IN en Oracle) en lugar de una fila por viaje: una toma de 20 000
         // activos hacía 20 000 viajes dentro de la transacción del cierre (fase 8, F-11).
         $nuevos = 0;
-        $ahora = Reloj::aBd(Reloj::ahora());
+        $ahora = (string) Reloj::aBd(Reloj::ahora());
         foreach (array_chunk(array_values(array_unique($activos)), 1000) as $bloque) {
             $nuevos += $this->datos->registrar($toma, $sede, $ahora, $bloque);
         }
@@ -128,7 +128,7 @@ final readonly class Faltantes
         $this->transaccion->ejecutar(function () use ($id, $nota, $area, $usuario, $ip): void {
             $f = $this->fila($id);
             self::exigirAbierto($f);
-            $activo = $this->datos->activo($f['ACT_Activo']);
+            $activo = $this->datos->activo($f['ACT_Activo']) ?: throw \App\Dominio\ErrorDominio::noEncontrado('ASSET_NOT_FOUND');
             if (null !== $area && !$this->datos->existeArea($area)) {
                 throw ErrorDominio::noEncontrado('AREA_NOT_FOUND');
             }

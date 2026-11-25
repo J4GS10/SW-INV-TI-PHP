@@ -35,7 +35,7 @@ final class Mailpit
     {
         $resultado = self::pedir('GET', '/search?query='.rawurlencode("to:\"{$correo}\""));
 
-        return array_map(static fn (array $m): array => self::mensaje((string) $m['ID']), $resultado['messages'] ?? []);
+        return array_values(array_map(static fn (array $m): array => self::mensaje((string) $m['ID']), $resultado['messages'] ?? []));
     }
 
     /** @return array<string, mixed> mensaje completo (HTML, Text, cabeceras) */

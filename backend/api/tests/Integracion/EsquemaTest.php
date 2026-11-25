@@ -28,25 +28,27 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  */
 final class EsquemaTest extends KernelTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private Connection $conexion;
     private CapaSeguridad $seguridad;
 
     protected function setUp(): void
     {
         self::bootKernel();
-        $this->conexion = static::getContainer()->get(Connection::class);
-        $this->seguridad = static::getContainer()->get(CapaSeguridad::class);
+        $this->conexion = self::servicio(Connection::class);
+        $this->seguridad = self::servicio(CapaSeguridad::class);
     }
 
     protected function tearDown(): void
     {
-        static::getContainer()->get(ContextoRls::class)->reset();
+        self::servicio(ContextoRls::class)->reset();
         parent::tearDown();
     }
 
     public function testElEsquemaEstaAlDiaYReinstalarNoCambiaNada(): void
     {
-        $migrador = static::getContainer()->get(MigradorEsquema::class);
+        $migrador = self::servicio(MigradorEsquema::class);
 
         self::assertSame([], $migrador->verificar());
         self::assertSame([], $migrador->migrar(), 'La línea base ya está registrada.');
@@ -79,7 +81,7 @@ final class EsquemaTest extends KernelTestCase
 
     public function testUnDisparadorAlteradoODeshabilitadoSeReinstala(): void
     {
-        $ddl = static::getContainer()->get(EjecutorDdl::class);
+        $ddl = self::servicio(EjecutorDdl::class);
         try {
             $ddl->ejecutar('CREATE OR REPLACE TRIGGER trg_sin_vaciar BEFORE TRUNCATE ON SCHEMA BEGIN NULL; END;');
             $ddl->ejecutar('ALTER TRIGGER TRG_APROBACION_SIN_BORRADO DISABLE');
@@ -102,7 +104,7 @@ final class EsquemaTest extends KernelTestCase
     public function testReinstalarElContextoNoBorraElUsuarioDeLasSesionesAbiertas(): void
     {
         $usuario = D::crearUsuario(['rol' => 'TECNICO']);
-        $rls = static::getContainer()->get(ContextoRls::class);
+        $rls = self::servicio(ContextoRls::class);
         $rls->fijarUsuario($usuario['id']);
 
         // Otra sesión (la del migrador) reinstala contexto, paquetes y políticas.
@@ -116,7 +118,7 @@ final class EsquemaTest extends KernelTestCase
 
     public function testElUsuarioDeEjecucionSoloTieneDmlSobreLasTablasDelNegocio(): void
     {
-        $permisos = static::getContainer()->get(PermisosEjecucion::class);
+        $permisos = self::servicio(PermisosEjecucion::class);
         self::assertSame([], $permisos->conceder('INVENTARIO_APP'));
 
         $this->conexion->executeStatement('GRANT SELECT ON "INV_KARDEX_SELLO" TO INVENTARIO_APP');
@@ -129,7 +131,7 @@ final class EsquemaTest extends KernelTestCase
         self::assertSame('0', (string) $app->fetchOne('SELECT COUNT(*) FROM "INV_KARDEX" WHERE 1 = 0'));
         // Los predicados se leen (primera capa del alcance y verificación del VPD), nunca se modifican.
         self::assertSame(31, (int) $app->fetchOne('SELECT COUNT(*) FROM "INV_VPD_PREDICADO"'));
-        $rls = new ContextoRls($app, static::getContainer()->get(\App\Config\Ajustes::class), new \Psr\Log\NullLogger());
+        $rls = new ContextoRls($app, self::servicio(\App\Config\Ajustes::class), new \Psr\Log\NullLogger());
         self::assertSame([true, 'ok'], $rls->verificar(), 'Con el usuario de ejecución la capa VPD se detecta activa.');
         foreach ([
             'UPDATE "INV_VPD_PREDICADO" SET "VPD_Predicado" = \'1 = 1\'' => 'ORA-01031',
@@ -151,7 +153,7 @@ final class EsquemaTest extends KernelTestCase
 
     public function testCambiarElNombreDeLaCuentaRaizNoRompeElDespliegue(): void
     {
-        $cuenta = static::getContainer()->get(CuentaInicial::class);
+        $cuenta = self::servicio(CuentaInicial::class);
         $sufijo = bin2hex(random_bytes(4));
         self::assertTrue($cuenta->asegurar("raiz_{$sufijo}", "raiz_{$sufijo}@prueba.local", 'Zx9!kLm2Qw7rTT', 'Empresa')['creada']);
         $otro = bin2hex(random_bytes(4));
@@ -160,8 +162,8 @@ final class EsquemaTest extends KernelTestCase
 
     public function testLaSemillaYLaCuentaRaizSonIdempotentes(): void
     {
-        $semilla = static::getContainer()->get(SemillaMinima::class);
-        $cuenta = static::getContainer()->get(CuentaInicial::class);
+        $semilla = self::servicio(SemillaMinima::class);
+        $cuenta = self::servicio(CuentaInicial::class);
         $usuario = 'raiz_'.D::sufijo();
         $this->conexion->beginTransaction();
         try {
@@ -186,8 +188,8 @@ final class EsquemaTest extends KernelTestCase
 
     public function testLasHuellasDeLicenciasSeRecalculanConLaClaveActual(): void
     {
-        $huellas = static::getContainer()->get(RecalculoHuellas::class);
-        $cifrado = static::getContainer()->get(CifradoCampos::class);
+        $huellas = self::servicio(RecalculoHuellas::class);
+        $cifrado = self::servicio(CifradoCampos::class);
         $serial = 'SER-'.D::sufijo();
         $this->conexion->beginTransaction();
         try {

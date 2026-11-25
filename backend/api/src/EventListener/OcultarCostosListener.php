@@ -89,6 +89,6 @@ final class OcultarCostosListener
         } catch (\JsonException) {
             return;
         }
-        $respuesta->setContent(json_encode(self::quitarDinero($datos), \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES | \JSON_PRESERVE_ZERO_FRACTION));
+        $respuesta->setContent((string) json_encode(self::quitarDinero($datos), \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES | \JSON_PRESERVE_ZERO_FRACTION));
     }
 }

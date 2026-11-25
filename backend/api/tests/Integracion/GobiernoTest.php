@@ -15,6 +15,8 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 /** /gov contra Oracle real: configuración, purga, cola de correos y bitácora con alcance. */
 final class GobiernoTest extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private KernelBrowser $cliente;
     private string $super;
 
@@ -125,7 +127,7 @@ final class GobiernoTest extends WebTestCase
         $ajena = D::crearSede('Sede B '.D::sufijo());
         $auditor = D::crearUsuario(['rol' => 'AUDITOR', 'sedes' => [$propia]]);
         $entidad = 'QA_'.strtoupper(substr(D::sufijo(), 0, 10));
-        $gobierno = static::getContainer()->get(\App\Repositorio\GobiernoRepositorio::class);
+        $gobierno = self::servicio(\App\Repositorio\GobiernoRepositorio::class);
         $gobierno->registrarAuditoria('CREATE', $entidad, ['n' => 1], sedeId: $propia);
         $gobierno->registrarAuditoria('UPDATE', $entidad, ['n' => 2], sedeId: $ajena);
         $gobierno->registrarAuditoria('DELETE', $entidad, null, usuarioId: $auditor['id'], sedeId: $ajena);
@@ -156,7 +158,7 @@ final class GobiernoTest extends WebTestCase
     /** @param array{username: string} $u */
     private function token(array $u): string
     {
-        return static::getContainer()->get(Tokens::class)->crearAcceso($u['username'], 'x');
+        return self::servicio(Tokens::class)->crearAcceso($u['username'], 'x');
     }
 
     /**
@@ -170,7 +172,7 @@ final class GobiernoTest extends WebTestCase
         if ('' !== $token) {
             $server['HTTP_AUTHORIZATION'] = 'Bearer '.($token ?? $this->super);
         }
-        $this->cliente->request($metodo, $ruta, server: $server, content: null === $cuerpo ? '' : json_encode($cuerpo));
+        $this->cliente->request($metodo, $ruta, server: $server, content: null === $cuerpo ? '' : (string) json_encode($cuerpo));
         $r = $this->cliente->getResponse();
 
         return [$r->getStatusCode(), json_decode((string) $r->getContent(), true)];

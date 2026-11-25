@@ -121,8 +121,8 @@ final class ImportacionTest extends PruebaApi
             ['', '', '', '', '', '', '', '', '', '', ''],
         ]);
         [$e, $previa] = $this->enviar('previsualizar', $excel);
-        self::assertSame(200, $e, json_encode($previa));
-        self::assertSame(['filas' => 3, 'validas' => 2, 'con_error' => 1, 'marcas_nuevas' => 1, 'modelos_nuevos' => 1], $previa['resumen'], json_encode($previa['filas']));
+        self::assertSame(200, $e, (string) json_encode($previa));
+        self::assertSame(['filas' => 3, 'validas' => 2, 'con_error' => 1, 'marcas_nuevas' => 1, 'modelos_nuevos' => 1], $previa['resumen'], (string) json_encode($previa['filas']));
         [$f1, $f2, $f3] = $previa['filas'];
         self::assertSame([4, 'aviso', ['NEW_BRAND', 'NEW_MODEL', 'AUTO_CODE']], [$f1['fila'], $f1['estado'], $f1['avisos']]);
         self::assertSame(['Laptop 14 (X1)', $this->areaNombre], [$f1['modelo'], $f1['ubicacion']]);
@@ -133,14 +133,14 @@ final class ImportacionTest extends PruebaApi
 
         self::assertSame([400, 'IMPORT_HAS_ERRORS'], [$this->enviar('confirmar', $excel)[0], $this->enviar('confirmar', $excel)[1]['detail']]);
         [$e, $resultado] = $this->enviar('confirmar', $excel, '?omitir_errores=true');
-        self::assertSame(201, $e, json_encode($resultado));
+        self::assertSame(201, $e, (string) json_encode($resultado));
         self::assertSame([2, 1], [$resultado['creados'], $resultado['omitidos']]);
         [$auto, $manual] = $resultado['codigos'];
         self::assertSame($codigoManual, $manual);
         self::assertMatchesRegularExpression('/^'.$this->prefijo.'\d{5}$/', $auto);
 
         $activo = D::conexion()->fetchAssociative('SELECT a."ACT_Serie_Fabricante", a."ACT_Costo", a."ACT_Moneda", a."ACT_Fecha_Compra", a."ARE_Area_Ubicacion", a."SED_Sede", '
-            .'e."EOP_Nombre" FROM "INV_ACTIVO" a JOIN "INV_ESTADO_OPERATIVO" e ON e."EOP_Estado_Operativo" = a."EOP_Estado_Operativo" WHERE a."ACT_Codigo_Interno" = :c', ['c' => $auto]);
+            .'e."EOP_Nombre" FROM "INV_ACTIVO" a JOIN "INV_ESTADO_OPERATIVO" e ON e."EOP_Estado_Operativo" = a."EOP_Estado_Operativo" WHERE a."ACT_Codigo_Interno" = :c', ['c' => $auto]) ?: self::fail('El activo importado no está.');
         self::assertSame([$serie, 'USD', '2026-03-15', 'En Bodega', $this->sede], [$activo['ACT_Serie_Fabricante'], $activo['ACT_Moneda'],
             substr((string) $activo['ACT_Fecha_Compra'], 0, 10), $activo['EOP_Nombre'], (int) $activo['SED_Sede']]);
         self::assertSame('1250.5', rtrim(rtrim((string) $activo['ACT_Costo'], '0'), '.'), '1,250.505 → 1250.50 (redondeo bancario).');

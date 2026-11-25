@@ -17,6 +17,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 /** MFA flexible: omitirlo solo en el primer ingreso, excepción del administrador del sistema y equipos recordados. */
 final class MfaFlexibleTest extends WebTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     private const string SECRETO = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 
     private KernelBrowser $cliente;
@@ -169,7 +171,7 @@ final class MfaFlexibleTest extends WebTestCase
         self::assertSame(Command::SUCCESS, $consola->execute(['usuario' => $sa['username'], '--confirmar' => $sa['username'], ...$motivo, '--contrasena-temporal' => true]));
         self::assertSame(1, preg_match('/no se vuelve a mostrar\): (\S+)/', $consola->getDisplay(), $m));
         self::assertSame(400, $this->login($sa['username'])['estado'], 'La clave anterior ya no sirve.');
-        $this->cliente->request('POST', '/api/v1/login/access-token', ['username' => $sa['username'], 'password' => $m[1]]);
+        $this->cliente->request('POST', '/api/v1/login/access-token', ['username' => $sa['username'], 'password' => $m[1] ?? self::fail('La consola no mostró la clave temporal.')]);
         $r = $this->respuesta();
         self::assertSame(200, $r['estado']);
         self::assertNotNull($r['json']['restriction'] ?? null, 'Entra restringido: primero cambia la clave y configura el MFA.');
@@ -186,7 +188,7 @@ final class MfaFlexibleTest extends WebTestCase
     /** @param array{username: string} $u */
     private function token(array $u): string
     {
-        return static::getContainer()->get(Tokens::class)->crearAcceso($u['username'], 'x');
+        return self::servicio(Tokens::class)->crearAcceso($u['username'], 'x');
     }
 
     private function uuid(string $hex): string

@@ -23,6 +23,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 #[Group('resistencia')]
 final class ConcurrenciaTest extends KernelTestCase
 {
+    use \App\Tests\Soporte\Servicios;
+
     use PeticionesSimultaneas;
 
     private string $url;
@@ -45,10 +47,11 @@ final class ConcurrenciaTest extends KernelTestCase
     /** @param array{username: string} $u */
     private function tokenDe(array $u): string
     {
-        return static::getContainer()->get(Tokens::class)->crearAcceso($u['username'], 'x');
+        return self::servicio(Tokens::class)->crearAcceso($u['username'], 'x');
     }
 
     /**
+     * @param non-empty-string          $metodo
      * @param array<string, mixed>|null $cuerpo
      *
      * @return array<string, mixed>
@@ -100,7 +103,7 @@ final class ConcurrenciaTest extends KernelTestCase
         $r = $this->rafaga(array_map(fn (int $i): array => ['POST', '/api/v1/core/activos', ['ACT_Serie_Fabricante' => "PAR-{$i}-".D::sufijo(),
             'ACT_Fecha_Compra' => '2026-01-01', 'MOD_Modelo' => $modelo, 'TAC_Tipo_Activo' => $tipo, 'EOP_Estado_Operativo' => I::estado('En Bodega'),
             'SED_Sede' => $this->sede]], range(1, 25)));
-        self::assertSame([201 => 25], self::porEstado($r), json_encode(array_slice(array_column($r, 'cuerpo'), 0, 3)));
+        self::assertSame([201 => 25], self::porEstado($r), (string) json_encode(array_slice(array_column($r, 'cuerpo'), 0, 3)));
         $codigos = array_map(static fn (array $x): string => $x['cuerpo']['ACT_Codigo_Interno'], $r);
         self::assertCount(25, array_unique($codigos), 'Ningún código repetido.');
         $numeros = array_map(static fn (string $c): int => (int) substr($c, -5), $codigos);
@@ -130,7 +133,7 @@ final class ConcurrenciaTest extends KernelTestCase
         $uuid = static fn (string $h): string => strtolower(substr($h, 0, 8).'-'.substr($h, 8, 4).'-'.substr($h, 12, 4).'-'.substr($h, 16, 4).'-'.substr($h, 20));
         $r = $this->rafaga(array_map(static fn (string $p): array => ['POST', '/api/v1/trazabilidad/movimientos', ['ACT_Activo' => $activo, 'PER_Persona' => $uuid($p),
             'ARE_Area' => $area, 'TMO_Tipo_Movimiento' => $tmo, 'MOV_Motivo' => 'Carga']], $personas));
-        self::assertSame(1, self::porEstado($r)[201] ?? 0, json_encode(self::porEstado($r)));
+        self::assertSame(1, self::porEstado($r)[201] ?? 0, (string) json_encode(self::porEstado($r)));
         self::assertSame(1, D::contar('SELECT COUNT(*) FROM "INV_MOVIMIENTO" WHERE "ACT_Activo" = :a AND "MOV_Fecha_Devolucion" IS NULL', ['a' => str_replace('-', '', $activo)]));
         self::assertSame(1, D::contar("SELECT COUNT(*) FROM \"INV_KARDEX\" WHERE \"ACT_Activo\" = :a AND \"KDX_Tipo\" = 'ASIGNACION'", ['a' => str_replace('-', '', $activo)]));
     }
@@ -143,9 +146,9 @@ final class ConcurrenciaTest extends KernelTestCase
         // Veinte pantallas abiertas sobre la misma versión guardan a la vez: una gana, las demás reciben 412 y nada se pisa.
         $r = $this->rafaga(array_map(static fn (int $i): array => ['PATCH', "/api/v1/core/activos/{$activo}", ['ACT_Factura' => "F-{$i}"], null, null, ["If-Match: \"{$version}\""]],
             range(1, 20)));
-        self::assertSame([200 => 1, 412 => 19], self::porEstado($r), json_encode(array_slice(array_column($r, 'cuerpo'), 0, 3)));
+        self::assertSame([200 => 1, 412 => 19], self::porEstado($r), (string) json_encode(array_slice(array_column($r, 'cuerpo'), 0, 3)));
         $ganadora = array_values(array_filter($r, static fn (array $x): bool => 200 === $x['estado']))[0]['cuerpo'];
-        $fila = D::conexion()->fetchAssociative('SELECT "ACT_Factura", "ROW_VERSION" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => str_replace('-', '', $activo)]);
+        $fila = D::conexion()->fetchAssociative('SELECT "ACT_Factura", "ROW_VERSION" FROM "INV_ACTIVO" WHERE "ACT_Activo" = :a', ['a' => str_replace('-', '', $activo)]) ?: self::fail('El activo no está.');
         self::assertSame([$ganadora['ACT_Factura'], $version + 1], [$fila['ACT_Factura'], (int) $fila['ROW_VERSION']], 'Queda lo que guardó la ganadora, con una sola versión nueva.');
     }
 
@@ -156,7 +159,7 @@ final class ConcurrenciaTest extends KernelTestCase
         $s = $this->uno('POST', "/api/v1/core/activos/{$activo}/baja", ['motivo' => 'OBSOLESCENCIA', 'destino' => 'RECICLAJE']);
         $jefes = array_map(fn (): string => $this->tokenDe(D::crearUsuario(['rol' => 'ADMIN_TI', 'sedes' => [$this->sede]])), range(1, 6));
         $r = $this->rafaga(array_map(static fn (string $t): array => ['POST', "/api/v1/aprobaciones/{$s['APR_Aprobacion']}/aprobar", ['comentario' => 'Aprobado bajo carga'], $t], $jefes));
-        self::assertSame(1, self::porEstado($r)[200] ?? 0, json_encode(self::porEstado($r)));
+        self::assertSame(1, self::porEstado($r)[200] ?? 0, (string) json_encode(self::porEstado($r)));
         self::assertSame(1, D::contar("SELECT COUNT(*) FROM \"INV_KARDEX\" WHERE \"ACT_Activo\" = :a AND \"KDX_Tipo\" = 'BAJA'", ['a' => str_replace('-', '', $activo)]));
     }
 
@@ -198,7 +201,7 @@ final class ConcurrenciaTest extends KernelTestCase
         // Verifica quien tiene ese permiso (ADMIN_TI o AUDITOR): el SUPER_ADMIN no ve datos de negocio.
         $jefe = $this->tokenDe(D::crearUsuario(['rol' => 'AUDITOR', 'global' => true]));
         $v = $this->rafaga([['GET', '/api/v1/inventario/kardex/verificar', null, $jefe]])[0];
-        self::assertSame([200, true], [$v['estado'], $v['cuerpo']['integro'] ?? null], json_encode($v['cuerpo']['problemas'] ?? null));
+        self::assertSame([200, true], [$v['estado'], $v['cuerpo']['integro'] ?? null], (string) json_encode($v['cuerpo']['problemas'] ?? null));
     }
     // ================= Fase 4: archivos =================
 
@@ -219,7 +222,7 @@ final class ConcurrenciaTest extends KernelTestCase
         unlink($archivo);
         $estados = self::porEstado($r);
         self::assertSame(1, $estados[201] ?? 0, 'Una sola confirmación crea el activo: '.json_encode($estados));
-        self::assertArrayNotHasKey(500, $estados, json_encode(array_column($r, 'cuerpo')));
+        self::assertArrayNotHasKey(500, $estados, (string) json_encode(array_column($r, 'cuerpo')));
         self::assertSame(1, D::contar('SELECT COUNT(*) FROM "INV_ACTIVO" WHERE "ACT_Serie_Fabricante" = :s', ['s' => $serie]));
         self::assertTrue(I::cadenaKardexIntegra());
     }
