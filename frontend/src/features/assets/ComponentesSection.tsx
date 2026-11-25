@@ -7,6 +7,8 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import { AttachmentsDialog } from '../attachments/AttachmentsDialog';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 import { inventarioService } from '../../api/inventarioService';
@@ -43,6 +45,8 @@ export const ComponentesSection = ({ activoId, canOperate, onChanged, tipoEquipo
   const [retirando, setRetirando] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [permitidos, setPermitidos] = useState<number[] | null>(null);
+  // Foto o factura de un componente (la RAM, el disco…), sin salir del equipo.
+  const [archivosDe, setArchivosDe] = useState<{ id: string; code: string } | null>(null);
 
   useEffect(() => {
     if (tipoEquipo == null) { setPermitidos(null); return; }
@@ -127,10 +131,17 @@ export const ComponentesSection = ({ activoId, canOperate, onChanged, tipoEquipo
       {data && data.actuales.length > 0 && (
         <List dense>
           {data.actuales.map((c) => (
-            <ListItem key={c.ACT_Activo} disableGutters secondaryAction={canOperate && retirando !== c.ACT_Activo && (
-              <Tooltip title={t('components.remove')}>
-                <IconButton edge="end" onClick={() => { setRetirando(c.ACT_Activo); setMotivo(''); }}><LinkOffIcon /></IconButton>
-              </Tooltip>)}>
+            <ListItem key={c.ACT_Activo} disableGutters secondaryAction={retirando !== c.ACT_Activo && (
+              <Stack direction="row" spacing={0.5}>
+                <Tooltip title={t('components.files')}>
+                  <IconButton aria-label={t('components.files_of', { code: c.ACT_Codigo_Interno })}
+                    onClick={() => setArchivosDe({ id: c.ACT_Activo, code: c.ACT_Codigo_Interno })}><AttachFileIcon /></IconButton>
+                </Tooltip>
+                {canOperate && (
+                  <Tooltip title={t('components.remove')}>
+                    <IconButton edge="end" onClick={() => { setRetirando(c.ACT_Activo); setMotivo(''); }}><LinkOffIcon /></IconButton>
+                  </Tooltip>)}
+              </Stack>)}>
               <ListItemText primary={c.ACT_Codigo_Interno} secondary={c.ACT_Serie_Fabricante} />
               {retirando === c.ACT_Activo && (
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ ml: 2, flex: 1 }}>
@@ -166,6 +177,7 @@ export const ComponentesSection = ({ activoId, canOperate, onChanged, tipoEquipo
           <KardexTimeline eventos={data.historial} mostrarReferencia />
         </Box>
       )}
+      <AttachmentsDialog asset={archivosDe} onClose={() => setArchivosDe(null)} />
     </Stack>
   );
 };

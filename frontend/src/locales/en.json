@@ -217,7 +217,9 @@
         "onboarding": "Employee onboarding",
         "import": "Import assets",
         "catalog_center": "Catalog center",
-        "month_end": "Month-end close"
+        "month_end": "Month-end close",
+        "fixed_assets": "Fixed assets",
+        "accounting_categories": "Accounting categories"
     },
     "goods_receipt": {
         "common_data": "Shared data",
@@ -1323,7 +1325,9 @@
         "date": "Upload date",
         "download": "Download",
         "deleted": "File deleted",
-        "err_size_max": "The file exceeds the maximum of {{max}} MB."
+        "err_size_max": "The file exceeds the maximum of {{max}} MB.",
+        "of_asset": "Files of {{code}}",
+        "open_image": "Open image {{name}}"
     },
     "consumables": {
         "sections": {
@@ -2174,7 +2178,10 @@
         "MFA_SKIP_ALREADY_USED": "You already skipped two-step verification once: now you must set it up.",
         "MFA_SKIP_NOT_AVAILABLE": "This account cannot skip two-step verification.",
         "PHOTO_MUST_BE_AN_IMAGE": "The photo must be a JPG, PNG, WebP or GIF image.",
-        "PHOTO_NOT_FOUND": "This account has no profile photo."
+        "PHOTO_NOT_FOUND": "This account has no profile photo.",
+        "ACCOUNTING_CATEGORY_NOT_FOUND": "The accounting category does not exist or is inactive.",
+        "ACCOUNTING_CATEGORY_CODE_EXISTS": "There is already a category with that code in that country.",
+        "ACCOUNTING_CATEGORY_RATE_REQUIRED": "Straight-line depreciation needs an annual rate above zero."
     },
     "catalog": {
         "states": {
@@ -2678,7 +2685,9 @@
         "history": "Component history",
         "is_component": "This asset is installed inside another device: it is assigned, repaired or decommissioned together with it.",
         "installed_ok": "{{code}} was installed in the device.",
-        "removed_ok": "{{code}} was removed from the device."
+        "removed_ok": "{{code}} was removed from the device.",
+        "files": "Photo, invoice and other files",
+        "files_of": "Files of {{code}}"
     },
     "attention": {
         "all_clear": "No urgent tasks.",
@@ -3469,7 +3478,8 @@
             "equipos": "Equipment in custody",
             "licencias": "Licenses and accounts",
             "consumibles": "Consumables received",
-            "historial": "History"
+            "historial": "History",
+            "valor": "Workstation value"
         },
         "code": "Code",
         "type": "Type",
@@ -3818,5 +3828,110 @@
         "photo_saved": "Profile photo updated.",
         "photo_removed": "Profile photo removed.",
         "photo_too_large": "The photo is larger than 5 MB. Choose a lighter image."
+    },
+    "accounting": {
+        "status": {
+            "DEPRECIATING": "Depreciating",
+            "FULLY_DEPRECIATED": "Fully depreciated",
+            "NOT_DEPRECIABLE": "Not depreciated",
+            "NO_CATEGORY": "Type without category",
+            "NO_COST": "No cost",
+            "DISPOSED": "Disposed"
+        },
+        "methods": {
+            "STRAIGHT_LINE": "Straight line",
+            "NONE": "Not depreciated"
+        },
+        "no_values": "There are no values to add up yet.",
+        "items_one": "{{count}} asset",
+        "items_other": "{{count}} assets",
+        "book_value": "Book value",
+        "cost": "Cost",
+        "accumulated": "Accumulated depreciation",
+        "accumulated_short": "Depreciated",
+        "cost_and_date": "Cost and purchase",
+        "depreciation": "Depreciation for the year",
+        "pending_cost_one": "{{count}} asset has no recorded cost and is left out of the totals.",
+        "pending_cost_other": "{{count}} assets have no recorded cost and are left out of the totals.",
+        "pending_category_one": "{{count}} asset belongs to a type without an accounting category: shown at cost, not depreciated.",
+        "pending_category_other": "{{count}} assets belong to types without an accounting category: shown at cost, not depreciated.",
+        "as_of": "Value as of",
+        "as_of_help": "Closed months only",
+        "rate_per_year": "{{rate}} % a year",
+        "months_one": "{{count}} month",
+        "months_other": "{{count}} months",
+        "files": "Photo, invoice and other files",
+        "files_of": "Files of {{code}}",
+        "equipment_total": "Total of {{code}} with what is installed",
+        "asset": "Asset",
+        "category": "Accounting category",
+        "type": "Asset type",
+        "acquired_on": "Purchased",
+        "status_label": "Status",
+        "currency": "Currency",
+        "count": "Quantity",
+        "year": "Year",
+        "months_label": "Months",
+        "equipment_value": "Value of the equipment with its components",
+        "schedule_title": "Depreciation year by year",
+        "schedule_hint": "Depreciates {{monthly}} a month for {{months}} months, from {{from}} to {{to}}.",
+        "workstation_empty": "This person has no equipment in custody.",
+        "workstation_total": "Workstation value",
+        "report_title": "Fixed assets",
+        "report_subtitle": "How much was invested, how much has been depreciated and what it is worth today, by accounting category, type, user, department or site. The CSV has the full register, asset by asset.",
+        "site": "Site",
+        "site_all": "All sites",
+        "books_total": "Total on the books",
+        "without_category": "No accounting category",
+        "asset_tab": "Book value",
+        "asset_tab_title": "Book value",
+        "asset_tab_subtitle": "Cost, depreciation and book value of the equipment and of each installed component.",
+        "type_category_help": "Defines how assets of this type are depreciated (rate and method).",
+        "categories": {
+            "title": "Accounting categories",
+            "subtitle": "How each class of asset is depreciated. Guatemala's rates come preloaded (Decree 10-2012, art. 28); add another country's if needed. Each asset type points to one.",
+            "new": "New category",
+            "edit": "Edit category",
+            "created": "Category created",
+            "country": "Country",
+            "country_help": "2-letter code (GT, CR, PA…)",
+            "code": "Code",
+            "code_help": "Capitals, digits and underscore",
+            "name": "Name",
+            "method": "Method",
+            "annual_rate": "Annual rate %",
+            "rate_help": "Yearly percentage of the cost",
+            "life_one": "Useful life: {{count}} month",
+            "life_other": "Useful life: {{count}} months",
+            "life_label": "Useful life",
+            "residual": "Residual value %",
+            "residual_help": "What is left undepreciated (0 if not applicable)",
+            "residual_short": "residual {{value}} %",
+            "starts_next_month": "Starts depreciating the month after purchase",
+            "account_code": "Ledger account",
+            "account_help": "Optional: the asset's account in your chart of accounts",
+            "legal_basis": "Legal basis",
+            "active": "Active",
+            "inactive": "Inactive",
+            "in_use_one": "{{count}} asset type uses this category.",
+            "in_use_other": "{{count}} asset types use this category.",
+            "types": "Types"
+        },
+        "group_title": "Totals table",
+        "group_by": "Group by",
+        "group": {
+            "category": "Accounting category",
+            "type": "Asset type",
+            "person": "User",
+            "department": "Department",
+            "site": "Site"
+        },
+        "group_empty": {
+            "category": "No accounting category",
+            "type": "No type",
+            "person": "No custodian (storage or areas)",
+            "department": "No department",
+            "site": "No site"
+        }
     }
 }

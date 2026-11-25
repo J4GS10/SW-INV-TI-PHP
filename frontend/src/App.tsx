@@ -72,6 +72,8 @@ const SecurityGate = page(() => import('./features/auth/security/SecurityGate').
 const TrazabilidadPage = page(() => import('./features/traceability/TrazabilidadPage').then((m) => ({ default: m.TrazabilidadPage })));
 const TomasPage = page(() => import('./features/inventory-count/TomasPage').then((m) => ({ default: m.TomasPage })));
 const CierreMensualPage = page(() => import('./features/accounting/CierreMensualPage').then((m) => ({ default: m.CierreMensualPage })));
+const FixedAssetsReportPage = page(() => import('./features/accounting/FixedAssetsReportPage').then((m) => ({ default: m.FixedAssetsReportPage })));
+const AccountingCategoriesPage = page(() => import('./features/accounting/AccountingCategoriesPage').then((m) => ({ default: m.AccountingCategoriesPage })));
 const AprobacionesPage = page(() => import('./features/approvals/AprobacionesPage').then((m) => ({ default: m.AprobacionesPage })));
 const AuditPage = page(() => import('./features/audit/AuditPage').then((m) => ({ default: m.AuditPage })));
 const OnboardingPage = page(() => import('./features/onboarding/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
@@ -305,6 +307,8 @@ const ThemedApp = () => {
                   </Route>
                   <Route element={<ProtectedRoute allowedRoles={FINANCE_EXPORT_ROLES}/>}>
                     <Route path="/contabilidad/cierre" element={<CierreMensualPage />}/>
+                    <Route path="/contabilidad/activos-fijos" element={<FixedAssetsReportPage />}/>
+                    <Route path="/contabilidad/categorias" element={<AccountingCategoriesPage />}/>
                     <Route path="/compras/stock" element={<StockReportPage />}/>
                   </Route>
 

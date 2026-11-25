@@ -3,7 +3,7 @@
  * API y por la interfaz, y verificaciones directas en la base (dentro de la ventana, que se restaura al terminar).
  */
 import { createHmac, randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { expect, type APIRequestContext, type Page, request as pwRequest } from '@playwright/test';
 import oracledb from 'oracledb';
 
@@ -103,11 +103,20 @@ export async function totpNuevo(secreto: string, usuarioId?: string): Promise<st
   }
 }
 
-/** Cerrojo entre workers (mkdir es atómico): un solo inicio de sesión con 2FA por usuario a la vez. */
+/** Un inicio de sesión con 2FA dura a lo sumo dos pasos TOTP: un cerrojo más viejo quedó de una prueba que se cortó. */
+const CERROJO_HUERFANO_MS = 90_000;
+
+/**
+ * Cerrojo entre workers (mkdir es atómico): un solo inicio de sesión con 2FA por usuario a la vez. Si la
+ * prueba que lo tenía se cortó a mitad (tiempo agotado), el cerrojo caduca y no arrastra a las siguientes.
+ */
 export async function conCerrojo<T>(nombre: string, fn: () => Promise<T>): Promise<T> {
   const dir = `/tmp/cerrojo-${nombre}`;
   for (let i = 0; ; i++) {
     try { mkdirSync(dir); break; } catch {
+      try {
+        if (Date.now() - statSync(dir).mtimeMs > CERROJO_HUERFANO_MS) rmSync(dir, { recursive: true, force: true });
+      } catch { /* lo liberó otro worker entre tanto */ }
       if (i > 600) throw new Error(`Cerrojo ${nombre} ocupado`);
       await new Promise((r) => setTimeout(r, 500));
     }

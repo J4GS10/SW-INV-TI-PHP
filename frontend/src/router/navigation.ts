@@ -25,12 +25,13 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import type { SvgIconComponent } from '@mui/icons-material';
 import { UserRole } from '../types/auth';
 import {
   ADMIN_READER_ROLES, AUDIT_READER_ROLES, IAM_ROLES, INVENTORY_ADMIN_ROLES, INVENTORY_ROLES, PURCHASE_READ_ROLES,
-  SOFTWARE_PAGE_ROLES, STOCK_ROLES, FINANCE_EXPORT_ROLES, WARRANTY_ROLES, DIRECTORY_ROLES, GOODS_RECEIPT_ROLES,
+  SOFTWARE_PAGE_ROLES, STOCK_ROLES, FINANCE_EXPORT_ROLES, WARRANTY_ROLES, DIRECTORY_ROLES, GOODS_RECEIPT_ROLES, ACCOUNTING_ROLES,
 } from '../utils/roles';
 
 export interface NavItem {
@@ -61,6 +62,8 @@ export const NAVIGATION_ITEMS: NavItem[] = [
   { title: 'menu.inventory_count', path: '/inventario/tomas', icon: FactCheckIcon, allowedRoles: INVENTORY_ROLES, group: 'CONTROL' },
   { title: 'menu.approvals', path: '/aprobaciones', icon: ApprovalIcon, allowedRoles: ADMIN_READER_ROLES, group: 'CONTROL' },
   { title: 'menu.month_end', path: '/contabilidad/cierre', icon: CalendarMonthIcon, allowedRoles: FINANCE_EXPORT_ROLES, group: 'CONTROL' },
+  { title: 'menu.fixed_assets', path: '/contabilidad/activos-fijos', icon: AccountBalanceIcon, allowedRoles: ACCOUNTING_ROLES, group: 'CONTROL' },
+  { title: 'menu.accounting_categories', path: '/contabilidad/categorias', icon: LibraryBooksIcon, allowedRoles: ACCOUNTING_ROLES, group: 'CONTROL' },
   { title: 'menu.audit', path: '/auditoria', icon: PolicyIcon, allowedRoles: AUDIT_READER_ROLES, group: 'CONTROL' },
 
   // ---------- Compras y licencias ----------

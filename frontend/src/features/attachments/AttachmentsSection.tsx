@@ -27,6 +27,27 @@ const fmtSize = (bytes: number): string => {
 interface Props {
     activoId: string;
 }
+const esImagen = (a: Adjunto) => (a.ADJ_Tipo_MIME ?? '').startsWith('image/');
+/** Miniatura de una foto (se descarga autenticada como blob); un clic la abre en tamaño completo. */
+const Miniatura = ({ adjunto }: { adjunto: Adjunto }) => {
+    const { t } = useTranslation();
+    const [url, setUrl] = useState<string | null>(null);
+    const id = adjunto.ADJ_Adjunto;
+    useEffect(() => {
+        let vivo = true;
+        let creada: string | null = null;
+        attachmentService.objectUrl(id).then((u) => {
+            creada = u;
+            if (vivo) setUrl(u);
+            else URL.revokeObjectURL(u);
+        }).catch(() => undefined);
+        return () => { vivo = false; if (creada) URL.revokeObjectURL(creada); };
+    }, [id]);
+    if (!url) return <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: 'action.hover' }}/>;
+    return (<Box component="a" href={url} target="_blank" rel="noopener" aria-label={t('attachments.open_image', { name: adjunto.ADJ_Nombre_Original })} sx={{ display: 'inline-flex' }}>
+        <Box component="img" src={url} alt={adjunto.ADJ_Nombre_Original} sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider' }}/>
+      </Box>);
+};
 export const AttachmentsSection = ({ activoId }: Props) => {
     const { t, i18n } = useTranslation();
     const confirm = useConfirm();
@@ -127,7 +148,12 @@ export const AttachmentsSection = ({ activoId }: Props) => {
             </TableHead>
             <TableBody>
               {items.map((a) => (<TableRow key={a.ADJ_Adjunto} hover>
-                  <TableCell>{a.ADJ_Nombre_Original}</TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      {esImagen(a) && <Miniatura adjunto={a}/>}
+                      <span>{a.ADJ_Nombre_Original}</span>
+                    </Stack>
+                  </TableCell>
                   <TableCell><Chip size="small" label={etiquetaCategoria(a.ADJ_Categoria)}/></TableCell>
                   <TableCell>{fmtSize(a.ADJ_Tamano_Bytes)}</TableCell>
                   <TableCell>{formatDate(a.ADJ_Fecha_Subida, i18n.language)}</TableCell>

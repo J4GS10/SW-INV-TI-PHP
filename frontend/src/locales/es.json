@@ -217,7 +217,9 @@
         "onboarding": "Alta de empleado",
         "import": "Importar activos",
         "catalog_center": "Centro de catálogos",
-        "month_end": "Cierre mensual"
+        "month_end": "Cierre mensual",
+        "fixed_assets": "Activos fijos",
+        "accounting_categories": "Categorías contables"
     },
     "goods_receipt": {
         "common_data": "Datos comunes",
@@ -1323,7 +1325,9 @@
         "date": "Fecha de carga",
         "download": "Descargar",
         "deleted": "Archivo eliminado",
-        "err_size_max": "El archivo supera el máximo de {{max}} MB."
+        "err_size_max": "El archivo supera el máximo de {{max}} MB.",
+        "of_asset": "Archivos de {{code}}",
+        "open_image": "Abrir la imagen {{name}}"
     },
     "consumables": {
         "sections": {
@@ -2174,7 +2178,10 @@
         "MFA_SKIP_ALREADY_USED": "Ya omitió la verificación en dos pasos una vez: ahora debe configurarla.",
         "MFA_SKIP_NOT_AVAILABLE": "Esta cuenta no puede omitir la verificación en dos pasos.",
         "PHOTO_MUST_BE_AN_IMAGE": "La foto debe ser una imagen JPG, PNG, WebP o GIF.",
-        "PHOTO_NOT_FOUND": "Esta cuenta no tiene foto de perfil."
+        "PHOTO_NOT_FOUND": "Esta cuenta no tiene foto de perfil.",
+        "ACCOUNTING_CATEGORY_NOT_FOUND": "La categoría contable no existe o está desactivada.",
+        "ACCOUNTING_CATEGORY_CODE_EXISTS": "Ya hay una categoría con ese código en ese país.",
+        "ACCOUNTING_CATEGORY_RATE_REQUIRED": "La depreciación en línea recta necesita una tasa anual mayor que cero."
     },
     "catalog": {
         "states": {
@@ -2678,7 +2685,9 @@
         "history": "Historial de componentes",
         "is_component": "Este activo está instalado dentro de otro equipo: se asigna, repara o da de baja junto con él.",
         "installed_ok": "{{code}} quedó instalado en el equipo.",
-        "removed_ok": "{{code}} fue retirado del equipo."
+        "removed_ok": "{{code}} fue retirado del equipo.",
+        "files": "Foto, factura y otros archivos",
+        "files_of": "Archivos de {{code}}"
     },
     "attention": {
         "all_clear": "Sin tareas urgentes.",
@@ -3469,7 +3478,8 @@
             "equipos": "Equipos en custodia",
             "licencias": "Licencias y cuentas",
             "consumibles": "Consumibles recibidos",
-            "historial": "Historial"
+            "historial": "Historial",
+            "valor": "Valor de la estación"
         },
         "code": "Código",
         "type": "Tipo",
@@ -3818,5 +3828,110 @@
         "photo_saved": "Foto de perfil actualizada.",
         "photo_removed": "Foto de perfil quitada.",
         "photo_too_large": "La foto supera los 5 MB. Elige una imagen más liviana."
+    },
+    "accounting": {
+        "status": {
+            "DEPRECIATING": "En depreciación",
+            "FULLY_DEPRECIATED": "Totalmente depreciado",
+            "NOT_DEPRECIABLE": "No se deprecia",
+            "NO_CATEGORY": "Tipo sin categoría",
+            "NO_COST": "Sin costo",
+            "DISPOSED": "De baja"
+        },
+        "methods": {
+            "STRAIGHT_LINE": "Línea recta",
+            "NONE": "No se deprecia"
+        },
+        "no_values": "Todavía no hay valores que sumar.",
+        "items_one": "{{count}} activo",
+        "items_other": "{{count}} activos",
+        "book_value": "Valor en libros",
+        "cost": "Costo",
+        "accumulated": "Depreciación acumulada",
+        "accumulated_short": "Depreciado",
+        "cost_and_date": "Costo y compra",
+        "depreciation": "Depreciación del año",
+        "pending_cost_one": "{{count}} activo no tiene costo registrado y no entra en las sumas.",
+        "pending_cost_other": "{{count}} activos no tienen costo registrado y no entran en las sumas.",
+        "pending_category_one": "{{count}} activo es de un tipo sin categoría contable: se muestra a su costo, sin depreciar.",
+        "pending_category_other": "{{count}} activos son de tipos sin categoría contable: se muestran a su costo, sin depreciar.",
+        "as_of": "Valor al",
+        "as_of_help": "Solo meses cerrados",
+        "rate_per_year": "{{rate}} % anual",
+        "months_one": "{{count}} mes",
+        "months_other": "{{count}} meses",
+        "files": "Foto, factura y otros archivos",
+        "files_of": "Archivos de {{code}}",
+        "equipment_total": "Total de {{code}} con lo instalado",
+        "asset": "Activo",
+        "category": "Categoría contable",
+        "type": "Tipo de activo",
+        "acquired_on": "Compra",
+        "status_label": "Estado",
+        "currency": "Moneda",
+        "count": "Cantidad",
+        "year": "Año",
+        "months_label": "Meses",
+        "equipment_value": "Valor del equipo con sus componentes",
+        "schedule_title": "Depreciación año por año",
+        "schedule_hint": "Se deprecia {{monthly}} al mes durante {{months}} meses, del {{from}} al {{to}}.",
+        "workstation_empty": "Esta persona no tiene equipos a su cargo.",
+        "workstation_total": "Valor de la estación de trabajo",
+        "report_title": "Activos fijos",
+        "report_subtitle": "Cuánto se invirtió, cuánto se ha depreciado y cuánto vale hoy, por categoría contable, tipo, usuario, departamento o sede. El CSV trae el registro completo, activo por activo.",
+        "site": "Sede",
+        "site_all": "Todas las sedes",
+        "books_total": "Total en libros",
+        "without_category": "Sin categoría contable",
+        "asset_tab": "Valor contable",
+        "asset_tab_title": "Valor contable",
+        "asset_tab_subtitle": "Costo, depreciación y valor en libros del equipo y de cada componente instalado.",
+        "type_category_help": "Define cómo se deprecian los activos de este tipo (tasa y método).",
+        "categories": {
+            "title": "Categorías contables",
+            "subtitle": "Cómo se deprecia cada clase de bien. Vienen las tasas de Guatemala (Decreto 10-2012, art. 28); agregue las de otro país si hace falta. Cada tipo de activo apunta a una.",
+            "new": "Nueva categoría",
+            "edit": "Editar categoría",
+            "created": "Categoría creada",
+            "country": "País",
+            "country_help": "Código de 2 letras (GT, CR, PA…)",
+            "code": "Código",
+            "code_help": "Mayúsculas, números y guion bajo",
+            "name": "Nombre",
+            "method": "Método",
+            "annual_rate": "Tasa anual %",
+            "rate_help": "Porcentaje anual sobre el costo",
+            "life_one": "Vida útil: {{count}} mes",
+            "life_other": "Vida útil: {{count}} meses",
+            "life_label": "Vida útil",
+            "residual": "Valor residual %",
+            "residual_help": "Lo que queda sin depreciar (0 si no aplica)",
+            "residual_short": "residual {{value}} %",
+            "starts_next_month": "Empieza a depreciarse el mes siguiente a la compra",
+            "account_code": "Cuenta contable",
+            "account_help": "Opcional: la cuenta del activo en su catálogo de cuentas",
+            "legal_basis": "Base legal",
+            "active": "Activa",
+            "inactive": "Inactiva",
+            "in_use_one": "{{count}} tipo de activo usa esta categoría.",
+            "in_use_other": "{{count}} tipos de activo usan esta categoría.",
+            "types": "Tipos"
+        },
+        "group_title": "Cuadro de sumas",
+        "group_by": "Agrupar por",
+        "group": {
+            "category": "Categoría contable",
+            "type": "Tipo de activo",
+            "person": "Usuario",
+            "department": "Departamento",
+            "site": "Sede"
+        },
+        "group_empty": {
+            "category": "Sin categoría contable",
+            "type": "Sin tipo",
+            "person": "Sin responsable (bodega o áreas)",
+            "department": "Sin departamento",
+            "site": "Sin sede"
+        }
     }
 }

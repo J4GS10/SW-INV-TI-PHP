@@ -217,7 +217,9 @@
         "onboarding": "Inserimento dipendente",
         "import": "Importa beni",
         "catalog_center": "Centro cataloghi",
-        "month_end": "Chiusura mensile"
+        "month_end": "Chiusura mensile",
+        "fixed_assets": "Immobilizzazioni",
+        "accounting_categories": "Categorie contabili"
     },
     "goods_receipt": {
         "common_data": "Dati comuni",
@@ -1323,7 +1325,9 @@
         "date": "Data di caricamento",
         "download": "Scarica",
         "deleted": "File eliminato",
-        "err_size_max": "Il file supera il massimo di {{max}} MB."
+        "err_size_max": "Il file supera il massimo di {{max}} MB.",
+        "of_asset": "File di {{code}}",
+        "open_image": "Apri l'immagine {{name}}"
     },
     "consumables": {
         "sections": {
@@ -2174,7 +2178,10 @@
         "MFA_SKIP_ALREADY_USED": "Ha già saltato la verifica in due passaggi una volta: ora deve configurarla.",
         "MFA_SKIP_NOT_AVAILABLE": "Questo account non può saltare la verifica in due passaggi.",
         "PHOTO_MUST_BE_AN_IMAGE": "La foto deve essere un'immagine JPG, PNG, WebP o GIF.",
-        "PHOTO_NOT_FOUND": "Questo account non ha una foto profilo."
+        "PHOTO_NOT_FOUND": "Questo account non ha una foto profilo.",
+        "ACCOUNTING_CATEGORY_NOT_FOUND": "La categoria contabile non esiste o è disattivata.",
+        "ACCOUNTING_CATEGORY_CODE_EXISTS": "Esiste già una categoria con quel codice in quel paese.",
+        "ACCOUNTING_CATEGORY_RATE_REQUIRED": "L'ammortamento a quote costanti richiede un'aliquota annua maggiore di zero."
     },
     "catalog": {
         "states": {
@@ -2678,7 +2685,9 @@
         "history": "Storico dei componenti",
         "is_component": "Questo asset è installato in un altro dispositivo: viene assegnato, riparato o dismesso insieme a esso.",
         "installed_ok": "{{code}} è stato installato nel dispositivo.",
-        "removed_ok": "{{code}} è stato rimosso dal dispositivo."
+        "removed_ok": "{{code}} è stato rimosso dal dispositivo.",
+        "files": "Foto, fattura e altri file",
+        "files_of": "File di {{code}}"
     },
     "attention": {
         "all_clear": "Nessuna attività urgente.",
@@ -3469,7 +3478,8 @@
             "equipos": "Apparecchi in custodia",
             "licencias": "Licenze e account",
             "consumibles": "Materiali di consumo ricevuti",
-            "historial": "Storico"
+            "historial": "Storico",
+            "valor": "Valore della postazione"
         },
         "code": "Codice",
         "type": "Tipo",
@@ -3818,5 +3828,110 @@
         "photo_saved": "Foto profilo aggiornata.",
         "photo_removed": "Foto profilo rimossa.",
         "photo_too_large": "La foto supera i 5 MB. Scegli un'immagine più leggera."
+    },
+    "accounting": {
+        "status": {
+            "DEPRECIATING": "In ammortamento",
+            "FULLY_DEPRECIATED": "Completamente ammortizzato",
+            "NOT_DEPRECIABLE": "Non si ammortizza",
+            "NO_CATEGORY": "Tipo senza categoria",
+            "NO_COST": "Senza costo",
+            "DISPOSED": "Dismesso"
+        },
+        "methods": {
+            "STRAIGHT_LINE": "Quote costanti",
+            "NONE": "Non si ammortizza"
+        },
+        "no_values": "Non ci sono ancora valori da sommare.",
+        "items_one": "{{count}} bene",
+        "items_other": "{{count}} beni",
+        "book_value": "Valore contabile",
+        "cost": "Costo",
+        "accumulated": "Fondo ammortamento",
+        "accumulated_short": "Ammortizzato",
+        "cost_and_date": "Costo e acquisto",
+        "depreciation": "Ammortamento dell'anno",
+        "pending_cost_one": "{{count}} bene non ha un costo registrato e resta fuori dai totali.",
+        "pending_cost_other": "{{count}} beni non hanno un costo registrato e restano fuori dai totali.",
+        "pending_category_one": "{{count}} bene è di un tipo senza categoria contabile: mostrato al costo, senza ammortamento.",
+        "pending_category_other": "{{count}} beni sono di tipi senza categoria contabile: mostrati al costo, senza ammortamento.",
+        "as_of": "Valore al",
+        "as_of_help": "Solo mesi chiusi",
+        "rate_per_year": "{{rate}} % annuo",
+        "months_one": "{{count}} mese",
+        "months_other": "{{count}} mesi",
+        "files": "Foto, fattura e altri file",
+        "files_of": "File di {{code}}",
+        "equipment_total": "Totale di {{code}} con ciò che è installato",
+        "asset": "Bene",
+        "category": "Categoria contabile",
+        "type": "Tipo di bene",
+        "acquired_on": "Acquisto",
+        "status_label": "Stato",
+        "currency": "Valuta",
+        "count": "Quantità",
+        "year": "Anno",
+        "months_label": "Mesi",
+        "equipment_value": "Valore dell'apparecchiatura con i suoi componenti",
+        "schedule_title": "Ammortamento anno per anno",
+        "schedule_hint": "Si ammortizza {{monthly}} al mese per {{months}} mesi, dal {{from}} al {{to}}.",
+        "workstation_empty": "Questa persona non ha apparecchiature in custodia.",
+        "workstation_total": "Valore della postazione di lavoro",
+        "report_title": "Immobilizzazioni",
+        "report_subtitle": "Quanto si è investito, quanto è stato ammortizzato e quanto vale oggi, per categoria contabile, tipo, utente, reparto o sede. Il CSV contiene il registro completo, bene per bene.",
+        "site": "Sede",
+        "site_all": "Tutte le sedi",
+        "books_total": "Totale a libro",
+        "without_category": "Senza categoria contabile",
+        "asset_tab": "Valore contabile",
+        "asset_tab_title": "Valore contabile",
+        "asset_tab_subtitle": "Costo, ammortamento e valore contabile dell'apparecchiatura e di ogni componente installato.",
+        "type_category_help": "Definisce come si ammortizzano i beni di questo tipo (aliquota e metodo).",
+        "categories": {
+            "title": "Categorie contabili",
+            "subtitle": "Come si ammortizza ogni classe di bene. Sono precaricate le aliquote del Guatemala (Decreto 10-2012, art. 28); aggiunga quelle di un altro paese se serve. Ogni tipo di bene ne usa una.",
+            "new": "Nuova categoria",
+            "edit": "Modifica categoria",
+            "created": "Categoria creata",
+            "country": "Paese",
+            "country_help": "Codice di 2 lettere (GT, CR, PA…)",
+            "code": "Codice",
+            "code_help": "Maiuscole, cifre e trattino basso",
+            "name": "Nome",
+            "method": "Metodo",
+            "annual_rate": "Aliquota annua %",
+            "rate_help": "Percentuale annua sul costo",
+            "life_one": "Vita utile: {{count}} mese",
+            "life_other": "Vita utile: {{count}} mesi",
+            "life_label": "Vita utile",
+            "residual": "Valore residuo %",
+            "residual_help": "Ciò che resta da non ammortizzare (0 se non applicabile)",
+            "residual_short": "residuo {{value}} %",
+            "starts_next_month": "Inizia ad ammortizzarsi il mese dopo l'acquisto",
+            "account_code": "Conto contabile",
+            "account_help": "Facoltativo: il conto del bene nel piano dei conti",
+            "legal_basis": "Base legale",
+            "active": "Attiva",
+            "inactive": "Inattiva",
+            "in_use_one": "{{count}} tipo di bene usa questa categoria.",
+            "in_use_other": "{{count}} tipi di bene usano questa categoria.",
+            "types": "Tipi"
+        },
+        "group_title": "Prospetto dei totali",
+        "group_by": "Raggruppa per",
+        "group": {
+            "category": "Categoria contabile",
+            "type": "Tipo di bene",
+            "person": "Utente",
+            "department": "Reparto",
+            "site": "Sede"
+        },
+        "group_empty": {
+            "category": "Senza categoria contabile",
+            "type": "Senza tipo",
+            "person": "Senza assegnatario (magazzino o aree)",
+            "department": "Senza reparto",
+            "site": "Senza sede"
+        }
     }
 }

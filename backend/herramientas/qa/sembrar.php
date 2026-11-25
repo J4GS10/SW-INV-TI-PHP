@@ -82,6 +82,8 @@ $plan = [
     'qa_jefe_ti' => ['ADMIN_TI', true, [], 'TOTP', false],
     'qa_admin_ti' => ['ADMIN_TI', true, [], 'TOTP', false],
     'qa_totp' => ['ADMIN_TI', true, [], 'TOTP', false],
+    // Solo para contabilidad.spec: con su propia cuenta no espera los pasos TOTP que gastan las demás pruebas en paralelo.
+    'qa_contable_ti' => ['ADMIN_TI', true, [], 'TOTP', false],
     'qa_enrolar' => ['ADMIN_TI', true, [], null, false],
     'qa_admin_ti_norte' => ['ADMIN_TI', false, ['A'], 'TOTP', false],
     'qa_tecnico_norte' => ['TECNICO', false, ['A'], null, false],

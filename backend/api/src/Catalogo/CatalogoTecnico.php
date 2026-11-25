@@ -29,6 +29,7 @@ final readonly class CatalogoTecnico
         private Operaciones $crud,
         private PlantillaEspecificaciones $plantilla,
         private Transaccion $transaccion,
+        private \App\Accounting\Application\AccountingCategories $categorias,
     ) {
     }
 
@@ -44,6 +45,7 @@ final readonly class CatalogoTecnico
         if ($this->datos->existeTipoDeActivoLlamado($d['TAC_Nombre'])) {
             throw ErrorDominio::invalido('ASSET_TYPE_ALREADY_EXISTS');
         }
+        $this->categorias->requireActive(isset($d['FAC_ASSET_CATEGORY']) ? (int) $d['FAC_ASSET_CATEGORY'] : null);
         $d['TAC_Clase'] ??= ClasesActivo::porNombre($d['TAC_Nombre']);
 
         return self::conReglas($this->transaccion->ejecutar(function () use ($d, $origen): array {
@@ -65,6 +67,9 @@ final readonly class CatalogoTecnico
     public function cambiarTipo(int $id, array $cambios, Origen $origen): array
     {
         $this->tipo($id);
+        if (isset($cambios['FAC_ASSET_CATEGORY'])) {
+            $this->categorias->requireActive((int) $cambios['FAC_ASSET_CATEGORY']);
+        }
 
         return self::conReglas($this->transaccion->ejecutar(function () use ($id, $cambios, $origen): array {
             $this->crud->repositorio->actualizar(T::tipoActivo(), $id, $cambios);

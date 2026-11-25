@@ -43,6 +43,12 @@ export const attachmentService = {
     URL.revokeObjectURL(url);
   },
 
+  /** Dirección local (blob:) del archivo, para mostrar una foto; quien la pide la libera con URL.revokeObjectURL. */
+  objectUrl: async (id: string): Promise<string> => {
+    const r = await client.get(`/adjuntos/${id}/download`, { responseType: 'blob' });
+    return URL.createObjectURL(r.data as Blob);
+  },
+
   remove: async (id: string): Promise<void> => {
     await client.delete(`/adjuntos/${id}`);
   },

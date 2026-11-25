@@ -62,8 +62,11 @@ final class RowVersionTest extends TestCase
     public function testTheMigrationAddsTheColumnToEveryVersionedTable(): void
     {
         require_once \dirname(__DIR__, 2).'/migrations/Version20261124000000.php';
-        $tables = (new \ReflectionClassConstant(\Migraciones\Version20261124000000::class, 'TABLAS'))->getValue();
-        self::assertIsArray($tables);
+        require_once \dirname(__DIR__, 2).'/migrations/Version20261125000000.php';
+        $existing = (new \ReflectionClassConstant(\Migraciones\Version20261124000000::class, 'TABLAS'))->getValue();
+        self::assertIsArray($existing);
+        // Las tablas creadas después traen la columna desde su propio CREATE TABLE.
+        $tables = [...$existing, ...\Migraciones\Version20261125000000::VERSIONADAS];
         $expected = array_keys(RowVersions::TABLES);
         sort($expected);
         sort($tables);

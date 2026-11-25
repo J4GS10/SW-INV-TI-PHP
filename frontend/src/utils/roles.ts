@@ -38,6 +38,15 @@ export const WARRANTY_ROLES: UserRole[] = ['ADMIN_TI', 'AUDITOR'];
 /** Exportes de valores (activos, consumibles, licencias). Espejo de FINANCE_EXPORT_ROLES. */
 export const FINANCE_EXPORT_ROLES: UserRole[] = ['ADMIN_TI', 'AUDITOR', 'COMPRAS'];
 
+/** Valor contable de los libros y categorías contables. Espejo de Roles::VALORACION. */
+export const ACCOUNTING_ROLES: UserRole[] = FINANCE_EXPORT_ROLES;
+
+/** Valor de un equipo concreto o de la estación de una persona. Espejo de Roles::VALORACION_DETALLE. */
+export const ACCOUNTING_DETAIL_ROLES: UserRole[] = ['ADMIN_TI', 'AUDITOR'];
+
+/** Definen las categorías contables (tasa y método). Espejo de Roles::CONFIGURACION_CONTABLE. */
+export const ACCOUNTING_CONFIG_ROLES: UserRole[] = PURCHASE_WRITE_ROLES;
+
 /** No ven costos ni montos (el servidor tampoco se los envía). Espejo de HIDE_COST_ROLES. */
 export const HIDE_COST_ROLES: UserRole[] = ['TECNICO', 'CONSULTA'];
 
@@ -95,6 +104,8 @@ export function permissionsFor(role: UserRole | undefined) {
     canVerifyKardex: !!role && KARDEX_VERIFIER_ROLES.includes(role),
     /** Aprobaciones y demás lecturas de control (espejo de LECTURA_CONTROL del backend). */
     canReadControl: !!role && ADMIN_READER_ROLES.includes(role),
+    /** Valor contable de un equipo y de la estación de trabajo de una persona. */
+    canSeeAssetValue: !!role && ACCOUNTING_DETAIL_ROLES.includes(role),
     readOnly: role === 'AUDITOR' || role === 'CONSULTA',
   };
 }

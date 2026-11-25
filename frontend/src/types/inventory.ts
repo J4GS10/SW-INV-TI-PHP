@@ -24,6 +24,9 @@ export interface TipoActivo {
   /** Clase y reglas de operación (ver utils/clasesActivo.ts). */
   TAC_Clase?: ClaseActivo;
   reglas?: ReglasClase;
+  /** Categoría contable con que se deprecian sus activos (features/accounting). */
+  FAC_ASSET_CATEGORY?: number | null;
+  row_version?: number;
 }
 
 export interface EstadoOperativo {

@@ -26,6 +26,8 @@ export interface TipoActivoCreate {
   TAC_Prefijo?: string;
   TAC_Aplica_Depreciacion?: boolean;
   TAC_Clase?: ClaseActivo;
+  /** Categoría contable; null la quita. */
+  FAC_ASSET_CATEGORY?: number | null;
 }
 
 // --- 3. TIPOS DE CONEXIÓN ---

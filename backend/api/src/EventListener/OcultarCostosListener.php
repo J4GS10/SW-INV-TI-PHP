@@ -23,6 +23,8 @@ final class OcultarCostosListener
         'OCL_Precio_Unitario', 'OCL_Subtotal', 'OCO_Total', 'RCL_Precio_Real', 'precio_unitario', 'precio_real',
         'MAN_Costo_Total', 'DMA_Costo_Item', 'costo', 'costo_total', 'costo_por_moneda',
         'valor_por_moneda', 'costo_inventario_por_moneda', 'costo_mantenimiento_por_moneda', 'saldo_valor', 'valor_saldo',
+        // Valor contable (App\Accounting): aunque esas rutas ya están cerradas a quien no ve costos.
+        'book_value', 'accumulated_depreciation', 'monthly_depreciation', 'residual_value', 'depreciation', 'accumulated',
     ];
 
     /** Nombre con aspecto de dinero: se oculta aunque nadie lo haya agregado a la lista. */

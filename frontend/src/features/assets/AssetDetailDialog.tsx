@@ -9,6 +9,8 @@ import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import AppsIcon from '@mui/icons-material/Apps';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import { AssetValuationSection } from '../accounting/AssetValuationSection';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import MemoryIcon from '@mui/icons-material/Memory';
 import ComputerIcon from '@mui/icons-material/Computer';
@@ -161,7 +163,7 @@ export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS,
     const navigate = useNavigate();
     // Contabilidad ve el activo y su valor, sin custodios ni historial; Consulta,
     // el inventario sin costos ni software. Lo que el rol no ve no se pide.
-    const { canOperate, canAdminInventory, canSeeCosts, canSeeInventory, canSeePeople, canReadControl } = usePermissions();
+    const { canOperate, canAdminInventory, canSeeCosts, canSeeInventory, canSeePeople, canReadControl, canSeeAssetValue } = usePermissions();
     const [kardex, setKardex] = useState<KardexEvento[]>([]);
     // Baja solicitada y pendiente de aprobación: el equipo queda congelado.
     const [bajaPendiente, setBajaPendiente] = useState(false);
@@ -633,6 +635,10 @@ export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS,
         {tab === 5 && (<SectionCard title={t('asset_supplies.title')} subtitle={t('asset_supplies.subtitle')} icon={<OpacityIcon fontSize="small"/>}>
             <ConsumiblesEquipo activoId={asset.ACT_Activo}/>
           </SectionCard>)}
+
+        {tab === 6 && canSeeAssetValue && (<SectionCard title={t('accounting.asset_tab_title')} subtitle={t('accounting.asset_tab_subtitle')} icon={<AccountBalanceIcon fontSize="small"/>}>
+            <AssetValuationSection activoId={asset.ACT_Activo}/>
+          </SectionCard>)}
     </>);
     const porCompletar = !!asset.pending_completion;
     const accionesYPestanas = (<>
@@ -681,6 +687,7 @@ export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS,
         {canSeeInventory && <Tab value={3} icon={<HistoryIcon />} iconPosition="start" label={t('assets.detail.tab_history')}/>}
         {canSeeInventory && <Tab value={4} icon={<AttachFileIcon />} iconPosition="start" label={t('assets.detail.tab_attachments')}/>}
         {reglas.consumibles && canSeeInventory && <Tab value={5} icon={<OpacityIcon />} iconPosition="start" label={t('asset_supplies.tab')}/>}
+        {canSeeAssetValue && <Tab value={6} icon={<AccountBalanceIcon />} iconPosition="start" label={t('accounting.asset_tab')}/>}
       </Tabs>
 
     </>);

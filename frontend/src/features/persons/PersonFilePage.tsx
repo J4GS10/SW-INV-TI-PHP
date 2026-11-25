@@ -23,6 +23,7 @@ import type { LicenciaDisponible } from '../../types/software';
 import { movementService } from '../operations/movementService';
 import { softwareService } from '../software/softwareService';
 import { OffboardingDialog } from './OffboardingDialog';
+import { WorkstationValueSection } from '../accounting/WorkstationValueSection';
 import { personService } from './personService';
 import type { PersonaResumen } from '../../types/users';
 import { Dialog } from '../../components/ui/Dialog';
@@ -40,7 +41,7 @@ interface Ficha {
   historial: Array<{ KDX_Evento: number; fecha: string; tipo: string; referencia: string | null; motivo: string | null; sentido: string }>;
 }
 
-type Pestana = 'equipos' | 'licencias' | 'consumibles' | 'historial';
+type Pestana = 'equipos' | 'licencias' | 'consumibles' | 'historial' | 'valor';
 
 /**
  * Ficha 360 de la persona como página (/empleados/:id): sus datos, equipos en
@@ -54,7 +55,7 @@ export const PersonFilePage = () => {
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const { abrirEntrega, abrirDevolucion, agregarReciente } = useWorkspace();
-  const { canOperate, canAdminInventory } = usePermissions();
+  const { canOperate, canAdminInventory, canSeeAssetValue } = usePermissions();
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [persona, setPersona] = useState<PersonaResumen | null>(null);
   const [pestana, setPestana] = useState<Pestana>('equipos');
@@ -190,9 +191,10 @@ export const PersonFilePage = () => {
 
       <Box sx={{ mt: 2 }}>
         <Tabs value={pestana} onChange={(_e, v) => setPestana(v)} variant="scrollable" allowScrollButtonsMobile sx={{ mb: 1 }}>
-          {(['equipos', 'licencias', 'consumibles', 'historial'] as Pestana[]).map((k) => (
+          {(['equipos', 'licencias', 'consumibles', 'historial'] as const).map((k) => (
             <Tab key={k} value={k} label={`${t(`person_file.tabs.${k}`)} (${conteo[k]})`} />
           ))}
+          {canSeeAssetValue && <Tab value="valor" label={t('person_file.tabs.valor')} />}
         </Tabs>
         <SectionCard title={t(`person_file.tabs.${pestana}`)}>
           <Box sx={{ overflowX: 'auto' }}>
@@ -285,6 +287,7 @@ export const PersonFilePage = () => {
                   </TableBody>
                 </Table>
               ))}
+            {pestana === 'valor' && canSeeAssetValue && personaId && <WorkstationValueSection personaId={personaId} />}
           </Box>
         </SectionCard>
       </Box>

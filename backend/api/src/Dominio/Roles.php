@@ -49,6 +49,12 @@ final class Roles
     public const array EXPORTACION_COMPRAS = self::EXPORTACION_FINANZAS;
     /** No reciben costos ni montos. */
     public const array SIN_COSTOS = [self::TECNICO, self::CONSULTA];
+    /** Valor contable (depreciación, valor en libros): quienes ven costos y llevan las finanzas. */
+    public const array VALORACION = self::EXPORTACION_FINANZAS;
+    /** Valor de un equipo concreto o de la estación de una persona: además del costo, datos de inventario y de personas. */
+    public const array VALORACION_DETALLE = self::LECTURA_CONTROL;
+    /** Categorías contables (tasa y método de depreciación): TI y Contabilidad. */
+    public const array CONFIGURACION_CONTABLE = self::ESCRITURA_COMPRAS;
     public const array APROBADORES = [self::ADMIN_TI];
     public const array PROTEGIDOS = [self::SUPER_ADMIN, self::ADMIN_SEGURIDAD];
     public const array ADMIN = [self::ADMIN_TI];

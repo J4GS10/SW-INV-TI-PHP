@@ -33,6 +33,7 @@ final class RowVersions implements ResetInterface
      * @var array<string, list<string>|null>
      */
     public const array TABLES = [
+        'FIN_ASSET_CATEGORY' => null,
         'INV_ACCION_MANTENIMIENTO' => null, 'INV_ACTIVO' => null, 'INV_AREA' => null, 'INV_CARGO' => null,
         'INV_CATEGORIA_CONSUMIBLE' => null,
         'INV_CONSUMIBLE' => ['CON_Nombre', 'CON_Descripcion', 'CON_Categoria', 'CON_Unidad', 'CCO_Categoria', 'UME_Unidad',

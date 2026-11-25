@@ -17,6 +17,8 @@ final class EntidadesTecnicas
             Campo::texto('TAC_Prefijo', max: 10),
             Campo::logico('TAC_Aplica_Depreciacion', defecto: true),
             new Campo('TAC_Clase', opciones: array_keys(ClasesActivo::CLASES)),
+            // Categoría contable con que se deprecia (App\Accounting); null = sin categoría.
+            Campo::entero('FAC_ASSET_CATEGORY', minimo: 1),
         ]);
     }
 

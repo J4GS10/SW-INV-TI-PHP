@@ -11,6 +11,8 @@ import { TipoActivoCreate } from '../../../types/catalogs';
 import { CLASES_ACTIVO, type ClaseActivo } from '../../../utils/clasesActivo';
 import { Dialog } from '../../../components/ui/Dialog';
 import { withRowVersion } from '../../../api/rowVersion';
+import { accountingService } from '../../accounting/accountingService';
+import type { AccountingCategory } from '../../accounting/accountingService';
 
 interface Props {
   open: boolean;
@@ -36,8 +38,17 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
   const { register, handleSubmit, reset, control, watch } = useForm<Formulario>({ mode: 'onChange' });
   const [loading, setLoading] = useState(false);
   const [componentes, setComponentes] = useState<number[]>([]);
+  // Categoría contable: de ella sale la depreciación de los equipos del tipo.
+  const [categorias, setCategorias] = useState<AccountingCategory[]>([]);
+  const [categoria, setCategoria] = useState<number | ''>('');
   const { enqueueSnackbar } = useSnackbar();
   const clase = watch('TAC_Clase');
+
+  useEffect(() => {
+    if (!open) return;
+    setCategoria(typeToEdit?.FAC_ASSET_CATEGORY ?? '');
+    accountingService.categories().then(setCategorias).catch(() => setCategorias([]));
+  }, [open, typeToEdit]);
 
   useEffect(() => {
     if (!open) return;
@@ -64,6 +75,7 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
         TAC_Nombre: data.TAC_Nombre,
         TAC_Prefijo: data.TAC_Prefijo ? data.TAC_Prefijo.toUpperCase() : undefined,
         ...(data.TAC_Clase ? { TAC_Clase: data.TAC_Clase } : {}),
+        FAC_ASSET_CATEGORY: categoria === '' ? null : categoria,
       };
       const guardado = typeToEdit
         ? await catalogService.updateTipoActivo(typeToEdit.TAC_Tipo_Activo, withRowVersion(payload, typeToEdit))
@@ -104,6 +116,16 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
                 </TextField>
               )}/>
               {clase === 'INSUMO' && <Alert severity="info">{t('asset_class.supply_notice')}</Alert>}
+              <TextField select fullWidth label={t('accounting.category')} value={categoria}
+                onChange={(e) => setCategoria(e.target.value === '' ? '' : Number(e.target.value))}
+                helperText={t('accounting.type_category_help')}>
+                <MenuItem value="">{t('accounting.without_category')}</MenuItem>
+                {categorias.filter((c) => c.active || c.id === categoria).map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {`${c.country} · ${c.name}${c.method === 'NONE' ? '' : ` (${c.annual_rate} %)`}`}
+                  </MenuItem>
+                ))}
+              </TextField>
             </Box>
           </SectionCard>
           {clase && CON_COMPONENTES.includes(clase) && (
