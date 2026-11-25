@@ -11,6 +11,7 @@ import { TipoActivoCreate } from '../../../types/catalogs';
 import { CLASES_ACTIVO, type ClaseActivo } from '../../../utils/clasesActivo';
 import { Dialog } from '../../../components/ui/Dialog';
 import { withRowVersion } from '../../../api/rowVersion';
+import { catalogoConfigService } from '../../../api/catalogoService';
 import { accountingService } from '../../accounting/accountingService';
 import type { AccountingCategory } from '../../accounting/accountingService';
 
@@ -76,6 +77,20 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
       enqueueSnackbar(getApiErrorMessage(error, t('common.error_create')), { variant: 'error' });
     }
   };
+
+  // Las especificaciones del tipo (RAM, disco, batería…) se ofrecen como componentes instalables: si aún no
+  // existe un tipo «Componente» con ese nombre, elegirla lo crea (id negativo = por crear).
+  const [especificaciones, setEspecificaciones] = useState<string[]>([]);
+  useEffect(() => {
+    if (!open || !typeToEdit) { setEspecificaciones([]); return; }
+    catalogoConfigService.especificacionesPorTipo()
+      .then((m) => setEspecificaciones((m[String(typeToEdit.TAC_Tipo_Activo)] ?? []).map((e) => e.nombre ?? '').filter(Boolean)))
+      .catch(() => setEspecificaciones([]));
+  }, [open, typeToEdit]);
+  const desdeEspecificaciones = useMemo((): TipoActivo[] => {
+    const existentes = new Set([...tipos, ...nuevosComponentes].filter((x) => x.TAC_Clase === 'COMPONENTE').map((x) => x.TAC_Nombre.toLowerCase()));
+    return especificaciones.filter((n) => !existentes.has(n.toLowerCase())).map((n, i) => ({ TAC_Tipo_Activo: -(i + 2), TAC_Nombre: n, TAC_Prefijo: null }));
+  }, [especificaciones, tipos, nuevosComponentes]);
 
   const candidatos = useMemo(
     () => tipos.filter((x) => x.TAC_Tipo_Activo !== typeToEdit?.TAC_Tipo_Activo && x.TAC_Clase === 'COMPONENTE'),
@@ -144,7 +159,7 @@ export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props
           </SectionCard>
           {clase && CON_COMPONENTES.includes(clase) && (
             <Box sx={{ mt: 2 }}><SectionCard title={t('asset_class.components_title')}>
-              <Autocomplete multiple options={[...candidatos, ...nuevosComponentes]} value={[...candidatos, ...nuevosComponentes].filter((c) => componentes.includes(c.TAC_Tipo_Activo))}
+              <Autocomplete multiple options={[...candidatos, ...nuevosComponentes, ...desdeEspecificaciones]} value={[...candidatos, ...nuevosComponentes].filter((c) => componentes.includes(c.TAC_Tipo_Activo))}
                 getOptionLabel={(o) => (o.TAC_Tipo_Activo < 0 ? t('asset_class.components_create', { name: o.TAC_Nombre }) : o.TAC_Nombre)}
                 isOptionEqualToValue={(a, b) => a.TAC_Tipo_Activo === b.TAC_Tipo_Activo}
                 // Si lo escrito no existe, se ofrece crearlo como tipo de clase «Componente» sin salir del formulario.
