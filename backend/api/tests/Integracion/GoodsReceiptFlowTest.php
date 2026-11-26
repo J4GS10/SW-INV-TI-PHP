@@ -70,6 +70,17 @@ final class GoodsReceiptFlowTest extends PruebaApi
         self::assertSame($today, $this->ok(200, 'GET', '/api/v1/goods-receipts/form-context', token: $this->purchasing)['received_date']);
     }
 
+    public function testTheSupplierContextComesFromItsLastReceipt(): void
+    {
+        $url = "/api/v1/goods-receipts/form-context/suppliers/{$this->supplier}";
+        self::assertSame(['currency' => null, 'site_id' => null], $this->ok(200, 'GET', $url, token: $this->purchasing));
+
+        $this->register('F-'.D::sufijo());
+
+        self::assertSame(['currency' => 'GTQ', 'site_id' => $this->site], $this->ok(200, 'GET', $url, token: $this->purchasing));
+        self::assertSame(403, $this->pedir('GET', $url, null, $this->technician)[0]);
+    }
+
     public function testConfirmationCreatesPendingAssetsStockAndTheAct(): void
     {
         $receipt = $this->register('F-'.D::sufijo());

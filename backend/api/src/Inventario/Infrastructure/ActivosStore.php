@@ -138,6 +138,29 @@ final readonly class ActivosStore
     }
 
     /**
+     * Componentes obligatorios del tipo del equipo que aún no tiene instalados (o no en la cantidad pedida).
+     *
+     * @return list<array{TAC_Tipo_Activo: int, TAC_Nombre: string, requeridos: int, instalados: int}>
+     */
+    public function componentesPendientes(string $equipo): array
+    {
+        $filas = $this->conexion->fetchAllAssociative(
+            'SELECT c."TAC_Componente", t."TAC_Nombre", c."TCP_Cantidad", '
+            .'(SELECT COUNT(*) FROM "INV_ACTIVO" x WHERE x."ACT_Activo_Padre" = a."ACT_Activo" AND x."TAC_Tipo_Activo" = c."TAC_Componente") "INSTALADOS" '
+            .'FROM "INV_ACTIVO" a JOIN "INV_TIPO_COMPONENTE" c ON c."TAC_Padre" = a."TAC_Tipo_Activo" AND c."TCP_Obligatorio" = 1 '
+            .'JOIN "INV_TIPO_ACTIVO" t ON t."TAC_Tipo_Activo" = c."TAC_Componente" WHERE a."ACT_Activo" = :e ORDER BY t."TAC_Nombre"', ['e' => $equipo]);
+        $pendientes = [];
+        foreach ($filas as $f) {
+            if ((int) $f['INSTALADOS'] < (int) $f['TCP_Cantidad']) {
+                $pendientes[] = ['TAC_Tipo_Activo' => (int) $f['TAC_Componente'], 'TAC_Nombre' => (string) $f['TAC_Nombre'],
+                    'requeridos' => (int) $f['TCP_Cantidad'], 'instalados' => (int) $f['INSTALADOS']];
+            }
+        }
+
+        return $pendientes;
+    }
+
+    /**
      * Lo que se lee de cada componente instalado sin abrirlo: tipo, marca, modelo y sus especificaciones
      * («RAM: 16 GB · Tipo de RAM: DDR4»).
      *
@@ -199,6 +222,34 @@ final readonly class ActivosStore
     public function tipo(mixed $tipo): array|false
     {
         return $this->conexion->fetchAssociative('SELECT "TAC_Prefijo" FROM "INV_TIPO_ACTIVO" WHERE "TAC_Tipo_Activo" = :t', ['t' => $tipo]);
+    }
+
+    public function marcaExiste(int $marca): bool
+    {
+        return false !== $this->conexion->fetchOne('SELECT 1 FROM "INV_MARCA" WHERE "MAR_Marca" = :m', ['m' => $marca]);
+    }
+
+    /** Modelo de esa marca con ese nombre (sin distinguir mayúsculas ni espacios de los extremos). */
+    public function modeloPorNombre(int $marca, string $nombre): ?int
+    {
+        $id = $this->conexion->fetchOne('SELECT "MOD_Modelo" FROM "INV_MODELO" WHERE "MAR_Marca" = :m AND LOWER(TRIM("MOD_Nombre")) = LOWER(TRIM(:n)) FETCH FIRST 1 ROWS ONLY',
+            ['m' => $marca, 'n' => $nombre]);
+
+        return false === $id ? null : (int) $id;
+    }
+
+    public function crearModelo(string $nombre, int $marca, int $tipo): int
+    {
+        return (int) \App\Db\InsercionOracle::insertar($this->conexion, 'INV_MODELO', ['MOD_Nombre' => $nombre, 'MAR_Marca' => $marca, 'TAC_Tipo_Activo' => $tipo], 'MOD_Modelo');
+    }
+
+    /** Guarda un valor de fábrica del modelo solo si aún no tiene uno para esa característica. */
+    public function agregarValorDeFabrica(int $modelo, int $especificacion, string $valor): bool
+    {
+        return 1 === $this->conexion->executeStatement(
+            'INSERT INTO CAT_MODEL_SPECIFICATION (MSP_MOD_MODEL, MSP_TES_SPECIFICATION_TYPE, MSP_DEFAULT_VALUE) '
+            .'SELECT :m, :t, :v FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM CAT_MODEL_SPECIFICATION WHERE MSP_MOD_MODEL = :m AND MSP_TES_SPECIFICATION_TYPE = :t)',
+            ['m' => $modelo, 't' => $especificacion, 'v' => $valor]);
     }
 
     public function existeModelo(mixed $modelo): bool

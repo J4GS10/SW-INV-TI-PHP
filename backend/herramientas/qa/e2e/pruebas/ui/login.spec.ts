@@ -6,7 +6,7 @@
  * Cada prueba que cambia una cuenta crea la suya por la API de identidades (IAM).
  */
 import { test, expect, type Page } from '@playwright/test';
-import { claveAleatoria, contextoApi, esperarCorreo, sesionApi, SEDES, sufijo, totp, iniciarSesionUi, usuario, type Sesion } from '../soporte';
+import { claveAleatoria, contextoApi, esperarCorreo, irA, recargar, sesionApi, SEDES, sufijo, totp, iniciarSesionUi, usuario, type Sesion } from '../soporte';
 import { persona } from '../datos';
 import { leerQr } from '../qr';
 
@@ -66,7 +66,7 @@ async function salir(page: Page, username: string): Promise<void> {
 
 test('contraseña: entra, la sesión sobrevive a recargar (cookie de refresh segura) y el cierre la invalida', async ({ page, context }) => {
   await iniciarSesionUi(page, 'qa_tecnico_norte');
-  await page.reload();
+  await recargar(page);
   await expect(page).not.toHaveURL(/\/login/);
   const refresh = (await context.cookies()).find((c) => c.name === 'rtk');
   expect(refresh, 'cookie de refresh').toBeTruthy();
@@ -199,7 +199,9 @@ test('MFA obligatorio: el administrador del sistema lo controla desde Configurac
   // Reutiliza la sesión del beforeAll: cada ingreso con TOTP de la misma cuenta espera su propio paso de 30 s.
   const politica = await (await raiz.ctx.get('/api/v1/gov/security/mfa')).json();
   await iniciarSesionUi(page, 'qa_superadmin');
-  await page.goto('/config');
+  // El inicio lleva al SUPER_ADMIN a /usuarios: se espera esa redirección antes de navegar (WebKit la cortaba).
+  await expect(page).toHaveURL(/\/usuarios/);
+  await irA(page, '/config');
   if (politica.required && !politica.can_be_disabled) {
     // MFA_CAN_BE_DISABLED=false (producción): se ve fijo, sin un interruptor que el servidor rechazaría.
     await expect(page.getByText('Siempre activo', { exact: true })).toBeVisible();

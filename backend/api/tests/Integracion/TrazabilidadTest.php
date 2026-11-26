@@ -105,6 +105,42 @@ final class TrazabilidadTest extends PruebaApi
         self::assertTrue(I::cadenaKardexIntegra());
     }
 
+    /** Al devolver, quien opera elige qué licencias del equipo se liberan; las demás siguen con el equipo. */
+    public function testDevolucionPreguntaQueSoftwareSeLibera(): void
+    {
+        $licencia = fn (): int => $this->ok(201, 'POST', '/api/v1/soft/licencias', ['SOF_Software' => I::software(), 'TLI_Tipo_Licencia' => I::tipoLicencia(),
+            'LIC_Cantidad_Total' => 3])['LIC_Licencia'];
+        $usadas = fn (int $l): int => $this->ok(200, 'GET', "/api/v1/soft/licencias/{$l}")['LIC_Cantidad_Usada'];
+        $instalar = fn (string $a, int $l): int => $this->ok(201, 'POST', '/api/v1/soft/instalaciones', ['ACT_Activo' => $a, 'LIC_Licencia' => $l])['INS_Instalacion'];
+        [$office, $autocad] = [$licencia(), $licencia()];
+        $a = $this->activo();
+        $this->asignar($a);
+        $iOffice = $instalar($a, $office);
+        $instalar($a, $autocad);
+
+        // Una instalación que no es de este equipo: no se devuelve nada (todo o nada).
+        $otro = $this->activo();
+        $ajena = $instalar($otro, $office);
+        self::assertSame([409, 'INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED'], $this->detalle('POST', '/api/v1/trazabilidad/devolucion',
+            ['ACT_Activo' => $a, 'MOV_Motivo' => 'Renuncia', 'liberar_instalaciones' => [$iOffice, $ajena]]));
+        self::assertSame('Asignado', $this->estado($a));
+
+        $d = $this->ok(200, 'POST', '/api/v1/trazabilidad/devolucion', ['ACT_Activo' => $a, 'MOV_Motivo' => 'Renuncia', 'liberar_instalaciones' => [$iOffice]]);
+        self::assertSame([1, 'En Bodega'], [$d['licencias_liberadas'], $d['estado']]);
+        self::assertSame([1, 1], [$usadas($office), $usadas($autocad)], 'Office vuelve un cupo (queda el del otro equipo); AutoCAD sigue con el equipo.');
+        $activas = array_column($this->ok(200, 'GET', "/api/v1/soft/activos/{$a}/instalaciones?solo_activas=true"), 'LIC_Licencia');
+        self::assertSame([$autocad], $activas);
+
+        // En lote se decide una vez para todos los equipos.
+        $this->asignar($a);
+        $l = $this->ok(200, 'POST', '/api/v1/trazabilidad/devolucion-lote', ['activos' => [$a], 'MOV_Motivo' => 'Fin de proyecto', 'liberar_software' => true]);
+        self::assertSame([1, 0], [$l['licencias_liberadas'], $usadas($autocad)]);
+        $kardex = array_column(D::conexion()->fetchAllAssociative('SELECT "KDX_Tipo" FROM "INV_KARDEX" WHERE "LIC_Licencia" IN (:o, :c) AND "KDX_Tipo" = \'LICENCIA_RETIRADA\'',
+            ['o' => $office, 'c' => $autocad]), 'KDX_Tipo');
+        self::assertCount(2, $kardex);
+        self::assertTrue(I::cadenaKardexIntegra());
+    }
+
     public function testPrestamoReglasDePersonaYEquiposCompartidos(): void
     {
         $a = $this->activo();

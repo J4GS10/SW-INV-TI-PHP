@@ -8,6 +8,16 @@ import {
   TipoEspecificacion, TipoEspecificacionCreate
 } from '../../types/catalogs';
 
+/** Un componente interno que admite un tipo de equipo. */
+export interface ComponenteDeTipo {
+  tipo: number;
+  nombre: string;
+  /** Se pide al registrar cada equipo del tipo; si se deja para después, queda como pendiente. */
+  obligatorio: boolean;
+  /** Cuántos como mínimo, si es obligatorio. */
+  cantidad: number;
+}
+
 export const catalogService = {
   // ==========================================
   // 1. MARCAS
@@ -58,6 +68,13 @@ export const catalogService = {
     (await client.get<number[]>(`/cat/tipos-activo/${id}/componentes`)).data,
 
   setComponentesTipo: async (id: number, componentes: number[]): Promise<number[]> =>
+    (await client.put<number[]>(`/cat/tipos-activo/${id}/componentes`, { componentes })).data,
+
+  /** Componentes que admite el tipo, con si son obligatorios al registrar un equipo y cuántos como mínimo. */
+  getComponentesDetalle: async (id: number): Promise<ComponenteDeTipo[]> =>
+    (await client.get<ComponenteDeTipo[]>(`/cat/tipos-activo/${id}/componentes`, { params: { detalle: 1 } })).data,
+
+  setComponentesDetalle: async (id: number, componentes: Omit<ComponenteDeTipo, 'nombre'>[]): Promise<number[]> =>
     (await client.put<number[]>(`/cat/tipos-activo/${id}/componentes`, { componentes })).data,
 
   /** Insumos registrados como activos: vista previa y solicitud de paso a consumible. */

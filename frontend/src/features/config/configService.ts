@@ -11,6 +11,10 @@ export interface SystemConfig {
     SYS_Ciudad?: string;
     /** Porcentaje del tamaño base del logo (50–250). */
     SYS_Logo_Tamano?: number | string;
+    /** Dirección por la que se entra (https://lombardi.inventario.group): la usan los QR de las etiquetas. */
+    SYS_URL_Publica?: string | null;
+    /** La dirección del servidor, que se usa mientras SYS_URL_Publica está vacía (solo lectura). */
+    url_publica_servidor?: string;
 }
 
 export const configService = {

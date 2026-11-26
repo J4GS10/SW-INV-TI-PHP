@@ -30,12 +30,14 @@ import { useAccionPagina, useWorkspace } from '../../context/workspace-context';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 import { useServerPaging } from '../../hooks/useServerPaging';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
 const SELECTION_COLUMN = new Set(['select']);
 
 export const MovementsPage = () => {
     const { t, i18n } = useTranslation();
     const { canOperate, canExport } = usePermissions();
     const { enqueueSnackbar } = useSnackbar();
+    const { showBlob } = useFilePreview();
     const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
     const [total, setTotal] = useState(0);
     const [tiposMovimiento, setTiposMovimiento] = useState<string[]>([]);
@@ -141,23 +143,14 @@ export const MovementsPage = () => {
         setSelected(newSelected);
     };
     const isSelected = (id: string) => selected.indexOf(id) !== -1;
-    // --- LÓGICA DE DESCARGAS (Helper Mantenido) ---
-    const downloadBlob = (blob: Blob, filename: string) => {
-        const url = window.URL.createObjectURL(new Blob([blob]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', filename);
-        document.body.appendChild(link);
-        link.click();
-        link.parentNode?.removeChild(link);
-    };
+    // Actas: el PDF se ve en el visor (con su botón de descarga); el Word se descarga.
     // Descarga Individual (Word o PDF; entrega o descargo/devolución)
     const handleDownloadIndividual = async (id: string, codigo: string, formato: 'docx' | 'pdf' = 'docx', tipo: 'entrega' | 'descargo' = 'entrega') => {
         try {
             const blob = await movementService.downloadActa(id, formato, tipo, undefined, documentLanguage);
             const fecha = new Date().toISOString().split('T')[0];
             const nombre = tipo === 'descargo' ? 'Descargo' : 'Acta';
-            downloadBlob(blob, `${nombre}_${codigo}_${fecha}.${formato}`);
+            showBlob(blob, `${nombre}_${codigo}_${fecha}.${formato}`);
             enqueueSnackbar(t('operations.messages.doc_generated'), { variant: 'success' });
         }
         catch {
@@ -172,7 +165,7 @@ export const MovementsPage = () => {
         try {
             const blob = await movementService.downloadActaLote(selected, formato, 'entrega', documentLanguage);
             const fecha = new Date().toISOString().split('T')[0];
-            downloadBlob(blob, `Acta_Unificada_${fecha}.${formato}`);
+            showBlob(blob, `Acta_Unificada_${fecha}.${formato}`);
             enqueueSnackbar(t('operations.messages.batch_success'), { variant: 'success' });
             setSelected([]);
         }

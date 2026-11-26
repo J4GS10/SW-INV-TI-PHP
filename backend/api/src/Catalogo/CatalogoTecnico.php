@@ -102,26 +102,40 @@ final readonly class CatalogoTecnico
         return $this->datos->componentesDe($id);
     }
 
+    /** @return list<array{tipo: int, nombre: string, obligatorio: bool, cantidad: int}> lo que admite, con lo obligatorio al registrar un equipo de ese tipo */
+    public function componentesDetalleDeTipo(int $id): array
+    {
+        $this->tipo($id);
+
+        return $this->datos->componentesDetalle($id);
+    }
+
     /**
-     * @param list<int> $pedidos tipos que se quieren admitir como componentes; el propio tipo y los repetidos se ignoran
+     * @param list<array{tipo: int, obligatorio: bool, cantidad: int}> $pedidos tipos que se quieren admitir como componentes; el propio tipo y los repetidos se ignoran
      *
      * @return list<int> los que quedaron, en orden
      */
     public function fijarComponentesDeTipo(int $id, array $pedidos, Origen $origen): array
     {
         $tipo = $this->tipo($id);
-        $componentes = array_values(array_diff(array_unique($pedidos), [$id]));
-        sort($componentes);
+        $porTipo = [];
+        foreach ($pedidos as $p) {
+            if ($p['tipo'] !== $id) {
+                $porTipo[$p['tipo']] = ['tipo' => $p['tipo'], 'obligatorio' => $p['obligatorio'], 'cantidad' => max(1, min(20, $p['cantidad']))];
+            }
+        }
+        ksort($porTipo);
+        $componentes = array_keys($porTipo);
         if ([] !== $componentes && !ClasesActivo::reglas($tipo['TAC_Clase'])['componentes']) {
             throw ErrorDominio::noProcesable('ASSET_CLASS_NO_COMPONENTS');
         }
         foreach ($componentes as $c) {
             $this->tipo($c);
         }
-        $this->transaccion->ejecutar(function () use ($id, $tipo, $componentes, $origen): void {
-            $antes = $this->datos->componentesDe($id);
-            $this->datos->reemplazarComponentes($id, $componentes);
-            $this->crud->auditar('UPDATE', 'INV_TIPO_COMPONENTE', ['tipo' => $tipo['TAC_Nombre'], 'antes' => $antes, 'despues' => $componentes], $origen);
+        $this->transaccion->ejecutar(function () use ($id, $tipo, $porTipo, $origen): void {
+            $antes = $this->datos->componentesDetalle($id);
+            $this->datos->reemplazarComponentes($id, array_values($porTipo));
+            $this->crud->auditar('UPDATE', 'INV_TIPO_COMPONENTE', ['tipo' => $tipo['TAC_Nombre'], 'antes' => $antes, 'despues' => array_values($porTipo)], $origen);
         });
 
         return $componentes;

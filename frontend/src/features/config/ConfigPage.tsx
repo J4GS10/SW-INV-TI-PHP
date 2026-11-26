@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Box, Typography, TextField, Button, CircularProgress, Card, CardContent, Chip, Slider, Stack, Tooltip, InputAdornment, ThemeProvider, ToggleButton, ToggleButtonGroup, alpha } from '@mui/material';
+import { Alert, Box, Typography, TextField, Button, CircularProgress, Card, CardContent, Chip, Slider, Stack, Tooltip, InputAdornment, ThemeProvider, ToggleButton, ToggleButtonGroup, alpha } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import BusinessIcon from '@mui/icons-material/Business';
 import PaletteIcon from '@mui/icons-material/Palette';
 import ImageIcon from '@mui/icons-material/Image';
 import DescriptionIcon from '@mui/icons-material/Description';
+import LanguageIcon from '@mui/icons-material/Language';
+import QrCode2Icon from '@mui/icons-material/QrCode2';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import StyleIcon from '@mui/icons-material/Style';
 import { useTranslation } from 'react-i18next';
@@ -203,6 +205,8 @@ export const ConfigPage = () => {
     const logoUrl = watch('SYS_Logo_URL');
     const logoFactor = logoScale(watch('SYS_Logo_Tamano'));
     const nombreEmpresa = watch('SYS_Nombre_Empresa');
+    const urlPublica = watch('SYS_URL_Publica');
+    const urlServidor = watch('url_publica_servidor');
     const activePresetIndex = findPresetIndex(colorFondo, colorPrimario, colorSecundario);
     // Aplica un preset por la misma vía que los campos de color (setValue → submit → config API → recarga).
     const applyPreset = useCallback((p: PalettePreset) => {
@@ -284,7 +288,11 @@ export const ConfigPage = () => {
         try {
             // En «enlace» sin escribir nada se conserva la imagen ya subida.
             const logo = (data.SYS_Logo_URL ?? '').trim() || uploadedLogo || null;
-            const saved = await configService.updateConfig({ ...data, SYS_Logo_URL: logo });
+            // La dirección pública vacía vuelve a la del servidor; el valor de solo lectura no se envía.
+            const { url_publica_servidor: _servidor, ...resto } = data;
+            void _servidor;
+            const saved = await configService.updateConfig({ ...resto, SYS_Logo_URL: logo,
+                SYS_URL_Publica: (data.SYS_URL_Publica ?? '').trim().replace(/\/+$/, '').toLowerCase() || null });
             // El tema, la marca y la paleta se aplican al instante (sin recargar).
             applyConfig(saved ?? data);
             enqueueSnackbar(t('config.success_save'), { variant: 'success' });
@@ -417,6 +425,23 @@ export const ConfigPage = () => {
                         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                             <TextField fullWidth label={t('config.form_code')} placeholder="F.IT.GUA.04.01" {...register('SYS_Codigo_Formulario')} helperText={t('config.form_code_help')}/>
                             <TextField fullWidth label={t('config.city')} placeholder="Guatemala" {...register('SYS_Ciudad')} helperText={t('config.city_help')}/>
+                        </Stack>
+                    </UiSectionCard>
+
+                    {/* Dirección del sistema: con ella se arman los QR de las etiquetas. */}
+                    <UiSectionCard icon={<LanguageIcon />} title={t('config.public_url.title')} subtitle={t('config.public_url.subtitle')}>
+                        <Stack spacing={2}>
+                            <TextField fullWidth label={t('config.public_url.label')} placeholder="https://lombardi.inventario.group"
+                                {...register('SYS_URL_Publica', {
+                                    validate: (v) => !(v ?? '').trim() || /^https:\/\/[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?\/*$/i.test((v ?? '').trim()) || t('config.public_url.invalid'),
+                                })}
+                                error={!!errors.SYS_URL_Publica}
+                                helperText={errors.SYS_URL_Publica?.message
+                                    ?? t('config.public_url.help', { server: urlServidor ?? '' })}/>
+                            <Alert severity="info" icon={<QrCode2Icon />}>
+                                {t('config.public_url.example', { url: `${((urlPublica ?? '').trim().replace(/\/+$/, '').toLowerCase() || urlServidor || '')}/activos/LAP00001` })}
+                            </Alert>
+                            <Typography variant="body2" color="text.secondary">{t('config.public_url.dns_note')}</Typography>
                         </Stack>
                     </UiSectionCard>
                 </Stack>

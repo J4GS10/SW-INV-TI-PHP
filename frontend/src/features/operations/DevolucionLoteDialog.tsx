@@ -12,6 +12,8 @@ import type { Area } from '../../types/geo';
 import { movementService } from './movementService';
 import { EntregaResultado } from './EntregaResultado';
 import { Dialog } from '../../components/ui/Dialog';
+import { useInstalledSoftware } from './useInstalledSoftware';
+import { ReturnSoftwareBatchChoice } from './ReturnSoftwareSection';
 
 
 interface Props {
@@ -31,6 +33,10 @@ export const DevolucionLoteDialog = ({ open, activos, onClose }: Props) => {
   const [condicion, setCondicion] = useState<'BUENO' | 'CON_DANO'>('BUENO');
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoLote | null>(null);
+  // Software de los equipos: si tienen, se pregunta una vez qué hacer (sin respuesta por defecto).
+  const software = useInstalledSoftware(activos, open);
+  const [decision, setDecision] = useState<'LIBERAR' | 'CONSERVAR' | null>(null);
+  const faltaDecision = software.loading || software.error || (software.items.length > 0 && decision === null);
 
   // Las sedes de los equipos elegidos, como clave estable: recargar la lista en vivo no reinicia el formulario.
   const sedesElegidas = [...new Set(activos.map((x) => (x as { SED_Sede?: number | null }).SED_Sede).filter((s): s is number => s != null))]
@@ -38,7 +44,7 @@ export const DevolucionLoteDialog = ({ open, activos, onClose }: Props) => {
 
   useEffect(() => {
     if (!open) return;
-    setResultado(null); setMotivo(null); setDetalle(''); setArea(null); setCondicion('BUENO');
+    setResultado(null); setMotivo(null); setDetalle(''); setArea(null); setCondicion('BUENO'); setDecision(null);
     movementService.getAreas().then((a) => {
       setAreas(a);
       // Si hay una sola bodega para los equipos elegidos, se propone (se puede cambiar).
@@ -54,7 +60,7 @@ export const DevolucionLoteDialog = ({ open, activos, onClose }: Props) => {
     try {
       setResultado(await productividadService.devolucionLote({
         activos: activos.map((a) => a.ACT_Activo), MMO_Motivo: motivo?.id ?? null, MOV_Motivo_Detalle: detalle.trim() || null,
-        ARE_Area_Destino: area?.ARE_Area ?? null, condicion,
+        ARE_Area_Destino: area?.ARE_Area ?? null, condicion, liberar_software: decision === 'LIBERAR',
       }));
     } catch (err) {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_save')), { variant: 'error', autoHideDuration: 8000 });
@@ -69,7 +75,11 @@ export const DevolucionLoteDialog = ({ open, activos, onClose }: Props) => {
       <DialogContent dividers>
         {resultado ? (
           <EntregaResultado resultado={resultado} tipoActa="descargo"
-            mensaje={t('returns_batch.done', { count: resultado.total })} />
+            mensaje={[t('returns_batch.done', { count: resultado.total }),
+              (resultado.licencias_liberadas ?? 0) > 0 ? t('returns.software.done_released', { count: resultado.licencias_liberadas }) : null,
+              software.items.length > (resultado.licencias_liberadas ?? 0)
+                ? t('returns.software.done_kept', { count: software.items.length - (resultado.licencias_liberadas ?? 0) }) : null]
+              .filter(Boolean).join(' ')} />
         ) : (
           <Stack spacing={2}>
             <Box>
@@ -92,6 +102,8 @@ export const DevolucionLoteDialog = ({ open, activos, onClose }: Props) => {
                 <FormControlLabel value="CON_DANO" control={<Radio />} label={t('returns.condition_damaged')} />
               </RadioGroup>
             </Box>
+            <ReturnSoftwareBatchChoice items={software.items} loading={software.loading} error={software.error} onRetry={software.retry}
+              value={decision} onChange={setDecision} />
             <Typography variant="caption" color="text.secondary">{t('returns_batch.all_or_nothing')}</Typography>
           </Stack>
         )}
@@ -102,7 +114,7 @@ export const DevolucionLoteDialog = ({ open, activos, onClose }: Props) => {
         ) : (
           <>
             <Button color="inherit" onClick={() => onClose(false)}>{t('common.cancel')}</Button>
-            <Button variant="contained" onClick={enviar} disabled={enviando || !motivo || (pideDetalle(motivo) && !detalle.trim())}
+            <Button variant="contained" onClick={enviar} disabled={enviando || !motivo || (pideDetalle(motivo) && !detalle.trim()) || faltaDecision}
               startIcon={enviando ? <CircularProgress size={16} color="inherit" /> : undefined}>
               {t('returns_batch.submit', { count: activos.length })}
             </Button>

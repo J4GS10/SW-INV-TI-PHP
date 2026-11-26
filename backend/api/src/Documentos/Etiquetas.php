@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Documentos;
 
 use App\Dominio\ErrorDominio;
+use App\Organizacion\ConfiguracionGlobal;
 use App\Seguridad\Alcance;
 use chillerlan\QRCode\Common\EccLevel;
 use chillerlan\QRCode\Output\QRMarkupSVG;
@@ -13,7 +14,7 @@ use chillerlan\QRCode\QROptions;
 use App\Documentos\Infrastructure\ConsultasDocumentos;
 
 /**
- * Etiquetas imprimibles con QR del código interno, en hojas carta con cuadrícula
+ * Etiquetas imprimibles con QR (la dirección de la ficha del activo) y el código interno, en hojas carta con cuadrícula
  * tipo Avery 5160 (3 columnas × 10 filas de 2,625" × 1"). El QR es vectorial
  * (nítido a cualquier escala de impresión), con corrección de errores M.
  */
@@ -46,8 +47,18 @@ final readonly class Etiquetas
         .host{top:0.42in;font-size:7pt}
         .serie{top:0.60in;font-size:7pt}';
 
-    public function __construct(private ConsultasDocumentos $consultas)
+    public function __construct(private ConsultasDocumentos $consultas, private ConfiguracionGlobal $configuracion)
     {
+    }
+
+    /**
+     * Lo que guarda el QR: la dirección de la ficha del activo, con la dirección pública que fijó el administrador
+     * del sistema (o la del servidor). La cámara de cualquier teléfono la abre (y, sin sesión, pide entrar y vuelve
+     * a la ficha); el escáner del sistema toma de ella el código.
+     */
+    public function enlace(string $codigo, ?string $base = null): string
+    {
+        return ($base ?? $this->configuracion->urlPublica()).'/activos/'.rawurlencode($codigo);
     }
 
     public static function nombreArchivo(Idioma $idioma): string
@@ -64,6 +75,7 @@ final readonly class Etiquetas
         $textos = $idioma->de(self::TEXTOS);
         $e = Pdf::e(...);
         $hojas = [];
+        $base = $this->configuracion->urlPublica();
         foreach (array_chunk($this->cargar($activos, $codigos), self::COLUMNAS * self::FILAS) as $hoja) {
             $etiquetas = '';
             foreach ($hoja as $i => $activo) {
@@ -72,7 +84,7 @@ final readonly class Etiquetas
                 $arriba = self::MARGEN_SUPERIOR + intdiv($i, self::COLUMNAS) * self::ALTO;
                 $host = (string) ($activo['ACT_Hostname'] ?? '');
                 $etiquetas .= \sprintf('<div class="etiqueta" style="left:%.4fin;top:%.4fin">', $izquierda, $arriba)
-                    .'<img class="qr" src="'.self::qr($codigo).'">'
+                    .'<img class="qr" src="'.self::qr($this->enlace($codigo, $base)).'">'
                     .'<div class="texto codigo">'.$e(mb_substr($codigo, 0, 24)).'</div>'
                     .('' !== $host ? '<div class="texto host">'.$e(mb_substr($host, 0, 30)).'</div>' : '')
                     // Una serie larga se recorta al ancho de la etiqueta (overflow), como el backend anterior.
@@ -86,7 +98,7 @@ final readonly class Etiquetas
     }
 
     /** QR vectorial con zona de silencio (data URI SVG). */
-    private static function qr(string $codigo): string
+    private static function qr(string $contenido): string
     {
         return (new QRCode(new QROptions([
             'outputInterface' => QRMarkupSVG::class,
@@ -94,7 +106,7 @@ final readonly class Etiquetas
             'eccLevel' => EccLevel::M,
             'addQuietzone' => true,
             'quietzoneSize' => 2,
-        ])))->render($codigo);
+        ])))->render($contenido);
     }
 
     /**

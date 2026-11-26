@@ -168,6 +168,77 @@ final class ActivosTest extends PruebaApi
             'EOP_Estado_Operativo' => I::estado('En Bodega'), 'ACT_Activo_Padre' => $equipo['ACT_Activo']]));
     }
 
+    public function testComponenteConModeloNuevoEnUnaSolaOperacion(): void
+    {
+        $equipo = $this->alta();
+        $tipo = $this->ok(201, 'POST', '/api/v1/cat/tipos-activo', ['TAC_Nombre' => 'Batería '.D::sufijo(), 'TAC_Prefijo' => 'B'.strtoupper(substr(D::sufijo(), 0, 4)), 'TAC_Clase' => 'COMPONENTE']);
+        $tipoId = (int) $tipo['TAC_Tipo_Activo'];
+        $specs = $this->ok(200, 'GET', '/api/v1/catalogos/especificaciones-tipo')[(string) $tipoId] ?? [];
+        $capacidad = (int) array_values(array_filter($specs, static fn (array $s): bool => 'Capacidad' === $s['nombre']))[0]['TES_Tipo_Especificacion'];
+        $marca = (int) D::conexion()->fetchOne('SELECT "MAR_Marca" FROM "INV_MODELO" WHERE "MOD_Modelo" = :m', ['m' => $this->modelo]);
+        $nombre = 'Pila '.D::sufijo();
+        $cuerpo = static fn (string $serie, string $valor): array => ['ACT_Serie_Fabricante' => $serie, 'ACT_Fecha_Compra' => '2026-01-15', 'TAC_Tipo_Activo' => $tipoId,
+            'EOP_Estado_Operativo' => I::estado('En Bodega'), 'ACT_Activo_Padre' => $equipo['ACT_Activo'], 'recordar_valores_fabrica' => true,
+            'nuevo_modelo' => ['MOD_Nombre' => $nombre, 'MAR_Marca' => $marca], 'especificaciones' => [['TES_Tipo_Especificacion' => $capacidad, 'ESP_Valor' => $valor]]];
+        $modelos = static fn (): int => D::contar('SELECT COUNT(*) FROM "INV_MODELO" WHERE "MOD_Nombre" = :n', ['n' => $nombre]);
+        $fabrica = fn (int $modelo): string => (string) array_column($this->ok(200, 'GET', "/api/v1/goods-receipts/catalog/models/{$modelo}/spec-defaults"), 'value', 'type_id')[$capacidad];
+
+        // Todo o nada: si el alta falla, el modelo tampoco queda creado.
+        self::assertSame([400, 'SERIAL_NUMBER_ALREADY_EXISTS'], $this->detalle('POST', '/api/v1/core/activos', $cuerpo((string) $equipo['ACT_Serie_Fabricante'], '4800')));
+        self::assertSame(0, $modelos());
+
+        // Modelo nuevo, componente instalado y valor de fábrica en una sola petición.
+        $pila = $this->ok(201, 'POST', '/api/v1/core/activos', $cuerpo('PILA-'.D::sufijo(), '4800'));
+        self::assertSame([1, $equipo['ACT_Activo']], [$modelos(), $pila['ACT_Activo_Padre']]);
+        $modelo = (int) D::conexion()->fetchOne('SELECT "MOD_Modelo" FROM "INV_MODELO" WHERE "MOD_Nombre" = :n', ['n' => $nombre]);
+        self::assertSame('4800', $fabrica($modelo));
+
+        // La siguiente pieza igual reutiliza el modelo y no pisa el valor de fábrica que ya tiene.
+        $this->ok(201, 'POST', '/api/v1/core/activos', $cuerpo('PILA-'.D::sufijo(), '4000'));
+        self::assertSame([1, '4800'], [$modelos(), $fabrica($modelo)]);
+        self::assertSame([404, 'BRAND_NOT_FOUND'], $this->detalle('POST', '/api/v1/core/activos', ['nuevo_modelo' => ['MOD_Nombre' => 'X', 'MAR_Marca' => 999999999]] + $cuerpo('PILA-'.D::sufijo(), '1')));
+    }
+
+    public function testComponentesObligatoriosQuedanPendientesHastaRegistrarlos(): void
+    {
+        $bateria = I::tipo('COMPONENTE');
+        $memoria = I::tipo('COMPONENTE');
+        // El tipo del equipo admite batería y memoria; pide una batería y dos memorias.
+        $this->ok(200, 'PUT', "/api/v1/cat/tipos-activo/{$this->tipo}/componentes", ['componentes' => [
+            ['tipo' => $bateria, 'obligatorio' => true, 'cantidad' => 1], ['tipo' => $memoria, 'obligatorio' => true, 'cantidad' => 2]]]);
+        $detalle = $this->ok(200, 'GET', "/api/v1/cat/tipos-activo/{$this->tipo}/componentes?detalle=1");
+        $porTipo = array_column($detalle, null, 'tipo');
+        self::assertSame([true, 1], [$porTipo[$bateria]['obligatorio'], $porTipo[$bateria]['cantidad']]);
+        self::assertSame([true, 2], [$porTipo[$memoria]['obligatorio'], $porTipo[$memoria]['cantidad']]);
+        self::assertSame([$bateria, $memoria], $this->ok(200, 'GET', "/api/v1/cat/tipos-activo/{$this->tipo}/componentes"), 'Sin detalle, la lista de ids de siempre.');
+        self::assertSame([422, 'VALIDATION_ERROR'], $this->detalle('PUT', "/api/v1/cat/tipos-activo/{$this->tipo}/componentes", ['componentes' => [['tipo' => $bateria, 'cantidad' => 0]]]));
+
+        // Equipo recién registrado: le faltan los dos, y figura en los pendientes.
+        $equipo = $this->alta();
+        $faltan = fn (): array => array_column($this->ok(200, 'GET', "/api/v1/core/activos/{$equipo['ACT_Activo']}/componentes")['pendientes'], 'instalados', 'TAC_Tipo_Activo');
+        self::assertSame([$bateria => 0, $memoria => 0], $faltan());
+        $enBandeja = function () use ($equipo): bool {
+            foreach ($this->ok(200, 'GET', '/api/v1/inventario/atencion')['items'] as $item) {
+                if ('COMPONENTES_POR_REGISTRAR' === $item['clave']) {
+                    return \in_array($equipo['ACT_Codigo_Interno'], array_column($item['items'], 'codigo'), true);
+                }
+            }
+
+            return false;
+        };
+        self::assertTrue($enBandeja());
+
+        // Se registra la batería y una memoria: queda pendiente la segunda memoria.
+        $instalar = fn (int $tipo): array => $this->ok(201, 'POST', '/api/v1/core/activos', ['ACT_Serie_Fabricante' => 'CMP-'.D::sufijo(), 'ACT_Fecha_Compra' => '2026-01-15',
+            'MOD_Modelo' => I::modelo($tipo), 'TAC_Tipo_Activo' => $tipo, 'EOP_Estado_Operativo' => I::estado('En Bodega'), 'ACT_Activo_Padre' => $equipo['ACT_Activo']]);
+        $instalar($bateria);
+        $instalar($memoria);
+        self::assertSame([$memoria => 1], $faltan());
+        $instalar($memoria);
+        self::assertSame([], $faltan());
+        self::assertFalse($enBandeja(), 'Completo: sale de los pendientes.');
+    }
+
     private function tipoEspecificacion(): int
     {
         D::conexion()->executeStatement('INSERT INTO "INV_TIPO_ESPECIFICACION" ("TES_Nombre") VALUES (:n)', ['n' => 'RAM '.D::sufijo()]);

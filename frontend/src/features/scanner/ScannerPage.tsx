@@ -9,7 +9,6 @@ import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import { useWorkspace } from '../../context/workspace-context';
-import { guardarArchivo } from '../../api/productividadService';
 import { normalizeLanguage } from '../../types/language';
 import type { EstadoOperativo } from '../../types/inventory';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
@@ -27,6 +26,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { useQrCamera } from '../../hooks/useQrCamera';
 import { BotonFotoQr } from '../../components/BotonFotoQr';
 import { codigoDeQr } from '../../utils/lectorQr';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
 export const ScannerPage = () => {
     const { t, i18n } = useTranslation();
     const { canOperate } = usePermissions();
@@ -44,6 +44,7 @@ export const ScannerPage = () => {
     }, [modoLote]);
     useEffect(() => { assetService.getEstados().then(setEstados).catch(() => setEstados([])); }, []);
     const { enqueueSnackbar } = useSnackbar();
+    const { showBlob } = useFilePreview();
     const navigate = useNavigate();
     const lastCodeRef = useRef("");
     const [manualCode, setManualCode] = useState('');
@@ -101,7 +102,7 @@ export const ScannerPage = () => {
     const etiquetasLote = async () => {
         try {
             const blob = await assetService.downloadLabels({ activos_ids: lote.map((a) => a.ACT_Activo) }, normalizeLanguage(i18n.resolvedLanguage));
-            guardarArchivo(blob, `etiquetas-${lote.length}.pdf`);
+            showBlob(blob, `etiquetas-${lote.length}.pdf`);
         } catch (err) {
             enqueueSnackbar(getApiErrorMessage(err, t('common.error_generic')), { variant: 'error' });
         }

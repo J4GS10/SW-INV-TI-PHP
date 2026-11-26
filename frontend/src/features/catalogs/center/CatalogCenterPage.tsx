@@ -9,7 +9,6 @@ import { PageHeader, SectionCard } from '../../../components/ui';
 import { EmbeddedPageContext } from '../../../components/ui/embeddedPage';
 import { LicenseTypesDialog } from '../../software/LicenseTypesDialog';
 import { CatalogItemsPanel } from './CatalogItemsPanel';
-import { SpecsByTypePanel } from './SpecsByTypePanel';
 import { KitsPanel } from './KitsPanel';
 import { useLiveTick } from '../../../hooks/useLiveRefresh';
 
@@ -21,15 +20,17 @@ const GROUPS: CatalogoGrupo[] = ['ACTIVOS', 'MOVIMIENTOS', 'LICENCIAS', 'CONSUMI
 
 /** Entries that are not standard catalogs: they keep their own screen, shown inside this one. */
 const SPECIAL: Record<string, CatalogoGrupo> = {
-  'tipos-activo': 'ACTIVOS', 'especificaciones-tipo': 'ACTIVOS', modelos: 'ACTIVOS', kits: 'MOVIMIENTOS', ubicaciones: 'UBICACIONES',
+  'tipos-activo': 'ACTIVOS', modelos: 'ACTIVOS', kits: 'MOVIMIENTOS', ubicaciones: 'UBICACIONES',
 };
+/** Lo que un tipo pide (sus características y componentes) se configura dentro del tipo: los enlaces viejos llevan ahí. */
+const ALIAS: Record<string, string> = { 'especificaciones-tipo': 'tipos-activo' };
 const EMBEDDED: Record<string, ComponentType> = { modelos: ModelsPage, 'tipos-activo': AssetTypesPage, ubicaciones: LocationsPage };
 
 /** Opens as a dialog over the current list. */
 const LICENSE_TYPES = 'tipos-licencia';
 
 /** Assets read in the order they are set up: what it is, what it asks for, who makes it. */
-const ASSETS_ORDER = ['tipos-activo', 'especificaciones-tipo', 'tipos-especificacion', 'unidades-medida', 'marcas', 'modelos', 'tipos-conexion'];
+const ASSETS_ORDER = ['tipos-activo', 'marcas', 'modelos', 'tipos-especificacion', 'unidades-medida', 'tipos-conexion'];
 const position = (key: string) => {
   const index = ASSETS_ORDER.indexOf(key);
   return index === -1 ? ASSETS_ORDER.length : index;
@@ -61,7 +62,8 @@ export const CatalogCenterPage = () => {
     ].sort((a, b) => position(a) - position(b)),
   })).filter((g) => g.keys.length > 0), [defs]);
 
-  const requested = params.get('c');
+  const pedido = params.get('c');
+  const requested = pedido !== null ? (ALIAS[pedido] ?? pedido) : null;
   const current = groups.find((g) => g.group === params.get('g'))
     ?? groups.find((g) => requested !== null && g.keys.includes(requested))
     ?? groups[0];
@@ -109,7 +111,6 @@ export const CatalogCenterPage = () => {
             {selected && (
               <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
                 <SectionCard title={label(selected)} subtitle={t(`catalog_center.hints.${selected}`, { defaultValue: '' }) || undefined}>
-                  {selected === 'especificaciones-tipo' && <SpecsByTypePanel />}
                   {selected === 'kits' && <KitsPanel />}
                   {def && <CatalogItemsPanel key={def.clave} def={def} />}
                   {Embedded && (

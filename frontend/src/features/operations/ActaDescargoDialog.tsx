@@ -9,6 +9,7 @@ import { ExportLanguageSelect } from '../../components/ExportLanguageSelect';
 import { normalizeLanguage, type SupportedLanguage } from '../../types/language';
 import { SectionCard } from '../../components/ui';
 import { Dialog } from '../../components/ui/Dialog';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
 interface Props {
     open: boolean;
     movimientoId: string | null;
@@ -19,6 +20,7 @@ interface Props {
 export const ActaDescargoDialog = ({ open, movimientoId, codigo, defaultLanguage, onClose }: Props) => {
     const { t, i18n } = useTranslation();
     const { enqueueSnackbar } = useSnackbar();
+    const { showBlob } = useFilePreview();
     const [formato, setFormato] = useState<'pdf' | 'docx'>('pdf');
     const [mensajero, setMensajero] = useState('');
     const [loading, setLoading] = useState(false);
@@ -34,14 +36,8 @@ export const ActaDescargoDialog = ({ open, movimientoId, codigo, defaultLanguage
         setLoading(true);
         try {
             const blob = await movementService.downloadActa(movimientoId, formato, 'descargo', mensajero, documentLanguage);
-            const url = window.URL.createObjectURL(new Blob([blob]));
-            const link = document.createElement('a');
-            link.href = url;
             const fecha = new Date().toISOString().split('T')[0];
-            link.setAttribute('download', `Descargo_${codigo}_${fecha}.${formato}`);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode?.removeChild(link);
+            showBlob(blob, `Descargo_${codigo}_${fecha}.${formato}`);
             enqueueSnackbar(t('operations.messages.doc_generated'), { variant: 'success' });
             setMensajero('');
             onClose();

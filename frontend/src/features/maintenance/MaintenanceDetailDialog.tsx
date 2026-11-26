@@ -252,7 +252,12 @@ export const MaintenanceDetailDialog = ({ open, ticket, onClose, onChanged }: Pr
         </SectionCard>
 
         {!isClosed && (<SectionCard title={t('maintenance.close_title')}>
-            {!closing ? (<Button color="success" variant="contained" startIcon={<CheckCircleIcon />} onClick={() => setClosing(true)}>
+            {!closing ? (<Button color="success" variant="contained" startIcon={<CheckCircleIcon />} onClick={() => {
+                // Costo total = suma de los detalles cargados ahora (la lista del ticket puede ser de antes).
+                const suma = detalles.reduce((acc, d) => acc + Number(d.DMA_Costo_Item ?? 0), 0);
+                setCostoTotal(String(Math.round(suma * 100) / 100));
+                setClosing(true);
+            }}>
                 {t('maintenance.close_button')}
               </Button>) : (<Stack direction="row" spacing={2} alignItems="center">
                 <MoneyField label={t('maintenance.cost_total')} value={costoTotal} onChange={setCostoTotal} currency={moneda} onCurrencyChange={setMoneda} size="small" sx={{ width: 240 }}/>

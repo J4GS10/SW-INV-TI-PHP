@@ -11,7 +11,6 @@ import { useSnackbar } from 'notistack';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import client from '../../api/axios';
 import { getApiErrorMessage } from '../../api/errors';
-import { guardarArchivo } from '../../api/productividadService';
 import { PageHeader, SectionCard } from '../../components/ui';
 import { useWorkspace } from '../../context/workspace-context';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -28,6 +27,7 @@ import { personService } from './personService';
 import type { PersonaResumen } from '../../types/users';
 import { Dialog } from '../../components/ui/Dialog';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
 
 interface Ficha {
   persona: {
@@ -53,6 +53,7 @@ export const PersonFilePage = () => {
   const { personaId } = useParams<{ personaId: string }>();
   const { t, i18n } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
+  const { showBlob } = useFilePreview();
   const navigate = useNavigate();
   const { abrirEntrega, abrirDevolucion, agregarReciente } = useWorkspace();
   const { canOperate, canAdminInventory, canSeeAssetValue } = usePermissions();
@@ -94,7 +95,7 @@ export const PersonFilePage = () => {
     try {
       const blob = await movementService.downloadActaLote(ficha.equipos.map((e) => e.MOV_Movimiento), 'pdf', 'entrega',
         normalizeLanguage(i18n.resolvedLanguage));
-      guardarArchivo(blob, `acta-${p.nombre}.pdf`);
+      showBlob(blob, `acta-${p.nombre}.pdf`);
     } catch (err) {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_generic')), { variant: 'error' });
     }

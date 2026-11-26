@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, Button, Chip, CircularProgress, IconButton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
+import { Box, Button, ButtonBase, Chip, CircularProgress, IconButton, Link, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import DownloadIcon from '@mui/icons-material/Download';
+import VisibilityIcon from '@mui/icons-material/VisibilityOutlined';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
+import { formatBytes, previewKind } from '../../components/file-preview/filePreview';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import { useTranslation } from 'react-i18next';
 import { CatalogField } from '../../components/CatalogField';
@@ -17,19 +20,12 @@ import { useLiveRefresh } from '../../hooks/useLiveRefresh';
 // Mismos límites que el servidor: se avisa antes de subir.
 const MAX_MB = 10;
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.csv,.txt';
-const fmtSize = (bytes: number): string => {
-    if (bytes < 1024)
-        return `${bytes} B`;
-    if (bytes < 1024 * 1024)
-        return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
 interface Props {
     activoId: string;
 }
-const esImagen = (a: Adjunto) => (a.ADJ_Tipo_MIME ?? '').startsWith('image/');
-/** Miniatura de una foto (se descarga autenticada como blob); un clic la abre en tamaño completo. */
-const Miniatura = ({ adjunto }: { adjunto: Adjunto }) => {
+const esImagen = (a: Adjunto) => previewKind(a.ADJ_Nombre_Original, a.ADJ_Tipo_MIME) === 'image';
+/** Miniatura de una foto (se descarga autenticada como blob); un clic la abre en el visor. */
+const Miniatura = ({ adjunto, onOpen }: { adjunto: Adjunto; onOpen: () => void }) => {
     const { t } = useTranslation();
     const [url, setUrl] = useState<string | null>(null);
     const id = adjunto.ADJ_Adjunto;
@@ -44,9 +40,9 @@ const Miniatura = ({ adjunto }: { adjunto: Adjunto }) => {
         return () => { vivo = false; if (creada) URL.revokeObjectURL(creada); };
     }, [id]);
     if (!url) return <Box sx={{ width: 40, height: 40, borderRadius: 1, bgcolor: 'action.hover' }}/>;
-    return (<Box component="a" href={url} target="_blank" rel="noopener" aria-label={t('attachments.open_image', { name: adjunto.ADJ_Nombre_Original })} sx={{ display: 'inline-flex' }}>
+    return (<ButtonBase onClick={onOpen} aria-label={t('attachments.open_image', { name: adjunto.ADJ_Nombre_Original })} sx={{ borderRadius: 1 }}>
         <Box component="img" src={url} alt={adjunto.ADJ_Nombre_Original} sx={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 1, border: 1, borderColor: 'divider' }}/>
-      </Box>);
+      </ButtonBase>);
 };
 export const AttachmentsSection = ({ activoId }: Props) => {
     const { t, i18n } = useTranslation();
@@ -62,6 +58,13 @@ export const AttachmentsSection = ({ activoId }: Props) => {
     const [categoria, setCategoria] = useState('otro');
     const etiquetaCategoria = useCatalogLabel('tipos-evidencia');
     const [uploading, setUploading] = useState(false);
+    const { preview } = useFilePreview();
+    // El visor recorre todos los archivos del activo con las flechas, empezando por el elegido.
+    const ver = (i: number) => preview(items.map((a) => ({
+        name: a.ADJ_Nombre_Original, mime: a.ADJ_Tipo_MIME,
+        subtitle: [etiquetaCategoria(a.ADJ_Categoria), formatBytes(a.ADJ_Tamano_Bytes), formatDate(a.ADJ_Fecha_Subida, i18n.language)].join(' · '),
+        load: () => attachmentService.blob(a.ADJ_Adjunto),
+    })), i);
     const load = useCallback(async () => {
         setLoading(true);
         try {
@@ -147,17 +150,24 @@ export const AttachmentsSection = ({ activoId }: Props) => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {items.map((a) => (<TableRow key={a.ADJ_Adjunto} hover>
+              {items.map((a, i) => (<TableRow key={a.ADJ_Adjunto} hover>
                   <TableCell>
                     <Stack direction="row" spacing={1.5} alignItems="center">
-                      {esImagen(a) && <Miniatura adjunto={a}/>}
-                      <span>{a.ADJ_Nombre_Original}</span>
+                      {esImagen(a) && <Miniatura adjunto={a} onOpen={() => ver(i)}/>}
+                      <Link component="button" type="button" underline="hover" onClick={() => ver(i)} sx={{ textAlign: 'left', overflowWrap: 'anywhere' }}>
+                        {a.ADJ_Nombre_Original}
+                      </Link>
                     </Stack>
                   </TableCell>
                   <TableCell><Chip size="small" label={etiquetaCategoria(a.ADJ_Categoria)}/></TableCell>
-                  <TableCell>{fmtSize(a.ADJ_Tamano_Bytes)}</TableCell>
+                  <TableCell>{formatBytes(a.ADJ_Tamano_Bytes)}</TableCell>
                   <TableCell>{formatDate(a.ADJ_Fecha_Subida, i18n.language)}</TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    <Tooltip title={t('file_preview.view') as string}>
+                      <IconButton size="small" color="primary" onClick={() => ver(i)} aria-label={t('file_preview.view_of', { name: a.ADJ_Nombre_Original })}>
+                        <VisibilityIcon fontSize="small"/>
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title={t('attachments.download') as string}>
                       <IconButton size="small" color="primary" onClick={() => attachmentService.download(a)}>
                         <DownloadIcon fontSize="small"/>

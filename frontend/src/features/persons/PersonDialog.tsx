@@ -13,6 +13,7 @@ import { useEntityContext } from '../../hooks/useEntityContext';
 import { useSuggestion } from '../../hooks/useSuggestion';
 import { suggestionService } from '../../api/suggestionService';
 import { managerReason } from '../../utils/suggestionReasons';
+import { companyDomain, mostCommon, suggestEmail } from '../../utils/autofill';
 import { createSearchFilter } from '../../utils/autocomplete';
 import { Dialog } from '../../components/ui/Dialog';
 import { withRowVersion } from '../../api/rowVersion';
@@ -117,6 +118,34 @@ export const PersonDialog = ({ open, persona, onClose, onCreated }: Props) => {
             ? { value: jefeSug.PER_Persona, label: jefeSug.nombre ?? '', reason: managerReason(t, jefeSug.origen) }
             : pending,
     });
+    // Alta: correo «nombre.apellido@dominio» con el dominio más usado en la empresa, sin repetir uno existente.
+    const firstName = watch('PER_Primer_Nombre');
+    const firstLastName = watch('PER_Primer_Apellido');
+    const secondLastName = watch('PER_Segundo_Apellido');
+    const emailId = watch('PER_Email_Corporativo');
+    const domain = useMemo(() => companyDomain(personas.map((p) => p.PER_Email_Corporativo)), [personas]);
+    const emailSug = useMemo(() => suggestEmail({ firstName, firstLastName, secondLastName }, domain, personas.map((p) => p.PER_Email_Corporativo)),
+        [firstName, firstLastName, secondLastName, domain, personas]);
+    const emailHint = useSuggestion<string>({
+        current: emailId,
+        empty: '',
+        enabled: open && !isEdit,
+        apply: (value) => setValue('PER_Email_Corporativo', value, { shouldDirty: true, shouldValidate: value !== '' }),
+        suggestion: emailSug ? { value: emailSug, label: emailSug, reason: t('suggestions.reasons.email_name', { domain }) } : null,
+    });
+    // Alta con el cargo elegido primero: el departamento donde más se repite ese cargo (y con él, el jefe).
+    const depFromPosition = useMemo(() => cargoId === '' ? null
+        : mostCommon(personas.filter((p) => p.PER_Estado !== false && p.CAR_Cargo === cargoId).map((p) => p.DEP_Departamento)),
+        [cargoId, personas]);
+    const depHint = useSuggestion<number | ''>({
+        current: depId,
+        empty: '',
+        enabled: open && !isEdit,
+        apply: (value) => setValue('DEP_Departamento', value, { shouldDirty: true, shouldValidate: value !== '' }),
+        suggestion: depFromPosition !== null && departamentos.some((d) => d.DEP_Departamento === depFromPosition)
+            ? { value: depFromPosition, label: departamentos.find((d) => d.DEP_Departamento === depFromPosition)?.DEP_Nombre, reason: t('suggestions.reasons.department_position') }
+            : null,
+    });
     // Sede: la del área habitual del departamento o, con una sola sede, esa.
     const sedeId = watch('SED_Sede');
     const { sedes, loading: loadingSedes, unica } = useSedes(open);
@@ -207,16 +236,22 @@ export const PersonDialog = ({ open, persona, onClose, onCreated }: Props) => {
             </SectionCard>
             <SectionCard title={t('persons.sections.contact')}>
               <Stack spacing={2}>
+                <Box>
                 <Controller name="PER_Email_Corporativo" control={control} rules={{ required: true, pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }} render={({ field }) => (<TextField {...field} fullWidth type="email" label={t('persons.col_email')} error={!!errors.PER_Email_Corporativo} required/>)}/>
+                <SuggestionHint hint={emailHint}/>
+                </Box>
                 <Controller name="PER_Telefono" control={control} render={({ field }) => <TextField {...field} fullWidth label={t('persons.col_phone')}/>}/>
               </Stack>
             </SectionCard>
             <SectionCard title={t('persons.sections.organization')}>
               <Stack spacing={2}>
               <Stack direction="row" spacing={2} alignItems="flex-start">
-                <Controller name="DEP_Departamento" control={control} rules={{ required: true }} render={({ field }) => (<TextField {...field} select fullWidth sx={{ flex: 1, minWidth: 0 }} label={t('persons.department')} error={!!errors.DEP_Departamento} required>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Controller name="DEP_Departamento" control={control} rules={{ required: true }} render={({ field }) => (<TextField {...field} select fullWidth label={t('persons.department')} error={!!errors.DEP_Departamento} required>
                       {departamentos.map((d) => (<MenuItem key={d.DEP_Departamento} value={d.DEP_Departamento}>{d.DEP_Nombre}</MenuItem>))}
                     </TextField>)}/>
+                <SuggestionHint hint={depHint}/>
+                </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Controller name="CAR_Cargo" control={control} rules={{ required: true }} render={({ field }) => (<TextField {...field} select fullWidth label={t('persons.position')} error={!!errors.CAR_Cargo} required>
                       {cargos.map((c) => (<MenuItem key={c.CAR_Cargo} value={c.CAR_Cargo}>{c.CAR_Nombre}</MenuItem>))}

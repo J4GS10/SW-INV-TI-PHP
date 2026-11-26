@@ -58,7 +58,10 @@ final readonly class CatalogoTecnicoController
     #[Route('/tipos-activo/{id}/componentes', methods: ['GET'])]
     public function componentes(Request $r): JsonResponse
     {
-        return new JsonResponse($this->catalogo->componentesDeTipo(Peticion::enteroDeRuta($r)));
+        $id = Peticion::enteroDeRuta($r);
+
+        // ?detalle=1: con nombre, si es obligatorio al registrar el equipo y cuántos como mínimo.
+        return new JsonResponse($r->query->getBoolean('detalle') ? $this->catalogo->componentesDetalleDeTipo($id) : $this->catalogo->componentesDeTipo($id));
     }
 
     /** Componentes internos que admite el tipo (vacío = cualquier tipo de clase Componente). */
@@ -69,14 +72,22 @@ final readonly class CatalogoTecnicoController
         $id = Peticion::enteroDeRuta($r);
         $entrada = Peticion::json($r);
         $lista = $entrada->lista('componentes', 50) ?? [];
+        // Cada elemento: el id del tipo (opcional, como antes) o {tipo, obligatorio, cantidad}.
+        $entero = static fn (mixed $v): bool => \is_int($v) || (\is_string($v) && 1 === preg_match('/^\d+$/', $v));
+        $pedidos = [];
         foreach ($lista as $i => $c) {
-            if (!\is_int($c) && !(\is_string($c) && 1 === preg_match('/^\d+$/', $c))) {
+            if ($entero($c)) {
+                $pedidos[] = ['tipo' => (int) $c, 'obligatorio' => false, 'cantidad' => 1];
+            } elseif (\is_array($c) && $entero($c['tipo'] ?? null) && \is_bool($c['obligatorio'] ?? false)
+                && (!isset($c['cantidad']) || ($entero($c['cantidad']) && (int) $c['cantidad'] >= 1 && (int) $c['cantidad'] <= 20))) {
+                $pedidos[] = ['tipo' => (int) $c['tipo'], 'obligatorio' => (bool) ($c['obligatorio'] ?? false), 'cantidad' => (int) ($c['cantidad'] ?? 1)];
+            } else {
                 $entrada->errorDeValor("componentes.{$i}", 'INT_REQUIRED', $c);
             }
         }
         $entrada->validar();
 
-        return new JsonResponse($this->catalogo->fijarComponentesDeTipo($id, array_map('intval', $lista), ClienteHttp::origen($r)));
+        return new JsonResponse($this->catalogo->fijarComponentesDeTipo($id, $pedidos, ClienteHttp::origen($r)));
     }
 
     #[Route('/tipos-activo/{id}', methods: ['GET'])]

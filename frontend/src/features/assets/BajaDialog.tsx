@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Checkbox, CircularProgress, DialogActions, DialogContent, DialogTitle, FormControlLabel, Stack, TextField } from '@mui/material';
+import { Alert, Box, Button, Checkbox, CircularProgress, DialogActions, DialogContent, DialogTitle, FormControlLabel, Stack, TextField } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 import { inventarioService } from '../../api/inventarioService';
 import { getApiErrorCode, getApiErrorMessage, getApiErrorParams } from '../../api/errors';
 import type { CatalogoItem } from '../../api/catalogoService';
 import { CatalogField } from '../../components/CatalogField';
-import { pideDetalle } from '../../hooks/useCatalogo';
+import { pideDetalle, useCatalogo } from '../../hooks/useCatalogo';
+import { useSuggestion } from '../../hooks/useSuggestion';
+import { SuggestionHint } from '../../components/ui';
+import { destinationForReason } from '../../utils/autofill';
 import { hoyLocal } from '../../utils/dates';
 import { Dialog } from '../../components/ui/Dialog';
 import { DateField } from '../../components/ui/DateField';
@@ -56,6 +59,18 @@ export const BajaDialog = ({ open, activo, activos, lostOnly = false, onClose }:
     setRetirar(false);
   }, [open]);
 
+  // Destino según el motivo, solo cuando no deja dudas (pérdida o robo: no recuperado).
+  const { items: destinos } = useCatalogo('destinos-baja');
+  const destinoSugerido = destinos.find((d) => d.codigo === destinationForReason(motivo));
+  const destinoHint = useSuggestion<string>({
+    current: destino,
+    empty: '',
+    enabled: open,
+    apply: (codigo) => setDestinoItem(destinos.find((d) => d.codigo === codigo) ?? null),
+    suggestion: destinoSugerido?.codigo
+      ? { value: destinoSugerido.codigo, label: destinoSugerido.nombre, reason: t('suggestions.reasons.destination_reason') }
+      : null,
+  });
   const requiereDetalle = pideDetalle(motivoItem) || pideDetalle(destinoItem);
   const fechaFutura = fecha > hoyLocal();
   // La API rechaza dar de baja con custodia abierta salvo por pérdida o robo: se dice antes de enviar.
@@ -121,8 +136,11 @@ export const BajaDialog = ({ open, activo, activos, lostOnly = false, onClose }:
           <CatalogField clave="motivos-baja" valueBy="codigo" required label={t('decommission.reason')}
             value={motivo || null} onChange={(_v, item) => setMotivoItem(item)}
             error={motivoNoAdmitido} helperText={motivoNoAdmitido ? t('decommission.lost_only') : undefined} />
-          <CatalogField clave="destinos-baja" valueBy="codigo" required label={t('decommission.destination')}
-            value={destino || null} onChange={(_v, item) => setDestinoItem(item)} />
+          <Box>
+            <CatalogField clave="destinos-baja" valueBy="codigo" required label={t('decommission.destination')}
+              value={destino || null} onChange={(_v, item) => setDestinoItem(item)} />
+            <SuggestionHint hint={destinoHint} />
+          </Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <DateField label={t('decommission.date')} value={fecha} onChange={(e) => setFecha(e.target.value)}
               InputLabelProps={{ shrink: true }} inputProps={{ max: hoyLocal() }} fullWidth error={fechaFutura}

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { median, mostCommon } from '../../utils/autofill';
 import { useForm } from 'react-hook-form';
-import { Autocomplete, Chip, DialogTitle, DialogContent, DialogActions, Button, TextField, CircularProgress, Stack } from '@mui/material';
+import { Autocomplete, Box, Chip, DialogTitle, DialogContent, DialogActions, Button, TextField, CircularProgress, Stack } from '@mui/material';
 import { catalogService } from '../catalogs/catalogService';
 import type { Modelo } from '../../types/catalogs';
 import { useTranslation } from 'react-i18next';
@@ -31,7 +32,9 @@ export const ConsumableDialog = ({ open, onClose, toEdit }: Props) => {
     const { t } = useTranslation();
     const { enqueueSnackbar } = useSnackbar();
     const isEdit = !!toEdit;
-    const { register, handleSubmit, reset, formState: { errors } } = useForm<ConsumibleFormValues>({ mode: 'onChange' });
+    const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ConsumibleFormValues>({ mode: 'onChange' });
+    // Consumibles ya registrados: de los de la misma categoría salen unidad, mínimo y bodega habituales.
+    const [existing, setExisting] = useState<Consumible[]>([]);
     // Categoría y unidad del catálogo (la unidad por defecto es «Unidad»).
     const [categoria, setCategoria] = useState<number | null>(null);
     const [unidad, setUnidad] = useState<number | null>(null);
@@ -46,6 +49,9 @@ export const ConsumableDialog = ({ open, onClose, toEdit }: Props) => {
     const [modelos, setModelos] = useState<Modelo[]>([]);
     const [compatibles, setCompatibles] = useState<number[]>([]);
     const { sedes, loading: loadingSedes, unica } = useSedes(open);
+    const sameCategory = useMemo(() => categoria === null ? [] : existing.filter((c) => c.CON_Activo !== false && c.CCO_Categoria === categoria), [categoria, existing]);
+    const sedeOfCategory = mostCommon(sameCategory.map((c) => c.SED_Sede ?? null));
+    const sedeCategoryName = sedes.find((s) => s.SED_Sede === sedeOfCategory)?.SED_Nombre;
     const sedeHint = useSuggestion<number | ''>({
         current: sede,
         empty: '',
@@ -53,6 +59,29 @@ export const ConsumableDialog = ({ open, onClose, toEdit }: Props) => {
         apply: setSede,
         suggestion: loadingSedes ? undefined : unica
             ? { value: unica.SED_Sede, label: unica.SED_Nombre, reason: t('scope.reasons.only_sede') }
+            : sedeOfCategory !== null && sedeCategoryName
+                ? { value: sedeOfCategory, label: sedeCategoryName, reason: t('suggestions.reasons.sede_category') }
+                : null,
+    });
+    const defaultUnit = unidades.find((u) => u.codigo === 'UNIDAD')?.id ?? null;
+    const unitOfCategory = mostCommon(sameCategory.map((c) => c.UME_Unidad ?? null));
+    const unitHint = useSuggestion<number | null>({
+        current: unidad,
+        empty: defaultUnit,
+        enabled: open && !isEdit,
+        apply: setUnidad,
+        suggestion: unitOfCategory !== null && unidades.some((u) => u.id === unitOfCategory)
+            ? { value: unitOfCategory, label: unidades.find((u) => u.id === unitOfCategory)?.nombre, reason: t('suggestions.reasons.unit_category') }
+            : null,
+    });
+    const minimumOfCategory = median(sameCategory.map((c) => Number(c.CON_Stock_Minimo)));
+    const minimumHint = useSuggestion<number>({
+        current: Number(watch('CON_Stock_Minimo') ?? 0),
+        empty: 0,
+        enabled: open && !isEdit,
+        apply: (value) => setValue('CON_Stock_Minimo', value, { shouldDirty: true }),
+        suggestion: minimumOfCategory !== null && minimumOfCategory > 0
+            ? { value: minimumOfCategory, label: String(minimumOfCategory), reason: t('suggestions.reasons.minimum_category') }
             : null,
     });
     useEffect(() => {
@@ -63,6 +92,7 @@ export const ConsumableDialog = ({ open, onClose, toEdit }: Props) => {
         setUnidad(toEdit?.UME_Unidad ?? null);
         setCompatibles([]);
         catalogService.getModelosFlat().then(setModelos).catch(() => setModelos([]));
+        if (!toEdit) consumableService.list().then(setExisting).catch(() => setExisting([]));
         if (toEdit) {
             consumableService.compatibles(toEdit.CON_Consumible).then((c) => setCompatibles(c.map((x) => x.MOD_Modelo)))
                 .catch(() => setCompatibles([]));
@@ -142,15 +172,21 @@ export const ConsumableDialog = ({ open, onClose, toEdit }: Props) => {
           <Stack direction="row" spacing={2}>
             <CatalogField clave="categorias-consumible" label={t('consumables.field_category')}
               value={categoria} onChange={(v) => setCategoria(v as number | null)}/>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
             <CatalogField clave="unidades-medida" label={t('consumables.field_unit')} required
               value={unidad} onChange={(v) => setUnidad(v as number | null)}/>
+            <SuggestionHint hint={unitHint}/>
+            </Box>
           </Stack>
           <SedeField margin="dense" required={!isEdit} value={sede} onChange={setSede} sedes={sedes} loading={loadingSedes} label={t('scope.warehouse_sede')} helperText={sedeHint ? undefined : t('scope.consumable_sede_help')}/>
           <SuggestionHint hint={sedeHint}/>
           </SectionCard>
           <SectionCard title={t('consumables.sections.stock')}>
           <Stack direction="row" spacing={2}>
-            <TextField fullWidth margin="dense" type="number" label={t('consumables.field_min')} {...register('CON_Stock_Minimo', { required: true, min: 0 })}/>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+            <TextField fullWidth margin="dense" type="number" label={t('consumables.field_min')} slotProps={{ inputLabel: { shrink: true } }} {...register('CON_Stock_Minimo', { required: true, min: 0 })}/>
+            <SuggestionHint hint={minimumHint}/>
+            </Box>
             {!isEdit && (<TextField fullWidth margin="dense" type="number" label={t('consumables.field_initial')} {...register('CON_Stock_Actual', { required: true, min: 0 })}/>)}
             {!isEdit && (<MoneyField fullWidth margin="dense" label={t('consumables.initial_cost')} helperText={t('consumables.initial_cost_help')}
                 value={costoInicial} onChange={setCostoInicial} currency={moneda} onCurrencyChange={setMoneda}/>)}

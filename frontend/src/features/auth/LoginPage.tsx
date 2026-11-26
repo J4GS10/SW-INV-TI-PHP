@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { destinoTrasLogin } from '../../utils/destinoLogin';
 import { Box, Button, Card, CardContent, Checkbox, FormControlLabel, TextField, Typography, Alert, Container, Divider, InputAdornment, IconButton, alpha, useTheme } from '@mui/material';
 import { Login as LoginIcon, Visibility, VisibilityOff } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
@@ -84,7 +85,7 @@ export const LoginPage = () => {
             }
             else {
                 login(response.access_token, response.restriction);
-                navigate('/');
+                navigate(destinoTrasLogin(location.state), { replace: true });
             }
         }
         catch (err) {
@@ -107,7 +108,7 @@ export const LoginPage = () => {
         try {
             const r = await authService.verify2fa(challenge.token, otp.trim(), rememberDevice);
             login(r.access_token, r.restriction);
-            navigate('/');
+            navigate(destinoTrasLogin(location.state), { replace: true });
         }
         catch (err) {
             const code = getApiErrorCode(err);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Inventario;
 
+use App\Inventario\Infrastructure\Instalaciones;
 use App\Inventario\Infrastructure\Kardex;
 use App\Inventario\Infrastructure\Operador;
 use App\Inventario\Infrastructure\ActivosStore;
@@ -35,6 +36,7 @@ final readonly class Movimientos
         private Transaccion $transaccion,
         private Notificador $notificador,
         private Operador $operador,
+        private Instalaciones $instalaciones,
     ) {
     }
 
@@ -254,6 +256,7 @@ final readonly class Movimientos
             $bodega = $this->custodia->idEstado(EstadosActivo::BODEGA);
             $this->activos->actualizar($d['ACT_Activo'], ['ARE_Area_Ubicacion' => $destino, ...($reparacion ? [] : ['EOP_Estado_Operativo' => $bodega])]);
             $sede = null === $activo['SED_Sede'] ? null : (int) $activo['SED_Sede'];
+            $licencias = $this->liberarSoftware($d, $sede, $usuario, $ip);
             $this->kardex->registrar('DEVOLUCION', activo: $activo, usuario: $usuario,
                 origen: ['persona' => (string) $vigente['PER_Persona'], 'area' => (int) $vigente['ARE_Area'], 'sede' => $sede],
                 destino: ['area' => null === $destino ? null : (int) $destino, 'sede' => $sede], documento: ['MOVIMIENTO', Ident::aTexto((string) $vigente['MOV_Movimiento'])],
@@ -272,8 +275,35 @@ final readonly class Movimientos
             }
 
             return ['status' => 'success', 'message' => 'ASSET_RETURNED_SUCCESSFULLY', 'MOV_Movimiento' => Ident::aTexto((string) $vigente['MOV_Movimiento']),
-                'estado' => $reparacion ? 'En Reparación' : 'En Bodega', 'siguientes_pasos' => $siguiente];
+                'estado' => $reparacion ? 'En Reparación' : 'En Bodega', 'siguientes_pasos' => $siguiente, 'licencias_liberadas' => $licencias];
         });
+    }
+
+    /**
+     * Software del equipo devuelto: quien opera elige qué licencias se liberan (vuelven el cupo y la clave);
+     * lo que no elige sigue instalado en el equipo y viaja con él a su próximo usuario.
+     * `liberar_instalaciones` son las elegidas (devolución de un equipo); `liberar_software` libera todas (en lote).
+     *
+     * @param array<string, mixed> $d
+     */
+    private function liberarSoftware(array $d, ?int $sede, string $usuario, ?string $ip): int
+    {
+        $motivo = 'Devolución del equipo';
+        $activo = (string) $d['ACT_Activo'];
+        $liberadas = true === ($d['liberar_software'] ?? false)
+            ? $this->instalaciones->liberarPorDestino([$activo], motivo: $motivo)
+            : ($this->instalaciones->liberarDeActivo($activo, $d['liberar_instalaciones'] ?? [], $motivo)
+                ?? throw ErrorDominio::conflicto('INSTALLATION_NOT_FOUND_OR_ALREADY_REMOVED'));
+        foreach ($liberadas as $l) {
+            $this->kardex->registrar('LICENCIA_RETIRADA', licencia: $l['licencia'], clave: $l['clave'], referencia: "Licencia #{$l['licencia']}",
+                origen: ['activo' => $l['activo'], 'sede' => $sede], cantidad: 1, motivo: $motivo, usuario: $usuario);
+        }
+        if ([] !== $liberadas) {
+            $this->gobierno->registrarAuditoria('UNINSTALL', 'INV_INSTALACION', ['activo' => Ident::aTexto($activo),
+                'licencias' => array_column($liberadas, 'licencia'), 'motivo' => $motivo], $usuario, $ip, sedeId: $sede);
+        }
+
+        return \count($liberadas);
     }
 
     // =====================================================================

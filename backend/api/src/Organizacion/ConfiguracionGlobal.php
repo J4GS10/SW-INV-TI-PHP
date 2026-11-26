@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Organizacion;
 
+use App\Config\Ajustes;
 use App\Db\Transaccion;
 use App\Dominio\ErrorDominio;
 use App\Repositorio\ConfiguracionRepositorio;
@@ -18,13 +19,25 @@ final readonly class ConfiguracionGlobal
         private ConsultasComunes $consultas,
         private GobiernoRepositorio $gobierno,
         private Transaccion $transaccion,
+        private Ajustes $ajustes,
     ) {
     }
 
-    /** @return array<string, mixed> */
+    /** @return array<string, mixed> with `url_publica_servidor`: the address used while SYS_URL_Publica is empty */
     public function leer(): array
     {
-        return $this->configuracion->leer();
+        return [...$this->configuracion->leer(), 'url_publica_servidor' => $this->ajustes->urlFrontend];
+    }
+
+    /**
+     * The address people reach the system by (https://lombardi.inventario.group): the one its administrator set or,
+     * if none, the server's own (FRONTEND_BASE_URL). Label QR codes are built from it.
+     */
+    public function urlPublica(): string
+    {
+        $propia = trim((string) ($this->configuracion->leer()['SYS_URL_Publica'] ?? ''));
+
+        return rtrim('' !== $propia ? $propia : $this->ajustes->urlFrontend, '/');
     }
 
     /**
@@ -40,7 +53,7 @@ final readonly class ConfiguracionGlobal
             $this->configuracion->guardar($cambios);
             $this->gobierno->registrarAuditoria('UPDATE', 'SYS_CONFIGURACION', ['cambios' => $cambios], $usuario, $ip);
 
-            return $this->configuracion->leer();
+            return $this->leer();
         });
     }
 
@@ -56,7 +69,7 @@ final readonly class ConfiguracionGlobal
             $this->configuracion->guardarLogo($png, $url);
             $this->gobierno->registrarAuditoria('UPDATE', 'SYS_CONFIGURACION', ['cambios' => ['SYS_Logo_URL' => $url]], $usuario, $ip);
 
-            return $this->configuracion->leer();
+            return $this->leer();
         });
     }
 

@@ -20,9 +20,9 @@ final readonly class Reportes
 {
     /** Lo que cada rol puede atender o consultar (los demás roles ven todo). */
     private const array ATENCION_POR_ROL = [
-        'TECNICO' => ['INGRESO_POR_CONFIRMAR', 'ACTIVO_POR_COMPLETAR', 'TICKET_ANTIGUO', 'PRESTAMO_VENCIDO', 'ASIGNADO_SIN_CUSTODIO', 'ALMACEN_CON_CUSTODIO', 'STOCK_BAJO', 'PERSONA_INACTIVA_CON_EQUIPOS',
+        'TECNICO' => ['INGRESO_POR_CONFIRMAR', 'ACTIVO_POR_COMPLETAR', 'COMPONENTES_POR_REGISTRAR','TICKET_ANTIGUO', 'PRESTAMO_VENCIDO', 'ASIGNADO_SIN_CUSTODIO', 'ALMACEN_CON_CUSTODIO', 'STOCK_BAJO', 'PERSONA_INACTIVA_CON_EQUIPOS',
             'FALTANTE_PENDIENTE', 'RESPONSABLE_INACTIVO'],
-        'AUDITOR' => ['ASIGNADO_SIN_CUSTODIO', 'ALMACEN_CON_CUSTODIO', 'BAJA_CON_CUSTODIA', 'PERSONA_INACTIVA_CON_EQUIPOS', 'DATOS_INCOMPLETOS', 'CUENTA_SIN_ROTAR',
+        'AUDITOR' => ['ASIGNADO_SIN_CUSTODIO', 'COMPONENTES_POR_REGISTRAR','ALMACEN_CON_CUSTODIO', 'BAJA_CON_CUSTODIA', 'PERSONA_INACTIVA_CON_EQUIPOS', 'DATOS_INCOMPLETOS', 'CUENTA_SIN_ROTAR',
             'FALTANTE_PENDIENTE', 'INSUMOS_POR_RECLASIFICAR'],
         'COMPRAS' => ['STOCK_BAJO'],
         'CONSULTA' => [],
@@ -354,6 +354,11 @@ final readonly class Reportes
         $agregar('INGRESO_POR_CONFIRMAR', 'media', fn (): array => array_map(static fn (array $f): array => ['id' => (int) $f[0], 'codigo' => $f[1], 'documento' => $f[2]],
             $this->conexion->fetchAllNumeric("SELECT g.GRC_GOODS_RECEIPT, g.GRC_CODE, g.GRC_DOCUMENT_NUMBER FROM PUR_GOODS_RECEIPT g WHERE g.GRC_STATUS = 'REGISTERED' AND {$aIng} ORDER BY g.GRC_GOODS_RECEIPT", $pIng)));
         $agregar('ACTIVO_POR_COMPLETAR', 'media', fn (): array => $activos('a."ACT_Pending_Completion" = 1'));
+        // Equipos a los que les falta registrar un componente interno obligatorio de su tipo (se dejó «para después»).
+        $agregar('COMPONENTES_POR_REGISTRAR', 'media', fn (): array => $activos('a."ACT_Activo" IN (SELECT a2."ACT_Activo" FROM "INV_ACTIVO" a2 '
+            .'JOIN "INV_TIPO_COMPONENTE" c ON c."TAC_Padre" = a2."TAC_Tipo_Activo" AND c."TCP_Obligatorio" = 1 '
+            .'WHERE (SELECT COUNT(*) FROM "INV_ACTIVO" x WHERE x."ACT_Activo_Padre" = a2."ACT_Activo" AND x."TAC_Tipo_Activo" = c."TAC_Componente") < c."TCP_Cantidad")'
+            .(null === $baja ? '' : ' AND a."EOP_Estado_Operativo" <> :baja_cmp'), null === $baja ? [] : ['baja_cmp' => $baja]));
         $agregar('TICKET_ANTIGUO', 'media', fn (): array => array_map(fn (array $f): array => ['id' => Ident::aTexto((string) $f[0]), 'codigo' => $f[1],
             'desde' => Reloj::desdeBd((string) $f[2])?->setTimezone(new \DateTimeZone($this->ajustes->zonaHoraria))->format('Y-m-d')],
             $filas('SELECT m."MAN_Mantenimiento", a."ACT_Codigo_Interno", m."MAN_Fecha_Ingreso" FROM "INV_MANTENIMIENTO" m JOIN "INV_ACTIVO" a ON a."ACT_Activo" = m."ACT_Activo" '

@@ -57,6 +57,25 @@ final class GobiernoTest extends WebTestCase
         self::assertSame(401, $this->pedir('PUT', '/api/v1/gov/config', ['SYS_Ciudad' => 'Otra'], '')[0]);
     }
 
+    /** La dirección pública (QR de las etiquetas) la fija el administrador del sistema; vacía, se usa la del servidor. */
+    public function testDireccionPublicaParaLosQr(): void
+    {
+        $config = $this->pedir('GET', '/api/v1/gov/config', token: '')[1];
+        self::assertSame('https://inventario.pruebas.local', $config['url_publica_servidor']);
+
+        [$e, $nueva] = $this->pedir('PUT', '/api/v1/gov/config', ['SYS_URL_Publica' => 'https://Lombardi.Inventario.Group']);
+        self::assertSame([200, 'https://lombardi.inventario.group'], [$e, $nueva['SYS_URL_Publica']]);
+        foreach (['http://lombardi.inventario.group', 'https://lombardi.inventario.group/', 'https://x/activos', 'lombardi.inventario.group', 'https://-x'] as $mala) {
+            self::assertSame([422, 'VALIDATION_ERROR'], $this->detalle('PUT', '/api/v1/gov/config', ['SYS_URL_Publica' => $mala]), $mala);
+        }
+        self::assertSame(200, $this->pedir('PUT', '/api/v1/gov/config', ['SYS_URL_Publica' => 'https://192.168.7.105:8443'])[0]);
+        $admin = $this->token(D::crearUsuario(['rol' => 'ADMIN_TI', 'global' => true]));
+        self::assertSame([403, 'NOT_ENOUGH_PERMISSIONS'], $this->detalle('PUT', '/api/v1/gov/config', ['SYS_URL_Publica' => null], $admin));
+
+        [$e, $vacia] = $this->pedir('PUT', '/api/v1/gov/config', ['SYS_URL_Publica' => null]);
+        self::assertSame([200, null], [$e, $vacia['SYS_URL_Publica']]);
+    }
+
     public function testElLogoSeSubeComoImagenYSeSirveSinSesion(): void
     {
         $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');

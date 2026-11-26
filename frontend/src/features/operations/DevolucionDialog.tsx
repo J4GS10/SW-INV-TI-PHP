@@ -5,13 +5,16 @@ import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
 import { inventarioService } from '../../api/inventarioService';
 import { getApiErrorMessage } from '../../api/errors';
-import { downloadFile } from '../../api/downloadCsv';
 import { movementService } from './movementService';
+import { normalizeLanguage } from '../../types/language';
 import type { DevolucionResultado } from '../../types/kardex';
 import type { CatalogoItem } from '../../api/catalogoService';
 import { CatalogField } from '../../components/CatalogField';
 import { pideDetalle } from '../../hooks/useCatalogo';
 import { Dialog } from '../../components/ui/Dialog';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
+import { useInstalledSoftware } from './useInstalledSoftware';
+import { ReturnSoftwareChoice } from './ReturnSoftwareSection';
 
 type AreaRuta = { ARE_Area: number; ruta: string; SED_Sede?: number | null; tipo_area?: string | null };
 
@@ -31,6 +34,7 @@ interface Props {
 export const DevolucionDialog = ({ open, activo, custodio, onClose }: Props) => {
   const { t, i18n } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
+  const { showBlob } = useFilePreview();
   const navigate = useNavigate();
   const [areas, setAreas] = useState<AreaRuta[]>([]);
   const [motivo, setMotivo] = useState<CatalogoItem | null>(null);
@@ -39,9 +43,14 @@ export const DevolucionDialog = ({ open, activo, custodio, onClose }: Props) => 
   const [condicion, setCondicion] = useState<'BUENO' | 'CON_DANO'>('BUENO');
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<DevolucionResultado | null>(null);
+  // Software del equipo: quien devuelve elige qué licencias se liberan (de entrada, todas).
+  const software = useInstalledSoftware(activo ? [activo] : [], open);
+  const [elegidas, setElegidas] = useState<number[] | null>(null);
+  const seleccion = elegidas ?? software.items.map((i) => i.INS_Instalacion);
 
   useEffect(() => {
     if (!open) return;
+    setElegidas(null);
     setMotivo(null);
     setDetalle('');
     setArea(null);
@@ -67,7 +76,7 @@ export const DevolucionDialog = ({ open, activo, custodio, onClose }: Props) => 
     try {
       setResultado(await inventarioService.devolver({
         ACT_Activo: activo.ACT_Activo, MMO_Motivo: motivo?.id ?? null, MOV_Motivo_Detalle: detalle.trim() || null,
-        ARE_Area_Destino: area?.ARE_Area ?? null, condicion,
+        ARE_Area_Destino: area?.ARE_Area ?? null, condicion, liberar_instalaciones: seleccion,
       }));
     } catch (err) {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_save')), { variant: 'error' });
@@ -79,8 +88,7 @@ export const DevolucionDialog = ({ open, activo, custodio, onClose }: Props) => 
   const hojaDescargo = async () => {
     if (!resultado) return;
     try {
-      await downloadFile(`/trazabilidad/acta/${resultado.MOV_Movimiento}`, 'descargo.pdf',
-        { formato: 'pdf', tipo: 'descargo', lang: i18n.language.split('-')[0] });
+      showBlob(await movementService.downloadActa(resultado.MOV_Movimiento, 'pdf', 'descargo', undefined, normalizeLanguage(i18n.resolvedLanguage ?? i18n.language)), 'descargo.pdf');
     } catch (err) {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_generic')), { variant: 'error' });
     }
@@ -95,6 +103,12 @@ export const DevolucionDialog = ({ open, activo, custodio, onClose }: Props) => 
             <Alert severity="success">
               {t('returns.done', { code: activo?.ACT_Codigo_Interno ?? '', state: resultado.estado })}
             </Alert>
+            {(resultado.licencias_liberadas ?? 0) > 0 && (
+              <Alert severity="info">{t('returns.software.done_released', { count: resultado.licencias_liberadas })}</Alert>
+            )}
+            {software.items.length > (resultado.licencias_liberadas ?? 0) && (
+              <Alert severity="info">{t('returns.software.done_kept', { count: software.items.length - (resultado.licencias_liberadas ?? 0) })}</Alert>
+            )}
             {resultado.siguientes_pasos.includes('ABRIR_TICKET_MANTENIMIENTO') && (
               <Alert severity="warning">{t('returns.damage_hint')}</Alert>
             )}
@@ -118,6 +132,8 @@ export const DevolucionDialog = ({ open, activo, custodio, onClose }: Props) => 
                 <FormControlLabel value="CON_DANO" control={<Radio />} label={t('returns.condition_damaged')} />
               </RadioGroup>
             </div>
+            <ReturnSoftwareChoice items={software.items} loading={software.loading} error={software.error} onRetry={software.retry}
+              selected={seleccion} onChange={setElegidas} />
           </Stack>
         )}
       </DialogContent>
@@ -136,7 +152,7 @@ export const DevolucionDialog = ({ open, activo, custodio, onClose }: Props) => 
           <>
             <Button color="inherit" onClick={() => onClose(false)}>{t('common.cancel')}</Button>
             <Button variant="contained" onClick={devolver}
-              disabled={enviando || !motivo || faltaDetalle}>
+              disabled={enviando || !motivo || faltaDetalle || software.loading || software.error}>
               {enviando ? <CircularProgress size={22} /> : t('returns.confirm')}
             </Button>
           </>

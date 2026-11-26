@@ -756,7 +756,11 @@
             "message": "El equipo {{code}} (serie {{serial}}) quedó en el inventario.",
             "assign": "Asignarlo a una persona",
             "print_label": "Imprimir etiqueta QR",
-            "another": "Registrar otro igual (mismo modelo)"
+            "another": "Registrar otro igual (mismo modelo)",
+            "components_title": "Componentes internos",
+            "components_help": "Registre ahora lo que lleva dentro (memoria, disco, batería…). Lo obligatorio que no registre queda en sus pendientes.",
+            "components_later": "Lo que falte queda en sus pendientes hasta registrarlo.",
+            "finish_later": "Terminar después"
         }
     },
     "catalogs": {
@@ -802,6 +806,7 @@
         "types": {
             "title": "Tipos de activo",
             "new_btn": "Nuevo tipo",
+            "search_placeholder": "Buscar por nombre o prefijo…",
             "new_title": "Crear tipo de activo",
             "field_name": "Nombre",
             "field_prefix": "Prefijo",
@@ -1320,7 +1325,16 @@
             }
         },
         "logo_url_placeholder": "https://ejemplo.com/logo.png",
-        "logo_alt": "Logotipo de la empresa"
+        "logo_alt": "Logotipo de la empresa",
+        "public_url": {
+            "title": "Dirección del sistema",
+            "subtitle": "Con esta dirección se arman los QR de las etiquetas: al escanearlos con el teléfono se abre la ficha del equipo.",
+            "label": "Dirección pública (https)",
+            "help": "Use el nombre fijo de la red, por ejemplo https://lombardi.inventario.group: si la IP del servidor cambia, las etiquetas impresas siguen sirviendo. Vacío: se usa la del servidor ({{server}}).",
+            "invalid": "Escriba una dirección https con un nombre o una IP, sin ruta (por ejemplo https://lombardi.inventario.group).",
+            "example": "Así queda el QR de una etiqueta: {{url}}",
+            "dns_note": "Antes de cambiarla, el área de redes debe crear el nombre en el DNS apuntando a la IP fija del servidor, y el servidor debe atender ese nombre. Las etiquetas que se impriman después usarán la dirección nueva; las ya impresas conservan la anterior."
+        }
     },
     "attachments": {
         "uploaded": "Archivo subido",
@@ -1462,6 +1476,7 @@
         "new_provider": "Nuevo proveedor",
         "provider_name": "Nombre",
         "tax_id": "Identificación fiscal (NIT/RFC)",
+        "tax_id_taken": "Este NIT ya está registrado para {{name}}",
         "contact": "Contacto",
         "email": "Correo",
         "phone": "Teléfono",
@@ -1870,6 +1885,7 @@
         "NEW_ASSET_CODE_ALREADY_EXISTS": "Ya existe un activo con ese código interno.",
         "NEW_SERIAL_NUMBER_ALREADY_EXISTS": "Ya existe un activo con ese número de serie.",
         "ASSET_TYPE_ALREADY_EXISTS": "Ya existe un tipo de activo con ese nombre.",
+        "ASSET_TYPE_PREFIX_ALREADY_EXISTS": "Ese prefijo ya lo usa otro tipo de activo: elija otro (por ejemplo, agregue un número).",
         "ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION": "El tipo de activo no tiene prefijo configurado. Ingrese el código manualmente o defina un prefijo.",
         "ASSET_ALREADY_ASSIGNED_USE_TRANSFER": "El activo ya está asignado. Utilice una transferencia para cambiar el responsable.",
         "ASSET_ALREADY_HAS_OPEN_MOVEMENT": "El activo ya tiene un movimiento abierto.",
@@ -1963,6 +1979,7 @@
         "MAINTENANCE_TICKET_NOT_FOUND": "No se encontró el ticket de mantenimiento.",
         "MAINTENANCE_TYPE_NOT_FOUND": "No se encontró el tipo de mantenimiento.",
         "MODEL_NOT_FOUND": "No se encontró el modelo.",
+        "MODEL_NAME_REQUIRED": "Escriba el nombre del modelo.",
         "MOVEMENT_NOT_FOUND": "El movimiento no existe.",
         "MOVEMENT_TYPE_NOT_FOUND": "No se encontró el tipo de movimiento.",
         "NOTIFICATION_EVENT_NOT_FOUND": "No se encontró el evento de notificación.",
@@ -2190,7 +2207,39 @@
         "PHOTO_NOT_FOUND": "Esta cuenta no tiene foto de perfil.",
         "ACCOUNTING_CATEGORY_NOT_FOUND": "La categoría contable no existe o está desactivada.",
         "ACCOUNTING_CATEGORY_CODE_EXISTS": "Ya hay una categoría con ese código en ese país.",
-        "ACCOUNTING_CATEGORY_RATE_REQUIRED": "La depreciación en línea recta necesita una tasa anual mayor que cero."
+        "ACCOUNTING_CATEGORY_RATE_REQUIRED": "La depreciación en línea recta necesita una tasa anual mayor que cero.",
+        "ACCOUNTING_CATEGORY_INVALID_RATE": "La tasa de depreciación debe estar entre 0 % y 100 %.",
+        "ACCOUNTING_CATEGORY_INVALID_RESIDUAL": "El valor residual no es válido: debe ser cero o positivo y menor que el costo.",
+        "CONNECTION_TYPE_ALREADY_EXISTS": "Ya existe un tipo de conexión con ese nombre.",
+        "COUNTRY_ALREADY_EXISTS": "Ya existe un país con ese nombre.",
+        "COUNTRY_ISO_ALREADY_EXISTS": "Ya existe un país con ese código ISO.",
+        "LICENSE_TYPE_ALREADY_EXISTS": "Ya existe un tipo de licencia con ese nombre.",
+        "MAINTENANCE_TYPE_ALREADY_EXISTS": "Ya existe un tipo de mantenimiento con ese nombre.",
+        "MODEL_ALREADY_EXISTS": "Ya existe un modelo con ese nombre para esa marca.",
+        "OPERATIONAL_STATUS_ALREADY_EXISTS": "Ya existe un estado operativo con ese nombre.",
+        "POSITION_ALREADY_EXISTS": "Ya existe un cargo con ese nombre.",
+        "SOFTWARE_ALREADY_EXISTS": "Ese software ya está registrado (mismo nombre, versión y fabricante).",
+        "SPECIFICATION_TYPE_ALREADY_EXISTS": "Ya existe una característica con ese nombre.",
+        "EMERGENCY_ONLY_FOR_SUPER_ADMIN": "El acceso de emergencia solo lo puede usar el administrador del sistema.",
+        "EMERGENCY_REASON_AND_OPERATOR_REQUIRED": "Indique el motivo y quién opera el acceso de emergencia.",
+        "GOODS_RECEIPT_INVALID_COST": "El costo debe ser un número positivo.",
+        "GOODS_RECEIPT_INVALID_CURRENCY": "Elija una moneda válida.",
+        "GOODS_RECEIPT_INVALID_DATE": "La fecha de recepción no es válida o está en el futuro.",
+        "GOODS_RECEIPT_INVALID_QUANTITY": "La cantidad debe ser un número entero mayor que cero.",
+        "GOODS_RECEIPT_INVALID_WARRANTY": "La garantía debe ser un número de meses válido.",
+        "GOODS_RECEIPT_LINE_NOT_A_LICENSE": "Esa línea del ingreso no es una licencia.",
+        "GOODS_RECEIPT_LINE_NOT_FOUND": "No se encontró esa línea del ingreso; puede que otro usuario la haya cambiado.",
+        "GOODS_RECEIPT_LINE_REQUIRES_CLASSIFICATION": "Indique qué es cada línea (activo, licencia o consumible) antes de seguir.",
+        "GOODS_RECEIPT_LINE_REQUIRES_CONSUMABLE": "Elija el consumible al que corresponde la línea.",
+        "GOODS_RECEIPT_LINE_REQUIRES_SOFTWARE": "Elija el software de la licencia.",
+        "INTERNAL_SERVER_ERROR": "Ocurrió un error inesperado en el servidor. Intente de nuevo; si se repite, avise a TI.",
+        "INVALID_JSON_BODY": "La solicitud no tiene un formato válido.",
+        "INVALID_PARAMETER_VALUE": "Algún dato no tiene un valor válido. Revise el formulario.",
+        "LICENSE_COMMERCIAL_MODEL_REQUIRED": "Elija el modelo comercial de la licencia (perpetua, suscripción…).",
+        "LOGO_NOT_FOUND": "No hay un logo guardado.",
+        "OFFBOARDING_ACCOUNT_REQUIRES_IAM": "Para desactivar la cuenta de la persona se necesita el rol de administración de identidades.",
+        "OPERATIONAL_STATE_NOT_FOUND": "Falta el estado «En bodega» en la configuración. Avise a TI.",
+        "SSO_TENANT_NOT_ALLOWED": "Esa cuenta pertenece a una organización que no tiene acceso."
     },
     "catalog": {
         "states": {
@@ -2339,6 +2388,107 @@
             "until": "Hasta el {{date}}"
         }
     },
+    "asset_type_setup": {
+        "title_new": "Nuevo tipo de activo",
+        "title_edit": "Configurar «{{name}}»",
+        "create": "Crear tipo",
+        "created_review": "«{{name}}» creado. Revise lo que pide y guarde.",
+        "created_help": "El tipo ya existe. Abajo están las características habituales de su clase: quite, agregue o marque como obligatorias las que correspondan, defina sus componentes internos y guarde.",
+        "ready": "Listo para registrar activos",
+        "not_ready": "Aún no se pueden registrar activos de este tipo",
+        "checks": {
+            "name": {
+                "ok": "Nombre",
+                "error": "Falta el nombre"
+            },
+            "prefix": {
+                "ok": "Código automático",
+                "error": "Falta el prefijo del código"
+            },
+            "class": {
+                "ok": "Clase definida",
+                "warning": "Clase: se deducirá del nombre",
+                "error": "Es un insumo: va a consumibles"
+            },
+            "category": {
+                "ok": "Deprecia según su categoría",
+                "warning": "Sin categoría contable: no deprecia"
+            },
+            "specs": {
+                "ok": "{{count}} características ({{required}} obligatorias)",
+                "warning": "No pide características"
+            },
+            "components": {
+                "ok": "{{count}} componentes ({{required}} obligatorios)",
+                "warning": "Sin componentes internos definidos"
+            }
+        },
+        "short": {
+            "name": "nombre",
+            "prefix": "prefijo",
+            "class": "clase",
+            "category": "categoría contable",
+            "specs": "características",
+            "components": "componentes"
+        },
+        "step1": "1. ¿Qué es?",
+        "step1_help": "Nombre, código y cómo se usa. La clase decide si se asigna a una persona o se instala en un área, y si lleva software o componentes.",
+        "name_placeholder": "Laptop, Monitor, Impresora…",
+        "prefix_help": "Cada equipo recibe un código automático, por ejemplo {{example}}.",
+        "step2": "2. Datos de la ficha del equipo",
+        "step2_help": "Lo que se escribe del equipo completo al registrarlo: procesador, tamaño de pantalla, sistema operativo… Las obligatorias no dejan guardar sin ellas; con una lista de valores, se elige en vez de escribir.",
+        "step3": "3. Piezas internas con número de serie",
+        "step3_help": "Partes que se registran aparte porque se cambian o pasan a otro equipo (memoria, disco, batería). Cada pieza lleva su propio código y sus datos (capacidad, tipo), así que no se repite en el punto 2. Las obligatorias se piden al registrar cada equipo; si se dejan para después, el equipo queda como pendiente.",
+        "specs": {
+            "empty": "Todavía no pide ninguna característica.",
+            "template_note": "Si no agrega ninguna, al crear el tipo se le ponen las habituales de su clase (por ejemplo, una laptop: procesador, memoria y disco) y las podrá revisar.",
+            "unit": "En {{unit}}",
+            "required": "Obligatoria",
+            "values_placeholder": "Valores permitidos (opcional): DDR4, DDR5…",
+            "values_of": "Valores permitidos de {{name}}",
+            "remove": "Quitar",
+            "remove_of": "Quitar {{name}}",
+            "add": "Agregar una característica",
+            "add_help": "Elija una existente o escriba una nueva (por ejemplo «Memoria RAM»).",
+            "create_option": "Crear la característica «{{name}}»",
+            "new_title": "Nueva característica: {{name}}",
+            "name": "Nombre",
+            "data_type": "Qué se escribe",
+            "data_type_help": {
+                "TEXT": "Texto libre o de una lista (DDR4, SSD…).",
+                "NUMBER": "Un número, con su unidad (16 GB).",
+                "BOOLEAN": "Sí o no (¿tiene lector de huella?)."
+            },
+            "unit_field": "Unidad",
+            "create": "Crear y agregar",
+            "created": "Característica «{{name}}» creada y agregada."
+        },
+        "components": {
+            "empty": "Todavía no se definieron componentes internos.",
+            "required": "Obligatorio al registrar",
+            "required_short": "obligatorio, mín. {{count}}",
+            "quantity": "Mínimo",
+            "remove": "Quitar",
+            "remove_of": "Quitar {{name}}",
+            "add": "Agregar un componente",
+            "add_help": "Elija un tipo de componente o escriba uno nuevo (por ejemplo «Batería»): se crea con su código."
+        },
+        "col_specs": "Características",
+        "col_components": "Componentes",
+        "col_status": "Estado",
+        "count_specs_one": "{{count}} ({{required}} oblig.)",
+        "count_specs_other": "{{count}} ({{required}} oblig.)",
+        "count_components_one": "{{count}} ({{required}} oblig.)",
+        "count_components_other": "{{count}} ({{required}} oblig.)",
+        "no_components_class": "No aplica",
+        "status_ready": "Listo",
+        "status_review_one": "Revisar {{count}} punto",
+        "status_review_other": "Revisar {{count}} puntos",
+        "status_blocked": "No se puede registrar",
+        "duplicated": "{{names}} ya está en las piezas internas (punto 3): se anota en la pieza, con su serie. Aquí sobra y se pediría dos veces.",
+        "duplicated_fix": "Quitar de aquí",
+        "moved_to_component": "{{names}} pasó a pieza interna: se quitó de los datos del equipo para no pedirlo dos veces."
+    },
     "suggestions": {
         "hint": "Sugerido: {{reason}}",
         "hint_value": "Sugerido: {{value}} ({{reason}})",
@@ -2358,7 +2508,16 @@
             "movement_free": "el activo está libre",
             "hostname_current": "hostname actual del activo",
             "type_model_assets": "tipo con que suele registrarse este modelo",
-            "type_model_catalog": "tipo definido en el catálogo del modelo"
+            "type_model_catalog": "tipo definido en el catálogo del modelo",
+            "email_name": "a partir del nombre y el dominio {{domain}}",
+            "department_position": "departamento habitual para este cargo",
+            "unit_category": "unidad habitual en la categoría",
+            "minimum_category": "mínimo habitual en la categoría",
+            "sede_category": "bodega habitual de la categoría",
+            "currency_asset": "moneda del equipo",
+            "maintenance_failure": "se reporta una falla",
+            "supplier_last_receipt": "último ingreso de este proveedor",
+            "destination_reason": "según el motivo"
         },
         "info": {
             "manager": "Jefe: {{name}}",
@@ -2652,7 +2811,29 @@
         "damage_hint": "Indicó que llegó con daño: le sugerimos abrir un ticket de mantenimiento.",
         "next": "Puede descargar la hoja de descargo para la firma de la persona.",
         "open_ticket": "Abrir ticket de mantenimiento",
-        "download_release": "Descargar hoja de descargo"
+        "download_release": "Descargar hoja de descargo",
+        "software": {
+            "title": "Software instalado en el equipo",
+            "help": "Las licencias que marque se liberan: vuelven al inventario de licencias, con su cupo y su clave, para usarlas en otro equipo. Las que no marque siguen instaladas en el equipo y se van con él a su próximo usuario.",
+            "since": "instalada el {{date}}",
+            "all": "Marcar todas",
+            "none": "No liberar ninguna",
+            "summary_one": "Se liberará {{count}} de {{total}} licencias.",
+            "summary_other": "Se liberarán {{count}} de {{total}} licencias.",
+            "summary_zero": "No se liberará ninguna: el software queda con el equipo.",
+            "loading": "Revisando el software instalado en el equipo…",
+            "load_error": "No se pudo revisar el software instalado. Reintente antes de devolver, para decidir qué licencias se liberan.",
+            "batch_question_one": "Hay {{count}} licencia instalada en estos equipos. ¿Qué hacemos con ella?",
+            "batch_question_other": "Hay {{count}} licencias instaladas en estos equipos. ¿Qué hacemos con ellas?",
+            "batch_release": "Liberarlas: vuelven al inventario de licencias para otros equipos",
+            "batch_keep": "Dejarlas instaladas: se van con cada equipo a su próximo usuario",
+            "done_released_one": "Se liberó {{count}} licencia: ya está disponible para otro equipo.",
+            "done_released_other": "Se liberaron {{count}} licencias: ya están disponibles para otros equipos.",
+            "done_kept_one": "{{count}} licencia sigue instalada en el equipo.",
+            "done_kept_other": "{{count}} licencias siguen instaladas en el equipo.",
+            "empty": "Software revisado: este equipo no tiene licencias instaladas, no hay nada que liberar.",
+            "empty_batch": "Software revisado: estos equipos no tienen licencias instaladas, no hay nada que liberar."
+        }
     },
     "decommission": {
         "lost_title": "Reportar pérdida o robo de {{code}}",
@@ -2713,7 +2894,24 @@
         "remember_defaults": "Recordar estos valores en el modelo para la próxima pieza igual",
         "create_and_install": "Registrar e instalar",
         "created_installed": "Componente registrado e instalado en {{code}}",
-        "serial_short": "S/N {{serial}}"
+        "serial_short": "S/N {{serial}}",
+        "serial_enter": "Enter registra e instala",
+        "count_one": "{{count}} componente instalado",
+        "count_other": "{{count}} componentes instalados",
+        "create_and_another": "Registrar y seguir con otro igual",
+        "next_ready": "Listo para la siguiente pieza: escriba su serie",
+        "history_all": "Ver todo el historial ({{count}})",
+        "history_less": "Ver solo lo reciente",
+        "quick_reasons": {
+            "failure": "Falla",
+            "upgrade": "Ampliación",
+            "replacement": "Reemplazo",
+            "transfer": "Traslado a otro equipo"
+        },
+        "pending_title": "Faltan componentes obligatorios",
+        "pending_help": "El tipo de este equipo pide registrar estos componentes internos. Mientras falten, el equipo aparece en sus pendientes.",
+        "pending_item_one": "{{name}}: falta {{count}}",
+        "pending_item_other": "{{name}}: faltan {{count}}"
     },
     "attention": {
         "all_clear": "Sin tareas urgentes.",
@@ -2754,6 +2952,11 @@
                 "title_one": "{{count}} activo por completar",
                 "title_other": "{{count}} activos por completar",
                 "hint": "Falta la serie o las especificaciones."
+            },
+            "COMPONENTES_POR_REGISTRAR": {
+                "title_one": "{{count}} equipo con componentes por registrar",
+                "title_other": "{{count}} equipos con componentes por registrar",
+                "hint": "Su tipo pide componentes internos (memoria, disco, batería…) que aún no se registraron."
             },
             "INGRESO_POR_CONFIRMAR": {
                 "title_one": "{{count}} ingreso por confirmar",
@@ -3172,7 +3375,7 @@
         "catalogs": {
             "marcas": "Marcas",
             "tipos-conexion": "Tipos de conexión",
-            "tipos-especificacion": "Tipos de especificación",
+            "tipos-especificacion": "Biblioteca de características",
             "unidades-medida": "Unidades de medida",
             "motivos-movimiento": "Motivos de movimiento",
             "motivos-baja": "Motivos de baja",
@@ -3195,12 +3398,12 @@
             "ubicaciones": "Ubicaciones"
         },
         "hints": {
-            "tipos-activo": "Las clases de equipo del inventario: Laptop, Monitor, Impresora. Cada una tiene su prefijo de código.",
-            "especificaciones-tipo": "Qué datos pide cada tipo de activo y qué valores acepta. Ejemplo: Laptop pide «RAM» y «Tipo de RAM», y este último solo acepta DDR4, DDR5… Lo que trae cada modelo se llena en Modelos.",
-            "tipos-especificacion": "Cada fila es un solo dato de un equipo: «RAM» es la cantidad (número, en GB) y «Tipo de RAM» es la tecnología. DDR4 o DDR5 no van aquí: son valores permitidos de «Tipo de RAM» y se definen en Especificaciones por tipo de activo.",
+            "tipos-activo": "Empiece aquí. Cada tipo (Laptop, Monitor, Impresora) se configura en una sola pantalla: su código, qué se anota de cada equipo y qué componentes internos lleva, y cuáles se exigen al registrarlo. La columna Estado dice si ya sirve para registrar activos.",
+            "especificaciones-tipo": "Lo que pide cada tipo se configura dentro del tipo de activo.",
+            "tipos-especificacion": "Las características que pueden pedir los tipos (RAM, Disco, Procesador), con su tipo de dato y unidad. Lo normal es crearlas desde el tipo de activo; aquí se corrigen nombres o se fusionan duplicadas. Valores como DDR4 o DDR5 no van aquí: se eligen en el tipo, como lista permitida.",
             "unidades-medida": "Con qué se mide un dato numérico: GB, pulgadas, VA.",
             "tipos-conexion": "Cómo se conecta un modelo: USB, HDMI, Bluetooth, Wi-Fi. Es opcional, se elige al crear el modelo y sirve sobre todo para periféricos.",
-            "modelos": "Un producto concreto, como Dell Latitude 5440. No repite Especificaciones por tipo: el tipo dice qué datos se piden; el modelo guarda lo que trae de fábrica (16 GB, DDR5) y cada equipo conserva lo que realmente tiene, por ejemplo si le ampliaron la memoria.",
+            "modelos": "Un producto concreto, como Dell Latitude 5440. El tipo dice qué se anota; el modelo guarda con qué viene de fábrica (16 GB, DDR5) y así cada equipo nuevo ya viene lleno. Cada equipo conserva lo que realmente tiene, por ejemplo si le ampliaron la memoria.",
             "ubicaciones": "País, sede, edificio, nivel y área donde están los equipos.",
             "motivos-movimiento": "Por qué se asigna, presta, transfiere o devuelve un equipo. «Aplica a» limita en qué movimiento se ofrece.",
             "motivos-baja": "El código se guarda en el historial de la baja; los de sistema no se pueden cambiar.",
@@ -3270,12 +3473,12 @@
         "quantity": "Cantidad",
         "kit_add_item": "Agregar equipo",
         "extras": {
-            "pide_detalle": "Pide detalle escrito",
-            "MMO_Pide_Detalle": "Pide detalle escrito",
-            "MBA_Pide_Detalle": "Pide observación",
-            "DBA_Pide_Detalle": "Pide observación",
-            "TFA_Pide_Detalle": "Pide descripción",
-            "AMA_Pide_Detalle": "Pide detalle escrito",
+            "pide_detalle": "Al elegirlo, exige un detalle escrito",
+            "MMO_Pide_Detalle": "Al elegirlo, exige un detalle escrito",
+            "MBA_Pide_Detalle": "Al elegirlo, exige un detalle escrito",
+            "DBA_Pide_Detalle": "Al elegirlo, exige un detalle escrito",
+            "TFA_Pide_Detalle": "Al elegirlo, exige un detalle escrito",
+            "AMA_Pide_Detalle": "Al elegirlo, exige un detalle escrito",
             "UME_Simbolo": "Símbolo (GB, m, kg…)",
             "UME_Unidad": "Unidad",
             "TES_Data_Type": "Tipo de dato",
@@ -3310,7 +3513,47 @@
             "INV_ADJUNTO__ADJ_Categoria": "Adjuntos"
         },
         "kit_license": "Licencia",
-        "kit_add_license": "Agregar licencia"
+        "kit_add_license": "Agregar licencia",
+        "requested": {
+            "column": "Qué pide al registrar",
+            "nothing": "No pide datos",
+            "configure": "Configurar",
+            "view": "Ver",
+            "title": "Qué pide «{{name}}» al registrar una licencia",
+            "help": "Active los datos que se deben escribir al registrar una licencia con este método. Si quiere, cambie el nombre con que aparecen en el formulario.",
+            "label": "Nombre en el formulario (opcional)",
+            "label_help": "Vacío: se muestra «{{name}}».",
+            "preview": "Así se verá el formulario",
+            "preview_none": "Con este método no se escribe ningún dato.",
+            "usuario": {
+                "name": "Usuario",
+                "help": "La cuenta con que se activa: usuario o correo."
+            },
+            "secreto": {
+                "name": "Contraseña",
+                "help": "La contraseña o secreto de esa cuenta. Se guarda cifrada."
+            },
+            "serial": {
+                "name": "Número de serie",
+                "help": "El serial que entrega el fabricante."
+            },
+            "clave": {
+                "name": "Clave de producto",
+                "help": "La product key (XXXXX-XXXXX-…). Se guarda cifrada y se muestra enmascarada."
+            },
+            "servidor": {
+                "name": "Servidor de licencias",
+                "help": "La dirección del servidor que entrega las licencias (licencias flotantes o de red)."
+            },
+            "archivo": {
+                "name": "Archivo de licencia",
+                "help": "Un archivo que activa el software (.lic, .key…)."
+            },
+            "dispositivo": {
+                "name": "Dispositivo",
+                "help": "La llave física (dongle USB) que activa el software."
+            }
+        }
     },
     "catalog_items": {
         "motivos-movimiento": {
@@ -3961,5 +4204,28 @@
             "department": "Sin departamento",
             "site": "Sin sede"
         }
+    },
+    "file_preview": {
+        "view": "Ver",
+        "view_of": "Ver {{name}}",
+        "loading": "Cargando el archivo…",
+        "error": "No se pudo abrir el archivo.",
+        "retry": "Reintentar",
+        "download": "Descargar",
+        "open_new_tab": "Abrir en una pestaña nueva",
+        "previous": "Archivo anterior",
+        "next": "Archivo siguiente",
+        "zoom_in": "Acercar",
+        "zoom_out": "Alejar",
+        "zoom_fit": "Ajustar a la ventana",
+        "fit": "Ajustada",
+        "rotate": "Girar",
+        "counter": "{{current}} de {{total}}",
+        "unavailable_title": "Vista previa no disponible",
+        "unavailable_body": "Los archivos {{ext}} no se pueden mostrar en el navegador. Descárguelo para abrirlo con su programa.",
+        "this_type": "de este tipo",
+        "pdf_unavailable_title": "Este navegador no muestra PDF aquí",
+        "pdf_unavailable_body": "Ábralo en una pestaña nueva o descárguelo para verlo.",
+        "csv_truncated": "Se muestran las primeras {{count}} filas."
     }
 }

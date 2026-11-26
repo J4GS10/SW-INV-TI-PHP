@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 import { PageHeader, SectionCard } from '../../components/ui';
 import { getApiErrorMessage } from '../../api/errors';
-import { guardarArchivo } from '../../api/productividadService';
 import { usePermissions } from '../../hooks/usePermissions';
 import { assetService } from '../assets/assetService';
 import { consumableService } from '../consumables/consumableService';
@@ -18,6 +17,8 @@ import { useCatalogLabel } from '../../hooks/useCatalogo';
 import { attachmentService, type Adjunto } from '../attachments/attachmentService';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import DownloadIcon from '@mui/icons-material/Download';
+import VisibilityIcon from '@mui/icons-material/VisibilityOutlined';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
 
 /** Clasificar una línea: los campos se acomodan al ancho en vez de quedar en una sola fila que no cabe. */
 const CLASSIFY_GRID = {
@@ -45,6 +46,7 @@ export const GoodsReceiptDetailPage = () => {
   const receiptId = Number(id);
   const { t, i18n } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
+  const { showBlob, preview } = useFilePreview();
   const { canOperate, canPurchase, canSeeCosts, canOpenPurchaseDocs } = usePermissions();
   // Lo que adjuntó Compras: todos ven qué es; abrirlo solo quien puede ver precios.
   const [files, setFiles] = useState<Adjunto[]>([]);
@@ -166,7 +168,7 @@ export const GoodsReceiptDetailPage = () => {
   };
   const downloadAct = async () => {
     try {
-      guardarArchivo(await goodsReceiptService.act(receiptId, i18n.language.slice(0, 2)), `acta-recibido-${receipt?.code}.pdf`);
+      showBlob(await goodsReceiptService.act(receiptId, i18n.language.slice(0, 2)), `acta-recibido-${receipt?.code}.pdf`);
     } catch (error: unknown) {
       enqueueSnackbar(getApiErrorMessage(error, t('common.error_generic')), { variant: 'error' });
     }
@@ -228,12 +230,16 @@ export const GoodsReceiptDetailPage = () => {
           <Typography variant="caption" color="text.secondary" component="p">{t('goods_receipt.files')}</Typography>
           {files.length === 0 ? <Typography variant="body2">{t('goods_receipt.no_files')}</Typography> : (
             <Stack spacing={1} sx={{ mt: 0.5 }}>
-              {files.map((f) => (<Stack key={f.ADJ_Adjunto} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              {files.map((f, i) => (<Stack key={f.ADJ_Adjunto} direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   <AttachFileIcon fontSize="small" color="action"/>
                   <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>{f.ADJ_Nombre_Original}</Typography>
                   <Typography variant="caption" color="text.secondary">
                     {[categoryLabel(f.ADJ_Categoria), `${Math.max(1, Math.round(f.ADJ_Tamano_Bytes / 1024))} KB`, new Date(f.ADJ_Fecha_Subida).toLocaleDateString(i18n.language)].join(' · ')}
                   </Typography>
+                  {canOpenPurchaseDocs && <Button size="small" variant="outlined" startIcon={<VisibilityIcon/>} onClick={() => preview(files.map((x) => ({
+                    name: x.ADJ_Nombre_Original, mime: x.ADJ_Tipo_MIME, subtitle: categoryLabel(x.ADJ_Categoria),
+                    load: () => attachmentService.blob(x.ADJ_Adjunto) })), i)}
+                    aria-label={t('file_preview.view_of', { name: f.ADJ_Nombre_Original })}>{t('file_preview.view')}</Button>}
                   {canOpenPurchaseDocs && <Button size="small" startIcon={<DownloadIcon/>} onClick={() => { void attachmentService.download(f); }}
                     aria-label={t('goods_receipt.download_file', { name: f.ADJ_Nombre_Original })}>{t('goods_receipt.download')}</Button>}
                 </Stack>))}

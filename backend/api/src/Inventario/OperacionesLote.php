@@ -140,15 +140,18 @@ final readonly class OperacionesLote
             foreach ($d['activos'] as $a) {
                 try {
                     $r = $this->movimientos->devolver(['ACT_Activo' => $a, 'MOV_Motivo' => $d['MOV_Motivo'], 'MMO_Motivo' => $d['MMO_Motivo'],
-                        'MOV_Motivo_Detalle' => $d['MOV_Motivo_Detalle'], 'ARE_Area_Destino' => $d['ARE_Area_Destino'], 'condicion' => $d['condicion']], $usuario, $ip);
+                        'MOV_Motivo_Detalle' => $d['MOV_Motivo_Detalle'], 'ARE_Area_Destino' => $d['ARE_Area_Destino'], 'condicion' => $d['condicion'],
+                        'liberar_software' => true === ($d['liberar_software'] ?? false)], $usuario, $ip);
                 } catch (ErrorDominio $e) {
                     throw self::fallo($e, $codigos[$a]);
                 }
-                $items[] = ['ACT_Activo' => Ident::aTexto($a), 'codigo' => $codigos[$a], 'MOV_Movimiento' => $r['MOV_Movimiento'], 'estado' => $r['estado']];
+                $items[] = ['ACT_Activo' => Ident::aTexto($a), 'codigo' => $codigos[$a], 'MOV_Movimiento' => $r['MOV_Movimiento'], 'estado' => $r['estado'],
+                    'licencias_liberadas' => $r['licencias_liberadas']];
             }
             $this->gobierno->registrarAuditoria('RETURN_BATCH', 'INV_MOVIMIENTO', ['activos' => array_column($items, 'codigo'), 'motivo' => $d['MOV_Motivo']], $usuario, $ip);
 
-            return ['total' => \count($items), 'movimientos' => array_column($items, 'MOV_Movimiento'), 'items' => $items];
+            return ['total' => \count($items), 'movimientos' => array_column($items, 'MOV_Movimiento'), 'items' => $items,
+                'licencias_liberadas' => array_sum(array_column($items, 'licencias_liberadas'))];
         });
     }
 

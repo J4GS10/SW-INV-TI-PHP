@@ -249,3 +249,28 @@ export async function ejecutar(sql: string, binds: Record<string, unknown> | unk
     await cx.close();
   }
 }
+
+/**
+ * Navega; si una redirección de la aplicación tras el inicio de sesión corta la navegación
+ * (Firefox: NS_BINDING_ABORTED; WebKit: «interrupted by another navigation»), espera y reintenta una vez.
+ */
+export async function irA(page: Page, url: string): Promise<void> {
+  try {
+    await page.goto(url);
+  } catch (err) {
+    if (!/interrupted|NS_BINDING_ABORTED|aborted/i.test(String(err))) throw err;
+    await page.waitForLoadState('networkidle');
+    await page.goto(url);
+  }
+}
+
+/** Recarga con el mismo criterio que `irA`: una navegación cortada por la aplicación se espera y se repite una vez. */
+export async function recargar(page: Page): Promise<void> {
+  try {
+    await page.reload();
+  } catch (err) {
+    if (!/interrupted|NS_BINDING_ABORTED|aborted/i.test(String(err))) throw err;
+    await page.waitForLoadState('networkidle');
+    await page.reload();
+  }
+}

@@ -87,6 +87,13 @@ final readonly class GoodsReceiptController
         return new JsonResponse($this->service->formContext($this->user()));
     }
 
+    #[Route('/form-context/suppliers/{supplier}', methods: ['GET'], requirements: ['supplier' => '\d+'])]
+    #[Autenticado(roles: self::REGISTRARS)]
+    public function supplierContext(int $supplier): JsonResponse
+    {
+        return new JsonResponse($this->service->supplierContext($supplier));
+    }
+
     #[Route('/checks/document', methods: ['GET'])]
     #[Autenticado(roles: self::REGISTRARS)]
     public function checkDocument(Request $request): JsonResponse

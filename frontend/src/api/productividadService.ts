@@ -52,6 +52,8 @@ export interface ResultadoLote {
   items: Array<{ ACT_Activo: string; codigo: string; MOV_Movimiento: string; operacion?: string; estado?: string }>;
   /** Licencias asignadas en la misma entrega. */
   licencias?: Array<{ LIC_Licencia: number; INS_Instalacion: number; LCL_Licencia_Clave: number | null }>;
+  /** Licencias liberadas al devolver. */
+  licencias_liberadas?: number;
 }
 
 export interface EntregaLote {
@@ -76,6 +78,8 @@ export interface DevolucionLote {
   MOV_Motivo_Detalle?: string | null;
   ARE_Area_Destino?: number | null;
   condicion?: 'BUENO' | 'CON_DANO';
+  /** Liberar las licencias instaladas en los equipos (si no, siguen con cada equipo). */
+  liberar_software?: boolean;
 }
 
 export interface FilaImportacion {

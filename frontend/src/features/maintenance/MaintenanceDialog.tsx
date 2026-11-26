@@ -20,6 +20,7 @@ import type { CatalogoItem } from '../../api/catalogoService';
 import { CatalogField } from '../../components/CatalogField';
 import { pideDetalle } from '../../hooks/useCatalogo';
 import { Dialog } from '../../components/ui/Dialog';
+import { catalogSlug } from '../../utils/catalogLabels';
 interface Props {
     open: boolean;
     onClose: (refresh?: boolean) => void;
@@ -63,6 +64,28 @@ export const MaintenanceDialog = ({ open, onClose, activoInicialId }: Props) => 
         apply: (id) => setValue('persona', personas.find((p) => p.PER_Persona === id) ?? null, { shouldDirty: true, shouldValidate: id != null }),
         suggestion: assetCtx.loading ? undefined : custodian && personas.some((p) => p.PER_Persona === custodian.PER_Persona)
             ? { value: custodian.PER_Persona, label: custodian.nombre ?? '', reason: t('suggestions.reasons.custodian') }
+            : null,
+    });
+    // Se registra porque algo falló: el tipo habitual es el correctivo.
+    const corrective = tipos.find((tm) => catalogSlug(tm.TMA_Nombre) === 'correctivo');
+    const typeHint = useSuggestion<number | ''>({
+        current: watch('tipo_mantenimiento') ?? '',
+        empty: '',
+        enabled: open,
+        apply: (value) => setValue('tipo_mantenimiento', value, { shouldDirty: true, shouldValidate: value !== '' }),
+        suggestion: loadingData ? undefined : corrective
+            ? { value: corrective.TMA_Tipo_Mantenimiento, label: corrective.TMA_Nombre, reason: t('suggestions.reasons.maintenance_failure') }
+            : null,
+    });
+    // El costo se estima en la moneda con que se compró el equipo.
+    const assetCurrency = selectedAsset?.ACT_Moneda || null;
+    const currencyHint = useSuggestion<string>({
+        current: watch('moneda') ?? DEFAULT_CURRENCY,
+        empty: DEFAULT_CURRENCY,
+        enabled: open,
+        apply: (value) => setValue('moneda', value, { shouldDirty: true }),
+        suggestion: assetCurrency && assetCurrency !== DEFAULT_CURRENCY
+            ? { value: assetCurrency, label: assetCurrency, reason: t('suggestions.reasons.currency_asset') }
             : null,
     });
     useEffect(() => {
@@ -173,14 +196,20 @@ export const MaintenanceDialog = ({ open, onClose, activoInicialId }: Props) => 
               <SectionCard title={t('maintenance.sections.service')}>
               <Box display="flex" flexDirection="column" gap={2}>
               {/* 3. TIPO Y COSTO */}
-              <Box display="flex" gap={2}>
+              <Box display="flex" gap={2} alignItems="flex-start">
+                <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Controller name="tipo_mantenimiento" control={control} rules={{ required: true }} defaultValue="" render={({ field, fieldState }) => (<TextField {...field} select fullWidth required label={t('maintenance.service_type')} error={!!fieldState.error}>
                       {tipos.map((tm) => (<MenuItem key={tm.TMA_Tipo_Mantenimiento} value={tm.TMA_Tipo_Mantenimiento}>
                           {tm.TMA_Nombre}
                         </MenuItem>))}
                     </TextField>)}/>
+                <SuggestionHint hint={typeHint}/>
+                </Box>
 
+                <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Controller name="moneda" control={control} defaultValue={DEFAULT_CURRENCY} render={({ field: moneda }) => (<Controller name="costo" control={control} defaultValue="" render={({ field }) => (<MoneyField name={field.name} value={field.value} onChange={field.onChange} onBlur={field.onBlur} currency={moneda.value} onCurrencyChange={moneda.onChange} fullWidth label={t('maintenance.estimated_cost')}/>)}/>)}/>
+                <SuggestionHint hint={currencyHint}/>
+                </Box>
               </Box>
 
               {/* 4. DESCRIPCIÓN */}

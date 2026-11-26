@@ -84,6 +84,10 @@ $plan = [
     'qa_totp' => ['ADMIN_TI', true, [], 'TOTP', false],
     // Solo para contabilidad.spec: con su propia cuenta no espera los pasos TOTP que gastan las demás pruebas en paralelo.
     'qa_contable_ti' => ['ADMIN_TI', true, [], 'TOTP', false],
+    // Solo para componentes.spec, por la misma razón.
+    'qa_componentes_ti' => ['ADMIN_TI', false, ['A'], 'TOTP', false],
+    'qa_catalogos_ti' => ['ADMIN_TI', false, ['A'], 'TOTP', false], // centro de catálogos: cuenta propia (el TOTP de una cuenta se usa de a uno)
+    'qa_visor_ti' => ['ADMIN_TI', false, ['A'], 'TOTP', false], // visor de archivos: cuenta propia
     'qa_enrolar' => ['ADMIN_TI', true, [], null, false],
     'qa_admin_ti_norte' => ['ADMIN_TI', false, ['A'], 'TOTP', false],
     'qa_tecnico_norte' => ['TECNICO', false, ['A'], null, false],

@@ -204,6 +204,15 @@ final readonly class GoodsReceiptService
             'supplier_id' => false === $last ? null : (int) $last['GRC_PRV_SUPPLIER'], 'currency' => false === $last ? 'GTQ' : $last['GRC_CURRENCY']];
     }
 
+    /** @return array{currency: ?string, site_id: ?int} what the form takes from the last receipt of that supplier */
+    public function supplierContext(int $supplier): array
+    {
+        $last = $this->inventory->lastReceiptFrom($supplier);
+
+        return false === $last ? ['currency' => null, 'site_id' => null]
+            : ['currency' => (string) $last['GRC_CURRENCY'], 'site_id' => ReceiptInput::intOrNull($last['GRC_SED_SITE'])];
+    }
+
     /** @return array<string, mixed> */
     private function editable(int $id): array
     {

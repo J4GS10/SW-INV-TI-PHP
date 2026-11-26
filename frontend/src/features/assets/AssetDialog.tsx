@@ -6,6 +6,7 @@ import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { AssignmentDialog } from '../operations/AssignmentDialog';
+import { ComponentesSection } from './ComponentesSection';
 import { normalizeLanguage } from '../../types/language';
 import { catalogSlug } from '../../utils/catalogLabels';
 import { createFilterOptions } from '@mui/material/Autocomplete';
@@ -280,12 +281,18 @@ export const AssetDialog = ({ open, assetToEdit, onClose }: Props) => {
         }
     };
     if (creado) {
-        return (<Dialog open={open} onClose={() => { setCreado(null); onClose(true); }} maxWidth="sm" fullWidth>
+        // Un equipo con componentes internos (laptop, servidor…): se registran aquí mismo; lo obligatorio que quede, se avisa como pendiente.
+        const tipoCreado = tipos.find((x) => x.TAC_Tipo_Activo === creado.TAC_Tipo_Activo);
+        const conComponentes = reglasDe(tipoCreado).componentes;
+        return (<Dialog open={open} onClose={() => { setCreado(null); onClose(true); }} maxWidth={conComponentes ? 'md' : 'sm'} fullWidth>
           <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CheckCircleIcon color="success"/> {t('assets.created.title', { code: creado.ACT_Codigo_Interno })}
           </DialogTitle>
           <DialogContent>
             <Alert severity="success" sx={{ mb: 2 }}>{t('assets.created.message', { code: creado.ACT_Codigo_Interno, serial: creado.ACT_Serie_Fabricante })}</Alert>
+            {conComponentes && (<SectionCard title={t('assets.created.components_title')} subtitle={t('assets.created.components_help')}>
+                <ComponentesSection activoId={creado.ACT_Activo} tipoEquipo={creado.TAC_Tipo_Activo} tipos={tipos} equipo={creado} canCreate canOperate/>
+              </SectionCard>)}
             <Typography variant="subtitle2" gutterBottom>{t('operations.done.next')}</Typography>
             <Stack spacing={1}>
               <Button variant="contained" startIcon={<AssignmentIndIcon />} onClick={() => setAsignando(true)}>{t('assets.created.assign')}</Button>
@@ -294,7 +301,8 @@ export const AssetDialog = ({ open, assetToEdit, onClose }: Props) => {
             </Stack>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => { setCreado(null); onClose(true); }}>{t('common.close')}</Button>
+            {conComponentes && <Typography variant="caption" color="text.secondary" sx={{ mr: 'auto', pl: 2 }}>{t('assets.created.components_later')}</Typography>}
+            <Button onClick={() => { setCreado(null); onClose(true); }}>{conComponentes ? t('assets.created.finish_later') : t('common.close')}</Button>
           </DialogActions>
           <AssignmentDialog open={asignando} activoInicial={creado} onClose={(refresh) => {
                 setAsignando(false);

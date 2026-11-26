@@ -756,7 +756,11 @@
             "message": "Il dispositivo {{code}} (seriale {{serial}}) è ora nell'inventario.",
             "assign": "Assegnarlo a una persona",
             "print_label": "Stampa etichetta QR",
-            "another": "Registrare un altro uguale (stesso modello)"
+            "another": "Registrare un altro uguale (stesso modello)",
+            "components_title": "Componenti interni",
+            "components_help": "Registri ora ciò che ha dentro (memoria, disco, batteria…). Gli obbligatori non registrati restano tra le attività in sospeso.",
+            "components_later": "Ciò che manca resta tra le attività in sospeso finché non viene registrato.",
+            "finish_later": "Terminare dopo"
         }
     },
     "catalogs": {
@@ -802,6 +806,7 @@
         "types": {
             "title": "Tipi di bene",
             "new_btn": "Nuovo tipo",
+            "search_placeholder": "Cerca per nome o prefisso…",
             "new_title": "Crea tipo di bene",
             "field_name": "Nome",
             "field_prefix": "Prefisso",
@@ -1320,7 +1325,16 @@
             }
         },
         "logo_url_placeholder": "https://esempio.it/logo.png",
-        "logo_alt": "Logo aziendale"
+        "logo_alt": "Logo aziendale",
+        "public_url": {
+            "title": "Indirizzo del sistema",
+            "subtitle": "Con questo indirizzo si creano i QR delle etichette: scansionandoli con il telefono si apre la scheda del dispositivo.",
+            "label": "Indirizzo pubblico (https)",
+            "help": "Usi il nome fisso della rete, per esempio https://lombardi.inventario.group: se l’IP del server cambia, le etichette stampate continuano a funzionare. Vuoto: si usa quello del server ({{server}}).",
+            "invalid": "Scriva un indirizzo https con un nome o un IP, senza percorso (per esempio https://lombardi.inventario.group).",
+            "example": "Così appare il QR di un’etichetta: {{url}}",
+            "dns_note": "Prima di cambiarlo, il team di rete deve creare il nome nel DNS puntando all’IP fisso del server, e il server deve rispondere a quel nome. Le etichette stampate dopo useranno il nuovo indirizzo; quelle già stampate mantengono il precedente."
+        }
     },
     "attachments": {
         "uploaded": "File caricato",
@@ -1462,6 +1476,7 @@
         "new_provider": "Nuovo fornitore",
         "provider_name": "Nome",
         "tax_id": "Partita IVA / codice fiscale (NIT/RFC)",
+        "tax_id_taken": "Questo codice fiscale è già registrato per {{name}}",
         "contact": "Contatto",
         "email": "Email",
         "phone": "Telefono",
@@ -1870,6 +1885,7 @@
         "NEW_ASSET_CODE_ALREADY_EXISTS": "Esiste già un bene con questo codice interno.",
         "NEW_SERIAL_NUMBER_ALREADY_EXISTS": "Esiste già un bene con questo numero di serie.",
         "ASSET_TYPE_ALREADY_EXISTS": "Esiste già un tipo di bene con questo nome.",
+        "ASSET_TYPE_PREFIX_ALREADY_EXISTS": "Quel prefisso è già usato da un altro tipo di bene: scegline un altro (ad esempio, aggiungi un numero).",
         "ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION": "Il tipo di bene non ha un prefisso configurato. Inserisca il codice manualmente o definisca un prefisso.",
         "ASSET_ALREADY_ASSIGNED_USE_TRANSFER": "Il bene è già assegnato. Utilizzi un trasferimento per cambiare il responsabile.",
         "ASSET_ALREADY_HAS_OPEN_MOVEMENT": "Il bene ha già un movimento aperto.",
@@ -1963,6 +1979,7 @@
         "MAINTENANCE_TICKET_NOT_FOUND": "Non è stato trovato il ticket di manutenzione.",
         "MAINTENANCE_TYPE_NOT_FOUND": "Non è stato trovato il tipo di manutenzione.",
         "MODEL_NOT_FOUND": "Non è stato trovato il modello.",
+        "MODEL_NAME_REQUIRED": "Inserisca il nome del modello.",
         "MOVEMENT_NOT_FOUND": "Il movimento non esiste.",
         "MOVEMENT_TYPE_NOT_FOUND": "Non è stato trovato il tipo di movimento.",
         "NOTIFICATION_EVENT_NOT_FOUND": "Non è stato trovato l'evento di notifica.",
@@ -2190,7 +2207,39 @@
         "PHOTO_NOT_FOUND": "Questo account non ha una foto profilo.",
         "ACCOUNTING_CATEGORY_NOT_FOUND": "La categoria contabile non esiste o è disattivata.",
         "ACCOUNTING_CATEGORY_CODE_EXISTS": "Esiste già una categoria con quel codice in quel paese.",
-        "ACCOUNTING_CATEGORY_RATE_REQUIRED": "L'ammortamento a quote costanti richiede un'aliquota annua maggiore di zero."
+        "ACCOUNTING_CATEGORY_RATE_REQUIRED": "L'ammortamento a quote costanti richiede un'aliquota annua maggiore di zero.",
+        "ACCOUNTING_CATEGORY_INVALID_RATE": "Il tasso di ammortamento deve essere tra 0% e 100%.",
+        "ACCOUNTING_CATEGORY_INVALID_RESIDUAL": "Il valore residuo non è valido: deve essere zero o positivo e inferiore al costo.",
+        "CONNECTION_TYPE_ALREADY_EXISTS": "Esiste già un tipo di connessione con questo nome.",
+        "COUNTRY_ALREADY_EXISTS": "Esiste già un paese con questo nome.",
+        "COUNTRY_ISO_ALREADY_EXISTS": "Esiste già un paese con questo codice ISO.",
+        "LICENSE_TYPE_ALREADY_EXISTS": "Esiste già un tipo di licenza con questo nome.",
+        "MAINTENANCE_TYPE_ALREADY_EXISTS": "Esiste già un tipo di manutenzione con questo nome.",
+        "MODEL_ALREADY_EXISTS": "Esiste già un modello con questo nome per questa marca.",
+        "OPERATIONAL_STATUS_ALREADY_EXISTS": "Esiste già uno stato operativo con questo nome.",
+        "POSITION_ALREADY_EXISTS": "Esiste già una posizione con questo nome.",
+        "SOFTWARE_ALREADY_EXISTS": "Questo software è già registrato (stesso nome, versione e produttore).",
+        "SPECIFICATION_TYPE_ALREADY_EXISTS": "Esiste già una caratteristica con questo nome.",
+        "EMERGENCY_ONLY_FOR_SUPER_ADMIN": "L'accesso di emergenza può essere usato solo dall'amministratore di sistema.",
+        "EMERGENCY_REASON_AND_OPERATOR_REQUIRED": "Indichi il motivo e chi opera l'accesso di emergenza.",
+        "GOODS_RECEIPT_INVALID_COST": "Il costo deve essere un numero positivo.",
+        "GOODS_RECEIPT_INVALID_CURRENCY": "Scelga una valuta valida.",
+        "GOODS_RECEIPT_INVALID_DATE": "La data di ricezione non è valida o è nel futuro.",
+        "GOODS_RECEIPT_INVALID_QUANTITY": "La quantità deve essere un numero intero maggiore di zero.",
+        "GOODS_RECEIPT_INVALID_WARRANTY": "La garanzia deve essere un numero di mesi valido.",
+        "GOODS_RECEIPT_LINE_NOT_A_LICENSE": "Quella riga del carico non è una licenza.",
+        "GOODS_RECEIPT_LINE_NOT_FOUND": "Riga del carico non trovata; un altro utente potrebbe averla modificata.",
+        "GOODS_RECEIPT_LINE_REQUIRES_CLASSIFICATION": "Indichi cosa è ogni riga (bene, licenza o consumabile) prima di continuare.",
+        "GOODS_RECEIPT_LINE_REQUIRES_CONSUMABLE": "Scelga il consumabile a cui corrisponde la riga.",
+        "GOODS_RECEIPT_LINE_REQUIRES_SOFTWARE": "Scelga il software della licenza.",
+        "INTERNAL_SERVER_ERROR": "Si è verificato un errore imprevisto del server. Riprovi; se si ripete, avvisi l'IT.",
+        "INVALID_JSON_BODY": "La richiesta non ha un formato valido.",
+        "INVALID_PARAMETER_VALUE": "Qualche dato non ha un valore valido. Controlli il modulo.",
+        "LICENSE_COMMERCIAL_MODEL_REQUIRED": "Scelga il modello commerciale della licenza (perpetua, abbonamento…).",
+        "LOGO_NOT_FOUND": "Non è stato salvato alcun logo.",
+        "OFFBOARDING_ACCOUNT_REQUIRES_IAM": "Per disattivare l'account della persona serve il ruolo di amministrazione delle identità.",
+        "OPERATIONAL_STATE_NOT_FOUND": "Manca lo stato «In magazzino» nella configurazione. Avvisi l'IT.",
+        "SSO_TENANT_NOT_ALLOWED": "Quell'account appartiene a un'organizzazione senza accesso."
     },
     "catalog": {
         "states": {
@@ -2339,6 +2388,107 @@
             "until": "Fino al {{date}}"
         }
     },
+    "asset_type_setup": {
+        "title_new": "Nuovo tipo di bene",
+        "title_edit": "Configurare «{{name}}»",
+        "create": "Creare il tipo",
+        "created_review": "«{{name}}» creato. Controlli cosa chiede e salvi.",
+        "created_help": "Il tipo ora esiste. Sotto ci sono le caratteristiche abituali della sua classe: tolga, aggiunga o segni come obbligatorie quelle che servono, definisca i componenti interni e salvi.",
+        "ready": "Pronto per registrare beni",
+        "not_ready": "Non si possono ancora registrare beni di questo tipo",
+        "checks": {
+            "name": {
+                "ok": "Nome",
+                "error": "Manca il nome"
+            },
+            "prefix": {
+                "ok": "Codice automatico",
+                "error": "Manca il prefisso del codice"
+            },
+            "class": {
+                "ok": "Classe definita",
+                "warning": "Classe: dedotta dal nome",
+                "error": "È un materiale di consumo: va ai consumabili"
+            },
+            "category": {
+                "ok": "Si ammortizza secondo la categoria",
+                "warning": "Senza categoria contabile: non si ammortizza"
+            },
+            "specs": {
+                "ok": "{{count}} caratteristiche ({{required}} obbligatorie)",
+                "warning": "Non chiede caratteristiche"
+            },
+            "components": {
+                "ok": "{{count}} componenti ({{required}} obbligatori)",
+                "warning": "Nessun componente interno definito"
+            }
+        },
+        "short": {
+            "name": "nome",
+            "prefix": "prefisso",
+            "class": "classe",
+            "category": "categoria contabile",
+            "specs": "caratteristiche",
+            "components": "componenti"
+        },
+        "step1": "1. Che cos'è?",
+        "step1_help": "Nome, codice e uso. La classe decide se si assegna a una persona o si installa in un'area, e se ha software o componenti.",
+        "name_placeholder": "Laptop, Monitor, Stampante…",
+        "prefix_help": "Ogni apparecchio riceve un codice automatico, per esempio {{example}}.",
+        "step2": "2. Dati della scheda del dispositivo",
+        "step2_help": "Ciò che si scrive dell'intero dispositivo quando lo si registra: processore, dimensione dello schermo, sistema operativo… Quelli obbligatori impediscono di salvare senza di essi; con un elenco di valori, si sceglie invece di scrivere.",
+        "step3": "3. Parti interne con numero di serie",
+        "step3_help": "Parti registrate a parte perché si sostituiscono o passano a un altro dispositivo (memoria, disco, batteria). Ogni parte ha il proprio codice e i propri dati (capacità, tipo), quindi non si ripete al punto 2. Quelle obbligatorie si chiedono alla registrazione di ogni dispositivo; se rimandate, il dispositivo resta in sospeso.",
+        "specs": {
+            "empty": "Non chiede ancora alcuna caratteristica.",
+            "template_note": "Se non ne aggiunge nessuna, alla creazione il tipo riceve quelle abituali della sua classe (un laptop: processore, memoria e disco) e potrà controllarle.",
+            "unit": "In {{unit}}",
+            "required": "Obbligatoria",
+            "values_placeholder": "Valori ammessi (facoltativo): DDR4, DDR5…",
+            "values_of": "Valori ammessi di {{name}}",
+            "remove": "Togliere",
+            "remove_of": "Togliere {{name}}",
+            "add": "Aggiungere una caratteristica",
+            "add_help": "Scelga una esistente o ne scriva una nuova (per esempio «Memoria RAM»).",
+            "create_option": "Creare la caratteristica «{{name}}»",
+            "new_title": "Nuova caratteristica: {{name}}",
+            "name": "Nome",
+            "data_type": "Cosa si scrive",
+            "data_type_help": {
+                "TEXT": "Testo libero o da un elenco (DDR4, SSD…).",
+                "NUMBER": "Un numero, con la sua unità (16 GB).",
+                "BOOLEAN": "Sì o no (ha il lettore di impronte?)."
+            },
+            "unit_field": "Unità",
+            "create": "Creare e aggiungere",
+            "created": "Caratteristica «{{name}}» creata e aggiunta."
+        },
+        "components": {
+            "empty": "Nessun componente interno ancora definito.",
+            "required": "Obbligatorio alla registrazione",
+            "required_short": "obbligatorio, min. {{count}}",
+            "quantity": "Minimo",
+            "remove": "Togliere",
+            "remove_of": "Togliere {{name}}",
+            "add": "Aggiungere un componente",
+            "add_help": "Scelga un tipo di componente o ne scriva uno nuovo (per esempio «Batteria»): si crea con il suo codice."
+        },
+        "col_specs": "Caratteristiche",
+        "col_components": "Componenti",
+        "col_status": "Stato",
+        "count_specs_one": "{{count}} ({{required}} obbl.)",
+        "count_specs_other": "{{count}} ({{required}} obbl.)",
+        "count_components_one": "{{count}} ({{required}} obbl.)",
+        "count_components_other": "{{count}} ({{required}} obbl.)",
+        "no_components_class": "Non applicabile",
+        "status_ready": "Pronto",
+        "status_review_one": "Controllare {{count}} punto",
+        "status_review_other": "Controllare {{count}} punti",
+        "status_blocked": "Non si può registrare",
+        "duplicated": "{{names}} è già una parte interna (punto 3): si registra sulla parte, con il suo seriale. Qui è superfluo e verrebbe chiesto due volte.",
+        "duplicated_fix": "Togli da qui",
+        "moved_to_component": "{{names}} è diventato una parte interna: tolto dai dati del dispositivo per non chiederlo due volte."
+    },
     "suggestions": {
         "hint": "Suggerito: {{reason}}",
         "hint_value": "Suggerito: {{value}} ({{reason}})",
@@ -2358,7 +2508,16 @@
             "movement_free": "il bene è libero",
             "hostname_current": "hostname attuale del bene",
             "type_model_assets": "tipo con cui viene solitamente registrato questo modello",
-            "type_model_catalog": "tipo definito nel catalogo del modello"
+            "type_model_catalog": "tipo definito nel catalogo del modello",
+            "email_name": "dal nome e dal dominio {{domain}}",
+            "department_position": "reparto abituale per questa mansione",
+            "unit_category": "unità abituale nella categoria",
+            "minimum_category": "minimo abituale nella categoria",
+            "sede_category": "magazzino abituale della categoria",
+            "currency_asset": "valuta del bene",
+            "maintenance_failure": "si segnala un guasto",
+            "supplier_last_receipt": "ultimo ingresso di questo fornitore",
+            "destination_reason": "in base al motivo"
         },
         "info": {
             "manager": "Responsabile: {{name}}",
@@ -2652,7 +2811,29 @@
         "damage_hint": "Ha indicato che è arrivato danneggiato: Le suggeriamo di aprire un ticket di manutenzione.",
         "next": "Può scaricare il verbale di restituzione da far firmare alla persona.",
         "open_ticket": "Apri ticket di manutenzione",
-        "download_release": "Scarica il verbale di restituzione"
+        "download_release": "Scarica il verbale di restituzione",
+        "software": {
+            "title": "Software installato sul dispositivo",
+            "help": "Le licenze selezionate vengono liberate: tornano all'inventario delle licenze, con il loro posto e la loro chiave, per essere usate su un altro dispositivo. Quelle non selezionate restano installate sul dispositivo e vanno con esso al prossimo utente.",
+            "since": "installata il {{date}}",
+            "all": "Seleziona tutte",
+            "none": "Non liberarne nessuna",
+            "summary_one": "Verrà liberata {{count}} licenza su {{total}}.",
+            "summary_other": "Verranno liberate {{count}} licenze su {{total}}.",
+            "summary_zero": "Nessuna verrà liberata: il software resta con il dispositivo.",
+            "loading": "Verifica del software installato sul dispositivo…",
+            "load_error": "Impossibile verificare il software installato. Riprovi prima di restituire, per decidere quali licenze liberare.",
+            "batch_question_one": "C'è {{count}} licenza installata su questi dispositivi. Cosa ne facciamo?",
+            "batch_question_other": "Ci sono {{count}} licenze installate su questi dispositivi. Cosa ne facciamo?",
+            "batch_release": "Liberarle: tornano all'inventario delle licenze per altri dispositivi",
+            "batch_keep": "Lasciarle installate: vanno con ogni dispositivo al prossimo utente",
+            "done_released_one": "È stata liberata {{count}} licenza: ora è disponibile per un altro dispositivo.",
+            "done_released_other": "Sono state liberate {{count}} licenze: ora sono disponibili per altri dispositivi.",
+            "done_kept_one": "{{count}} licenza resta installata sul dispositivo.",
+            "done_kept_other": "{{count}} licenze restano installate sul dispositivo.",
+            "empty": "Software verificato: questo dispositivo non ha licenze installate, non c’è nulla da liberare.",
+            "empty_batch": "Software verificato: questi dispositivi non hanno licenze installate, non c’è nulla da liberare."
+        }
     },
     "decommission": {
         "lost_title": "Segnala smarrimento o furto di {{code}}",
@@ -2713,7 +2894,24 @@
         "remember_defaults": "Ricorda questi valori nel modello per il prossimo pezzo uguale",
         "create_and_install": "Registra e installa",
         "created_installed": "Componente registrato e installato in {{code}}",
-        "serial_short": "S/N {{serial}}"
+        "serial_short": "S/N {{serial}}",
+        "serial_enter": "Invio registra e installa",
+        "count_one": "{{count}} componente installato",
+        "count_other": "{{count}} componenti installati",
+        "create_and_another": "Registra e continua con un altro uguale",
+        "next_ready": "Pronto per il pezzo successivo: inserisca il numero di serie",
+        "history_all": "Vedi tutta la cronologia ({{count}})",
+        "history_less": "Mostra solo i recenti",
+        "quick_reasons": {
+            "failure": "Guasto",
+            "upgrade": "Ampliamento",
+            "replacement": "Sostituzione",
+            "transfer": "Spostato su un altro dispositivo"
+        },
+        "pending_title": "Mancano componenti obbligatori",
+        "pending_help": "Il tipo di questo apparecchio richiede di registrare questi componenti interni. Finché mancano, l'apparecchio compare tra le sue attività in sospeso.",
+        "pending_item_one": "{{name}}: manca {{count}}",
+        "pending_item_other": "{{name}}: mancano {{count}}"
     },
     "attention": {
         "all_clear": "Nessuna attività urgente.",
@@ -2754,6 +2952,11 @@
                 "title_one": "{{count}} bene da completare",
                 "title_other": "{{count}} beni da completare",
                 "hint": "Mancano il numero di serie o le specifiche."
+            },
+            "COMPONENTES_POR_REGISTRAR": {
+                "title_one": "{{count}} dispositivo con componenti da registrare",
+                "title_other": "{{count}} dispositivi con componenti da registrare",
+                "hint": "Il suo tipo richiede componenti interni (memoria, disco, batteria…) non ancora registrati."
             },
             "INGRESO_POR_CONFIRMAR": {
                 "title_one": "{{count}} entrata da confermare",
@@ -3172,7 +3375,7 @@
         "catalogs": {
             "marcas": "Marche",
             "tipos-conexion": "Tipi di connessione",
-            "tipos-especificacion": "Tipi di specifica",
+            "tipos-especificacion": "Libreria delle caratteristiche",
             "unidades-medida": "Unità di misura",
             "motivos-movimiento": "Motivi di movimento",
             "motivos-baja": "Motivi di dismissione",
@@ -3195,9 +3398,9 @@
             "ubicaciones": "Ubicazioni"
         },
         "hints": {
-            "tipos-activo": "I tipi di apparecchiatura dell'inventario: Laptop, Monitor, Stampante. Ognuno ha il suo prefisso di codice.",
+            "tipos-activo": "Cominci da qui. Ogni tipo (Laptop, Monitor, Stampante) si configura in una sola schermata: il suo codice, cosa si annota di ogni apparecchio e quali componenti interni ha, e quali sono obbligatori alla registrazione. La colonna Stato dice se è pronto per registrare beni.",
             "especificaciones-tipo": "Quali dati chiede ogni tipo di bene e quali valori accetta. Esempio: Laptop chiede «RAM» e «Tipo di RAM», e quest'ultimo accetta solo DDR4, DDR5… Ciò che ogni modello ha di fabbrica si compila in Modelli.",
-            "tipos-especificacion": "Ogni riga è un solo dato di un bene: «RAM» è la quantità (numero, in GB) e «Tipo di RAM» è la tecnologia. DDR4 o DDR5 non vanno qui: sono valori ammessi di «Tipo di RAM» e si definiscono in Specifiche per tipo di bene.",
+            "tipos-especificacion": "Le caratteristiche che i tipi possono chiedere (RAM, Disco, Processore), con tipo di dato e unità. Di solito si creano dal tipo di bene; qui si correggono i nomi o si uniscono i duplicati. Valori come DDR4 o DDR5 non vanno qui: si scelgono nel tipo, come elenco ammesso.",
             "unidades-medida": "Con che cosa si misura un dato numerico: GB, pollici, VA.",
             "tipos-conexion": "Come si collega un modello: USB, HDMI, Bluetooth, Wi-Fi. È facoltativo, si sceglie creando il modello ed è utile soprattutto per le periferiche.",
             "modelos": "Un prodotto preciso, come Dell Latitude 5440. Non ripete le Specifiche per tipo: il tipo dice quali dati si chiedono; il modello conserva i valori di fabbrica (16 GB, DDR5) e ogni bene conserva ciò che ha davvero, per esempio dopo un'espansione di memoria.",
@@ -3270,12 +3473,12 @@
         "quantity": "Quantità",
         "kit_add_item": "Aggiungi apparecchio",
         "extras": {
-            "pide_detalle": "Richiede un dettaglio scritto",
-            "MMO_Pide_Detalle": "Richiede un dettaglio scritto",
-            "MBA_Pide_Detalle": "Richiede una nota",
-            "DBA_Pide_Detalle": "Richiede una nota",
-            "TFA_Pide_Detalle": "Richiede una descrizione",
-            "AMA_Pide_Detalle": "Richiede un dettaglio scritto",
+            "pide_detalle": "Se scelto, richiede un dettaglio scritto",
+            "MMO_Pide_Detalle": "Se scelto, richiede un dettaglio scritto",
+            "MBA_Pide_Detalle": "Se scelto, richiede un dettaglio scritto",
+            "DBA_Pide_Detalle": "Se scelto, richiede un dettaglio scritto",
+            "TFA_Pide_Detalle": "Se scelto, richiede un dettaglio scritto",
+            "AMA_Pide_Detalle": "Se scelto, richiede un dettaglio scritto",
             "UME_Simbolo": "Simbolo (GB, m, kg…)",
             "UME_Unidad": "Unità",
             "TES_Data_Type": "Tipo di dato",
@@ -3310,7 +3513,47 @@
             "INV_ADJUNTO__ADJ_Categoria": "Allegati"
         },
         "kit_license": "Licenza",
-        "kit_add_license": "Aggiungi licenza"
+        "kit_add_license": "Aggiungi licenza",
+        "requested": {
+            "column": "Cosa chiede alla registrazione",
+            "nothing": "Non chiede dati",
+            "configure": "Configurare",
+            "view": "Vedere",
+            "title": "Cosa chiede «{{name}}» quando si registra una licenza",
+            "help": "Attivi i dati da scrivere quando si registra una licenza con questo metodo. Se vuole, cambi il nome con cui compaiono nel modulo.",
+            "label": "Nome nel modulo (facoltativo)",
+            "label_help": "Vuoto: si mostra «{{name}}».",
+            "preview": "Così apparirà il modulo",
+            "preview_none": "Con questo metodo non si scrive alcun dato.",
+            "usuario": {
+                "name": "Utente",
+                "help": "L'account con cui si attiva: utente o email."
+            },
+            "secreto": {
+                "name": "Password",
+                "help": "La password o il segreto di quell'account. Si conserva cifrata."
+            },
+            "serial": {
+                "name": "Numero di serie",
+                "help": "Il seriale fornito dal produttore."
+            },
+            "clave": {
+                "name": "Product key",
+                "help": "La product key (XXXXX-XXXXX-…). Si conserva cifrata e si mostra mascherata."
+            },
+            "servidor": {
+                "name": "Server di licenze",
+                "help": "L'indirizzo del server che distribuisce le licenze (flottanti o di rete)."
+            },
+            "archivo": {
+                "name": "File di licenza",
+                "help": "Un file che attiva il software (.lic, .key…)."
+            },
+            "dispositivo": {
+                "name": "Dispositivo",
+                "help": "La chiave fisica (dongle USB) che attiva il software."
+            }
+        }
     },
     "catalog_items": {
         "motivos-movimiento": {
@@ -3961,5 +4204,28 @@
             "department": "Senza reparto",
             "site": "Senza sede"
         }
+    },
+    "file_preview": {
+        "view": "Vedi",
+        "view_of": "Vedi {{name}}",
+        "loading": "Caricamento del file…",
+        "error": "Impossibile aprire il file.",
+        "retry": "Riprova",
+        "download": "Scarica",
+        "open_new_tab": "Apri in una nuova scheda",
+        "previous": "File precedente",
+        "next": "File successivo",
+        "zoom_in": "Ingrandisci",
+        "zoom_out": "Riduci",
+        "zoom_fit": "Adatta alla finestra",
+        "fit": "Adattata",
+        "rotate": "Ruota",
+        "counter": "{{current}} di {{total}}",
+        "unavailable_title": "Anteprima non disponibile",
+        "unavailable_body": "I file {{ext}} non si possono mostrare nel browser. Lo scarichi per aprirlo con il suo programma.",
+        "this_type": "di questo tipo",
+        "pdf_unavailable_title": "Questo browser non mostra i PDF qui",
+        "pdf_unavailable_body": "Lo apra in una nuova scheda o lo scarichi per vederlo.",
+        "csv_truncated": "Sono mostrate le prime {{count}} righe."
     }
 }

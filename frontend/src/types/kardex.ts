@@ -90,7 +90,7 @@ export interface ItemAtencion {
   clave: 'ASIGNADO_SIN_CUSTODIO' | 'ALMACEN_CON_CUSTODIO' | 'PERSONA_INACTIVA_CON_EQUIPOS' | 'PRESTAMO_VENCIDO'
     | 'STOCK_BAJO' | 'INGRESO_POR_CONFIRMAR' | 'ACTIVO_POR_COMPLETAR' | 'BAJA_CON_CUSTODIA' | 'APROBACION_PENDIENTE' | 'TICKET_ANTIGUO' | 'GARANTIA_POR_VENCER' | 'LICENCIA_POR_VENCER' | 'DATOS_INCOMPLETOS'
     | 'CUENTA_POR_CAMBIAR' | 'CUENTA_SIN_ROTAR' | 'CUPOS_AGOTADOS' | 'FALTANTE_PENDIENTE' | 'RESPONSABLE_INACTIVO'
-    | 'INSUMOS_POR_RECLASIFICAR';
+    | 'INSUMOS_POR_RECLASIFICAR' | 'COMPONENTES_POR_REGISTRAR';
   severidad: SeveridadAtencion;
   total: number;
   items: Array<Record<string, unknown>>;
@@ -168,6 +168,15 @@ export interface ComponentesActivo {
   instalado_en?: string | null;
   actuales: ComponenteResumen[];
   historial: KardexEvento[];
+  /** Componentes obligatorios del tipo del equipo que aún faltan (se dejaron para después). */
+  pendientes?: ComponentePendiente[];
+}
+
+export interface ComponentePendiente {
+  TAC_Tipo_Activo: number;
+  TAC_Nombre: string;
+  requeridos: number;
+  instalados: number;
 }
 
 export interface BajaPayload {
@@ -188,10 +197,13 @@ export interface DevolucionPayload {
   MOV_Motivo_Detalle?: string | null;
   ARE_Area_Destino?: number | null;
   condicion?: 'BUENO' | 'CON_DANO';
+  /** Instalaciones del equipo que se liberan (las demás siguen con el equipo). */
+  liberar_instalaciones?: number[];
 }
 
 export interface DevolucionResultado {
   MOV_Movimiento: string;
   estado: string;
   siguientes_pasos: Array<'ABRIR_TICKET_MANTENIMIENTO' | 'DESCARGAR_HOJA_DESCARGO'>;
+  licencias_liberadas?: number;
 }

@@ -17,7 +17,6 @@ import { stateLabel, stateVariant, catalogSlug } from '../../utils/catalogLabels
 import { useSnackbar } from 'notistack';
 import { getApiErrorMessage } from '../../api/errors';
 import { downloadCsv } from '../../api/downloadCsv';
-import { guardarArchivo } from '../../api/productividadService';
 import { AssetDialog } from './AssetDialog';
 import { BajaDialog } from './BajaDialog';
 import { AssetDetailDialog } from './AssetDetailDialog';
@@ -48,6 +47,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
 
 /** Parámetros de la URL que forman una vista (la página no cuenta). */
 const CLAVES_VISTA = ['q', 'tipo', 'estado'];
@@ -56,6 +56,7 @@ export const AssetsPage = () => {
     const { t, i18n } = useTranslation();
     const { canOperate, canAdminInventory, canExportFinance: canExport } = usePermissions();
     const { enqueueSnackbar } = useSnackbar();
+    const { showBlob } = useFilePreview();
     const { abrirEntrega, abrirDevolucion, agregarReciente } = useWorkspace();
     const navigate = useNavigate();
     const location = useLocation();
@@ -249,7 +250,7 @@ export const AssetsPage = () => {
     const etiquetaDe = async (row: Activo) => {
         try {
             const blob = await assetService.downloadLabels({ activos_ids: [row.ACT_Activo] }, normalizeLanguage(i18n.resolvedLanguage));
-            guardarArchivo(blob, `etiqueta-${row.ACT_Codigo_Interno}.pdf`);
+            showBlob(blob, `etiqueta-${row.ACT_Codigo_Interno}.pdf`);
         } catch (error: unknown) {
             enqueueSnackbar(getApiErrorMessage(error, t('common.error_generic')), { variant: 'error' });
         }
@@ -295,7 +296,7 @@ export const AssetsPage = () => {
         setDownloadingLabels(true);
         try {
             const blob = await assetService.downloadLabels({ activos_ids: ids }, normalizeLanguage(i18n.resolvedLanguage));
-            guardarArchivo(blob, `etiquetas-activos-${ids.length}.pdf`);
+            showBlob(blob, `etiquetas-activos-${ids.length}.pdf`);
             enqueueSnackbar(t('assets.labels.downloaded'), { variant: 'success' });
         } catch (error: unknown) {
             enqueueSnackbar(getApiErrorMessage(error, t('common.error_generic')), { variant: 'error' });
@@ -324,7 +325,7 @@ export const AssetsPage = () => {
                 stateLabel(t, getEstadoInfo(a.EOP_Estado_Operativo)?.EOP_Nombre)]),
         ];
         const csv = '﻿' + filas.map((f) => f.map(celda).join(',')).join('\r\n');
-        guardarArchivo(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `activos-seleccion-${seleccion.size}.csv`);
+        showBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `activos-seleccion-${seleccion.size}.csv`);
     };
 
     // ── Ficha como página (/activos/:codigo); el diálogo queda como vista rápida ──

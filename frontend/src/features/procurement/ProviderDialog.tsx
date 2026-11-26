@@ -9,6 +9,7 @@ import { Proveedor, ProveedorCreate } from '../../types/procurement';
 import { SectionCard } from '../../components/ui';
 import { Dialog } from '../../components/ui/Dialog';
 import { withRowVersion } from '../../api/rowVersion';
+import { normalizeTaxId } from '../../utils/autofill';
 interface Props {
     open: boolean;
     onClose: (refresh?: boolean) => void;
@@ -18,11 +19,17 @@ export const ProviderDialog = ({ open, onClose, toEdit }: Props) => {
     const { t } = useTranslation();
     const { enqueueSnackbar } = useSnackbar();
     const isEdit = !!toEdit;
-    const { register, handleSubmit, reset, formState: { errors } } = useForm<ProveedorCreate>({ mode: 'onChange' });
+    const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ProveedorCreate>({ mode: 'onChange' });
     const [loading, setLoading] = useState(false);
+    // No hay fuente pública gratuita del NIT: se normaliza y se avisa si ya lo tiene otro proveedor.
+    const [others, setOthers] = useState<Proveedor[]>([]);
+    const taxId = normalizeTaxId(watch('PRV_Identificacion_Fiscal') ?? '');
+    const taxIdOwner = taxId ? others.find((p) => p.PRV_Proveedor !== toEdit?.PRV_Proveedor && normalizeTaxId(p.PRV_Identificacion_Fiscal ?? '') === taxId) : undefined;
+    const taxIdField = register('PRV_Identificacion_Fiscal');
     useEffect(() => {
         if (!open)
             return;
+        procurementService.listProveedores().then(setOthers).catch(() => setOthers([]));
         reset(toEdit ? {
             PRV_Nombre: toEdit.PRV_Nombre,
             PRV_Identificacion_Fiscal: toEdit.PRV_Identificacion_Fiscal ?? '',
@@ -79,7 +86,9 @@ export const ProviderDialog = ({ open, onClose, toEdit }: Props) => {
           <Stack spacing={2} sx={{ mt: 1 }}>
             <SectionCard title={t('procurement.sections.general')}>
               <TextField autoFocus fullWidth margin="dense" label={t('procurement.provider_name')} {...register('PRV_Nombre', { required: true, minLength: 2 })} error={!!errors.PRV_Nombre} helperText={errors.PRV_Nombre ? t('common.required') : ''}/>
-              <TextField fullWidth margin="dense" label={t('procurement.tax_id')} {...register('PRV_Identificacion_Fiscal')}/>
+              <TextField fullWidth margin="dense" label={t('procurement.tax_id')} {...taxIdField}
+                onBlur={(e) => { void taxIdField.onBlur(e); setValue('PRV_Identificacion_Fiscal', normalizeTaxId(e.target.value), { shouldDirty: true }); }}
+                error={!!taxIdOwner} helperText={taxIdOwner ? t('procurement.tax_id_taken', { name: taxIdOwner.PRV_Nombre }) : undefined}/>
             </SectionCard>
             <SectionCard title={t('procurement.sections.contact')}>
               <Stack direction="row" spacing={2}>

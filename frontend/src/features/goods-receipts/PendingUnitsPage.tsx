@@ -6,12 +6,12 @@ import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 import { EmptyState, PageHeader, SectionCard } from '../../components/ui';
 import { getApiErrorCode, getApiErrorMessage } from '../../api/errors';
-import { guardarArchivo } from '../../api/productividadService';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { assetService } from '../assets/assetService';
 import { goodsReceiptService } from './goodsReceiptService';
 import type { PendingUnit, UnitSpecification } from './goodsReceiptService';
 import { groupPendingUnits, missingFields, purchasingTextDiffers, specProblem, type PendingGroup } from './pendingUnits';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
 
 interface UnitDraft {
   serial: string;
@@ -32,6 +32,7 @@ const FIELD_GRID = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, mi
 export const PendingUnitsPage = () => {
   const { t, i18n } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
+  const { showBlob } = useFilePreview();
   const [units, setUnits] = useState<PendingUnit[]>([]);
   const [drafts, setDrafts] = useState<Record<string, UnitDraft>>({});
   const [loading, setLoading] = useState(true);
@@ -142,7 +143,7 @@ export const PendingUnitsPage = () => {
   };
   const printLabels = async () => {
     try {
-      guardarArchivo(await assetService.downloadLabels({ activos_ids: [...selected] }, i18n.language.slice(0, 2)), `etiquetas-${selected.size}.pdf`);
+      showBlob(await assetService.downloadLabels({ activos_ids: [...selected] }, i18n.language.slice(0, 2)), `etiquetas-${selected.size}.pdf`);
     } catch (error: unknown) {
       enqueueSnackbar(getApiErrorMessage(error, t('common.error_generic')), { variant: 'error' });
     }

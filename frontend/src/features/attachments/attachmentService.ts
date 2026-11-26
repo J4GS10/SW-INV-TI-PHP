@@ -39,6 +39,9 @@ export const attachmentService = {
     saveBlob(r.data as Blob, adj.ADJ_Nombre_Original);
   },
 
+  /** El archivo tal cual (con su tipo), para verlo sin descargarlo. */
+  blob: async (id: string): Promise<Blob> => (await client.get<Blob>(`/adjuntos/${id}/download`, { responseType: 'blob' })).data,
+
   /** Dirección local (blob:) del archivo, para mostrar una foto; quien la pide la libera con URL.revokeObjectURL. */
   objectUrl: async (id: string): Promise<string> => {
     const r = await client.get(`/adjuntos/${id}/download`, { responseType: 'blob' });

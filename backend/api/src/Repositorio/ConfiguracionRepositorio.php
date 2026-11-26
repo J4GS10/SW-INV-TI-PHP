@@ -12,7 +12,7 @@ use Doctrine\DBAL\ParameterType;
 final readonly class ConfiguracionRepositorio
 {
     private const array COLUMNAS = ['SYS_Configuracion', 'SYS_Nombre_Empresa', 'SYS_Logo_URL', 'SYS_Color_Primario',
-        'SYS_Color_Secundario', 'SYS_Color_Fondo', 'SYS_Idioma_Defecto', 'SYS_Codigo_Formulario', 'SYS_Ciudad', 'SYS_Logo_Tamano'];
+        'SYS_Color_Secundario', 'SYS_Color_Fondo', 'SYS_Idioma_Defecto', 'SYS_Codigo_Formulario', 'SYS_Ciudad', 'SYS_Logo_Tamano', 'SYS_URL_Publica'];
 
     public function __construct(private Connection $conexion)
     {

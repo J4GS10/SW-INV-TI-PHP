@@ -5,12 +5,13 @@ import QrCode2Icon from '@mui/icons-material/QrCode2';
 import { useTranslation } from 'react-i18next';
 import { useSnackbar } from 'notistack';
 import { getApiErrorMessage } from '../../api/errors';
-import { guardarArchivo, type ResultadoLote } from '../../api/productividadService';
+import { type ResultadoLote } from '../../api/productividadService';
 import { normalizeLanguage } from '../../types/language';
 import { assetService } from '../assets/assetService';
 import { movementService } from './movementService';
 import client from '../../api/axios';
 import { useConfirm } from '../../components/confirm-context';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
 
 interface Props {
   resultado: ResultadoLote;
@@ -25,6 +26,7 @@ interface Props {
 export const EntregaResultado = ({ resultado, mensaje, tipoActa, onDeshecho }: Props) => {
   const { t, i18n } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
+  const { showBlob } = useFilePreview();
   const [ocupado, setOcupado] = useState<'acta' | 'etiquetas' | 'deshacer' | null>(null);
   const confirm = useConfirm();
 
@@ -50,7 +52,7 @@ export const EntregaResultado = ({ resultado, mensaje, tipoActa, onDeshecho }: P
     setOcupado('acta');
     try {
       const blob = await movementService.downloadActaLote(resultado.movimientos, 'pdf', tipoActa, lang);
-      guardarArchivo(blob, `${tipoActa === 'entrega' ? t('handover.acta_file') : t('handover.discharge_file')}.pdf`);
+      showBlob(blob, `${tipoActa === 'entrega' ? t('handover.acta_file') : t('handover.discharge_file')}.pdf`);
     } catch (err) {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_generic')), { variant: 'error' });
     } finally {
@@ -62,7 +64,7 @@ export const EntregaResultado = ({ resultado, mensaje, tipoActa, onDeshecho }: P
     setOcupado('etiquetas');
     try {
       const blob = await assetService.downloadLabels({ activos_ids: resultado.items.map((i) => i.ACT_Activo) }, lang);
-      guardarArchivo(blob, `etiquetas-${resultado.total}.pdf`);
+      showBlob(blob, `etiquetas-${resultado.total}.pdf`);
     } catch (err) {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_generic')), { variant: 'error' });
     } finally {

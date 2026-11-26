@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Autocomplete, Box, Button, Checkbox, FormControlLabel, MenuItem, Paper, Stack, TextField, Typography,
   createFilterOptions,
@@ -13,7 +13,6 @@ import { MoneyField } from '../../components/ui';
 import { usePermissions } from '../../hooks/usePermissions';
 import { catalogSlug } from '../../utils/catalogLabels';
 import { DEFAULT_CURRENCY } from '../../utils/currency';
-import { catalogService } from '../catalogs/catalogService';
 import { assetService } from './assetService';
 import type { Activo, ActivoCreate, Marca, ModeloFlat, TipoActivo } from '../../types/inventory';
 
@@ -24,6 +23,10 @@ interface Props {
   tipos: TipoActivo[];
   onDone: () => void;
   onCancel: () => void;
+  /** Se registró una pieza y el formulario sigue abierto para la siguiente igual. */
+  onSaved?: () => void;
+  /** Tipo ya elegido (al registrar un componente obligatorio que falta). */
+  tipoInicial?: number;
 }
 
 /** Modelo escrito que aún no existe: se crea al guardar con la marca elegida. */
@@ -38,11 +41,11 @@ const especificacionesRoute = (modelo: number) => `/goods-receipts/catalog/model
  * características. Las características salen de los valores de fábrica del modelo; lo que se escriba
  * por primera vez se recuerda en el modelo para la próxima pieza igual.
  */
-export const NuevoComponenteForm = ({ equipo, tipos, onDone, onCancel }: Props) => {
+export const NuevoComponenteForm = ({ equipo, tipos, onDone, onCancel, onSaved, tipoInicial }: Props) => {
   const { t } = useTranslation();
   const { enqueueSnackbar } = useSnackbar();
   const { canSeeCosts } = usePermissions();
-  const [tipo, setTipo] = useState<number | ''>(tipos.length === 1 ? tipos[0].TAC_Tipo_Activo : '');
+  const [tipo, setTipo] = useState<number | ''>(tipoInicial ?? (tipos.length === 1 ? tipos[0].TAC_Tipo_Activo : ''));
   const [modelos, setModelos] = useState<ModeloFlat[]>([]);
   const [marcas, setMarcas] = useState<Marca[]>([]);
   const [modelo, setModelo] = useState<OpcionModelo | null>(null);
@@ -98,15 +101,13 @@ export const NuevoComponenteForm = ({ equipo, tipos, onDone, onCancel }: Props) 
   const listo = tipo !== '' && !!modelo && serie.trim() !== '' && bodega != null && !faltaObligatoria
     && (!esNuevo(modelo) || marcaNueva !== '');
 
-  const guardar = async () => {
-    if (!listo || !modelo || bodega == null) return;
+  const serieRef = useRef<HTMLInputElement | null>(null);
+  // `otro`: tras registrar, queda listo para la siguiente pieza igual (mismo tipo, modelo y características): solo falta su serie.
+  const guardar = async (otro = false) => {
+    if (!listo || !modelo || bodega == null || guardando) return;
     setGuardando(true);
     try {
-      let modeloFinal = esNuevo(modelo) ? 0 : modelo.MOD_Modelo;
-      if (esNuevo(modelo)) {
-        modeloFinal = (await catalogService.createModelo({ MOD_Nombre: modelo.nuevo, MAR_Marca: Number(marcaNueva), TAC_Tipo_Activo: tipo })).MOD_Modelo;
-        apiCache.clear();
-      }
+      // Una sola operación del servidor: el modelo nuevo, el activo y los valores de fábrica, todo o nada.
       const escritas = especificaciones
         .map((e) => ({ TES_Tipo_Especificacion: e.TES_Tipo_Especificacion, ESP_Valor: (valores[e.TES_Tipo_Especificacion] ?? '').trim() }))
         .filter((e) => e.ESP_Valor !== '');
@@ -115,7 +116,11 @@ export const NuevoComponenteForm = ({ equipo, tipos, onDone, onCancel }: Props) 
         ACT_Fecha_Compra: equipo.ACT_Fecha_Compra || new Date().toISOString().slice(0, 10),
         ...(equipo.ACT_Fin_Garantia ? { ACT_Fin_Garantia: equipo.ACT_Fin_Garantia } : {}),
         ...(canSeeCosts && costo ? { ACT_Costo: Number(costo), ACT_Moneda: moneda } : {}),
-        MOD_Modelo: modeloFinal,
+        ...(esNuevo(modelo)
+          ? { nuevo_modelo: { MOD_Nombre: modelo.nuevo, MAR_Marca: Number(marcaNueva) } }
+          : { MOD_Modelo: modelo.MOD_Modelo }),
+        // Lo escrito por primera vez queda como valor de fábrica del modelo: la próxima pieza igual ya viene llena.
+        recordar_valores_fabrica: recordar,
         TAC_Tipo_Activo: tipo,
         EOP_Estado_Operativo: bodega,
         SED_Sede: equipo.SED_Sede ?? null,
@@ -124,15 +129,23 @@ export const NuevoComponenteForm = ({ equipo, tipos, onDone, onCancel }: Props) 
         ...(equipo.ACT_Factura ? { ACT_Factura: equipo.ACT_Factura } : {}),
         especificaciones: escritas,
       };
-      await assetService.createActivo(alta);
-      // Lo escrito por primera vez queda como valor de fábrica del modelo: la próxima pieza igual ya viene llena.
-      if (recordar && escritas.some((e) => deFabrica[e.TES_Tipo_Especificacion] == null)) {
-        const values = Object.fromEntries(escritas.map((e) => [e.TES_Tipo_Especificacion,
-          /^-?\d+(\.\d+)?$/.test(e.ESP_Valor) ? Number(e.ESP_Valor) : e.ESP_Valor]));
-        await client.put(especificacionesRoute(modeloFinal), { values }).catch(() => undefined);
-      }
+      const creado = await assetService.createActivo(alta);
+      if (esNuevo(modelo)) apiCache.clear();
       enqueueSnackbar(t('components.created_installed', { code: equipo.ACT_Codigo_Interno }), { variant: 'success' });
-      onDone();
+      if (!otro) {
+        onDone();
+        return;
+      }
+      // El modelo recién creado ya existe: la siguiente pieza lo usa (y trae sus valores de fábrica).
+      if (esNuevo(modelo)) {
+        const lista = await assetService.getModelosFlat().catch(() => modelos);
+        setModelos(lista);
+        setModelo(lista.find((m) => m.MOD_Modelo === creado.MOD_Modelo) ?? null);
+      }
+      setSerie('');
+      onSaved?.();
+      enqueueSnackbar(t('components.next_ready'), { variant: 'info' });
+      window.setTimeout(() => serieRef.current?.focus(), 0);
     } catch (err) {
       enqueueSnackbar(getApiErrorMessage(err, t('common.error_save')), { variant: 'error' });
     } finally {
@@ -159,7 +172,7 @@ export const NuevoComponenteForm = ({ equipo, tipos, onDone, onCancel }: Props) 
               return texto.length >= 2 && !r.some((x) => etiquetaModelo(x).toLowerCase().endsWith(texto.toLowerCase())) ? [...r, { nuevo: texto }] : r;
             }}
             renderOption={(props, o) => <li {...props} key={etiquetaModelo(o)}>{esNuevo(o) ? t('components.create_model', { name: o.nuevo }) : etiquetaModelo(o)}</li>}
-            renderInput={(p) => <TextField {...p} required label={t('components.model')} helperText={t('components.model_help')} />} />
+            renderInput={(p) => <TextField {...p} required autoFocus={tipos.length === 1 || tipoInicial != null} label={t('components.model')} helperText={t('components.model_help')} />} />
         </Stack>
         {esNuevo(modelo) && (
           <TextField select size="small" required label={t('components.brand_new_model', { name: modelo.nuevo })} value={marcaNueva}
@@ -168,7 +181,9 @@ export const NuevoComponenteForm = ({ equipo, tipos, onDone, onCancel }: Props) 
           </TextField>
         )}
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-          <TextField size="small" fullWidth required label={t('components.serial')} value={serie} onChange={(e) => setSerie(e.target.value)} />
+          <TextField size="small" fullWidth required label={t('components.serial')} value={serie} inputRef={serieRef}
+            onChange={(e) => setSerie(e.target.value)} helperText={t('components.serial_enter')}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void guardar(); } }} />
           {canSeeCosts && <MoneyField name="costo-componente" size="small" fullWidth label={t('components.cost')} value={costo}
             onChange={setCosto} currency={moneda} onCurrencyChange={setMoneda} />}
         </Stack>
@@ -200,7 +215,8 @@ export const NuevoComponenteForm = ({ equipo, tipos, onDone, onCancel }: Props) 
         )}
         <Stack direction="row" spacing={1} justifyContent="flex-end">
           <Button onClick={onCancel}>{t('common.cancel')}</Button>
-          <Button variant="contained" onClick={guardar} disabled={!listo || guardando}>{t('components.create_and_install')}</Button>
+          <Button onClick={() => { void guardar(true); }} disabled={!listo || guardando}>{t('components.create_and_another')}</Button>
+          <Button variant="contained" onClick={() => { void guardar(); }} disabled={!listo || guardando}>{t('components.create_and_install')}</Button>
         </Stack>
       </Stack>
     </Paper>

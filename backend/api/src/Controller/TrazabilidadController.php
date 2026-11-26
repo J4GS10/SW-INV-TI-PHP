@@ -133,6 +133,8 @@ final readonly class TrazabilidadController
             [, $d[$c->nombre]] = $e->campo($c, true);
         }
         $d['condicion'] = $e->patron('condicion', '^(BUENO|CON_DANO)$');
+        // Licencias instaladas en el equipo que quien opera eligió liberar (el resto sigue con el equipo).
+        $d['liberar_instalaciones'] = $e->enteros('liberar_instalaciones', 100) ?? [];
         $e->validar();
 
         return new JsonResponse($this->movimientos->devolver($d, $this->usuario(), ClienteHttp::ip($request)));
@@ -261,6 +263,7 @@ final readonly class TrazabilidadController
             [, $d[$c->nombre]] = $e->campo($c, true);
         }
         $d['condicion'] = $e->patron('condicion', '^(BUENO|CON_DANO)$');
+        $d['liberar_software'] = $e->logico('liberar_software') ?? false;
         $e->validar();
 
         return new JsonResponse($this->lote->devolucion($d, $this->usuario(), ClienteHttp::ip($request)));

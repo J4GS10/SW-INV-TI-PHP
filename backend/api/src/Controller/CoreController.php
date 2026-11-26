@@ -103,7 +103,17 @@ final readonly class CoreController
     public function crear(Request $request): JsonResponse
     {
         $e = Peticion::json($request);
-        $d = $this->camposActivo($e, true);
+        // Componente con un modelo que aún no existe: se crea en la misma operación que el activo.
+        $nuevo = $e->objeto('nuevo_modelo');
+        $d = $this->camposActivo($e, true, modeloRequerido: null === $nuevo);
+        $nuevoModelo = null;
+        if (null !== $nuevo) {
+            $nombre = $nuevo->texto('MOD_Nombre', 1, 150);
+            [, $marca] = $nuevo->campo(Campo::entero('MAR_Marca', true, minimo: 1), true);
+            $e->absorber($nuevo);
+            $nuevoModelo = ['nombre' => (string) $nombre, 'marca' => (int) $marca];
+        }
+        $recordar = true === $e->logico('recordar_valores_fabrica');
         $especificaciones = [];
         foreach ($e->lista('especificaciones', 500) ?? [] as $item) {
             $s = Entrada::de(\is_array($item) ? $item : []);
@@ -117,7 +127,7 @@ final readonly class CoreController
         // Quien no ve costos tampoco los escribe.
         $d = OcultarCostosListener::descartarCostos($d, $this->actual->usuario()->rol, 'ACT_Costo') + ['ACT_Costo' => null];
 
-        return new JsonResponse($this->activos->crear($d, $especificaciones, $this->usuario()), 201);
+        return new JsonResponse($this->activos->crear($d, $especificaciones, $this->usuario(), $nuevoModelo, $recordar), 201);
     }
 
     /** Edición en lote (antes de /activos/{id}: «lote» no es un id). */
@@ -327,12 +337,12 @@ final readonly class CoreController
     // ---------------- Validación ----------------
 
     /** @return array<string, mixed> en la edición, solo lo enviado */
-    private function camposActivo(Entrada $e, bool $creacion): array
+    private function camposActivo(Entrada $e, bool $creacion, bool $modeloRequerido = true): array
     {
         $campos = [Campo::identificador('ACT_Codigo_Interno', min: 3, max: 50), Campo::identificador('ACT_Serie_Fabricante', $creacion, 3, 100),
             Campo::identificador('ACT_Hostname', max: 100), new Campo('ACT_Fecha_Compra', Campo::FECHA, requerido: $creacion, noFutura: true),
             new Campo('ACT_Fin_Garantia', Campo::FECHA), new Campo('ACT_Costo', Campo::DECIMAL, max: 12, escala: 2, minimo: 0),
-            Campo::entero('PRV_Proveedor'), Campo::texto('ACT_Factura', max: 60), Campo::entero('MOD_Modelo', $creacion),
+            Campo::entero('PRV_Proveedor'), Campo::texto('ACT_Factura', max: 60), Campo::entero('MOD_Modelo', $creacion && $modeloRequerido),
             Campo::entero('TAC_Tipo_Activo', $creacion), Campo::entero('EOP_Estado_Operativo', $creacion), Campo::entero('SED_Sede')];
         if ($creacion) {
             $campos[] = new Campo('ACT_Activo_Padre', Campo::UUID);

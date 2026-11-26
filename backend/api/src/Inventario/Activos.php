@@ -256,14 +256,21 @@ final readonly class Activos
      * @param array<string, mixed>                                                      $d columnas validadas
      * @param list<array{TES_Tipo_Especificacion: int, ESP_Valor: string, motivo?: ?string}> $especificaciones
      *
+     * @param ?array{nombre: string, marca: int}                                       $nuevoModelo modelo que aún no existe: se crea en la misma transacción
+     * @param bool                                                                      $recordarFabrica lo escrito queda como valor de fábrica del modelo donde aún no tenga uno
+     *
      * @return array<string, mixed> ActivoResponse
      */
-    public function crear(array $d, array $especificaciones, string $usuario): array
+    public function crear(array $d, array $especificaciones, string $usuario, ?array $nuevoModelo = null, bool $recordarFabrica = false): array
     {
-        return $this->transaccion->ejecutar(function () use ($d, $especificaciones, $usuario): array {
+        return $this->transaccion->ejecutar(function () use ($d, $especificaciones, $usuario, $nuevoModelo, $recordarFabrica): array {
             $tipo = $this->datos->tipo($d['TAC_Tipo_Activo']) ?: throw ErrorDominio::noEncontrado('ASSET_TYPE_NOT_FOUND');
             // Los insumos se registran como consumibles (por cantidad), no como activos.
             $this->reglas->exigirNoInsumo((int) $d['TAC_Tipo_Activo']);
+            if (null !== $nuevoModelo) {
+                // Todo o nada: si el alta falla después, el modelo tampoco queda creado.
+                $d['MOD_Modelo'] = $this->modeloParaAlta($nuevoModelo, (int) $d['TAC_Tipo_Activo'], $usuario);
+            }
             if (!$this->datos->existeModelo($d['MOD_Modelo'])) {
                 throw ErrorDominio::noEncontrado('MODEL_NOT_FOUND');
             }
@@ -312,14 +319,22 @@ final readonly class Activos
             $this->insertar($id, $d);
             // Lo que no se escribió lo pone el modelo (sus valores de fábrica): nadie teclea «16 GB» en cada RAM igual.
             $escritas = array_map(static fn (array $e): int => (int) $e['TES_Tipo_Especificacion'], $especificaciones);
+            $nuevasDeFabrica = $recordarFabrica ? $escritas : [];
             foreach ($this->datos->valoresDeFabrica((int) $d['MOD_Modelo'], (int) $d['TAC_Tipo_Activo']) as $f) {
                 if (!\in_array((int) $f['TES_Tipo_Especificacion'], $escritas, true)) {
                     $especificaciones[] = ['TES_Tipo_Especificacion' => (int) $f['TES_Tipo_Especificacion'], 'ESP_Valor' => $f['VALOR']];
                 }
             }
+            $recordadas = [];
             foreach ($especificaciones as $e) {
-                $this->datosComunes->agregarEspecificacion($id, $e['TES_Tipo_Especificacion'],
-                    $this->specificationRules->normalize((int) $d['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], (string) $e['ESP_Valor']));
+                $valor = $this->specificationRules->normalize((int) $d['TAC_Tipo_Activo'], (int) $e['TES_Tipo_Especificacion'], (string) $e['ESP_Valor']);
+                $this->datosComunes->agregarEspecificacion($id, $e['TES_Tipo_Especificacion'], $valor);
+                if (\in_array((int) $e['TES_Tipo_Especificacion'], $nuevasDeFabrica, true) &&$this->datos->agregarValorDeFabrica((int) $d['MOD_Modelo'], (int) $e['TES_Tipo_Especificacion'], $valor)) {
+                    $recordadas[(int) $e['TES_Tipo_Especificacion']] = $valor;
+                }
+            }
+            if ([] !== $recordadas) {
+                $this->gobierno->registrarAuditoria('UPDATE', 'CAT_MODEL_SPECIFICATION', ['modelo' => (int) $d['MOD_Modelo'], 'valores' => $recordadas, 'origen' => 'Alta de activo'], $usuario);
             }
             $activo = $this->datos->porId($id) ?: throw new \LogicException('El activo recién escrito no se encuentra.');
             $this->kardex->registrar('ALTA', activo: $activo, usuario: $usuario, destino: ['sede' => $d['SED_Sede']],
@@ -333,6 +348,30 @@ final readonly class Activos
 
             return $this->aApi($activo);
         });
+    }
+
+    /**
+     * Modelo del alta cuando se escribió uno nuevo: si esa marca ya tiene uno con ese nombre se reutiliza; si no, se crea con el tipo del activo.
+     *
+     * @param array{nombre: string, marca: int} $nuevo
+     */
+    private function modeloParaAlta(array $nuevo, int $tipo, string $usuario): int
+    {
+        $nombre = trim($nuevo['nombre']);
+        if ('' === $nombre) {
+            throw ErrorDominio::invalido('MODEL_NAME_REQUIRED');
+        }
+        if (!$this->datos->marcaExiste($nuevo['marca'])) {
+            throw ErrorDominio::noEncontrado('BRAND_NOT_FOUND');
+        }
+        $existente = $this->datos->modeloPorNombre($nuevo['marca'], $nombre);
+        if (null !== $existente) {
+            return $existente;
+        }
+        $id = $this->datos->crearModelo($nombre, $nuevo['marca'], $tipo);
+        $this->gobierno->registrarAuditoria('CREATE', 'INV_MODELO', ['nombre' => $nombre, 'marca_id' => $nuevo['marca'], 'origen' => 'Alta de activo'], $usuario);
+
+        return $id;
     }
 
     /** @param array<string, mixed> $d */

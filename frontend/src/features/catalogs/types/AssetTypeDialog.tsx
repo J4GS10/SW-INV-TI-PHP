@@ -1,20 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Autocomplete, Box, Button, Chip, CircularProgress, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography } from '@mui/material';
+import {
+  Alert, Box, Button, Chip, CircularProgress, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography,
+} from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircleOutline';
+import WarningIcon from '@mui/icons-material/WarningAmberOutlined';
+import ErrorIcon from '@mui/icons-material/ErrorOutline';
 import { useTranslation } from 'react-i18next';
 import { SectionCard } from '../../../components/ui';
 import { useSnackbar } from 'notistack';
 import { getApiErrorMessage } from '../../../api/errors';
-import { catalogService } from '../catalogService';
+import { apiCache } from '../../../api/cache';
+import { catalogService, type ComponenteDeTipo } from '../catalogService';
 import { TipoActivo } from '../../../types/inventory';
 import { TipoActivoCreate } from '../../../types/catalogs';
 import { CLASES_ACTIVO, type ClaseActivo } from '../../../utils/clasesActivo';
 import { Dialog } from '../../../components/ui/Dialog';
 import { withRowVersion } from '../../../api/rowVersion';
-import { catalogoConfigService } from '../../../api/catalogoService';
+import { catalogoConfigService, type EspecificacionTipo } from '../../../api/catalogoService';
 import { accountingService } from '../../accounting/accountingService';
-import { prefijoDesde } from '../../../utils/prefijo';
+import { prefijoDesde, prefijoLibre } from '../../../utils/prefijo';
 import type { AccountingCategory } from '../../accounting/accountingService';
+import { TypeSpecsEditor, type TypeSpecRow } from './TypeSpecsEditor';
+import { TypeComponentsEditor } from './TypeComponentsEditor';
+import { CON_COMPONENTES, isReady, typeReadiness, type ReadinessLevel } from './typeReadiness';
+import { specsDuplicatedByComponents } from './specComponentOverlap';
 
 interface Props {
   open: boolean;
@@ -24,175 +34,222 @@ interface Props {
   tipos?: TipoActivo[];
 }
 
-// Clases que admiten componentes internos (espejo de app/core/clases_activo.py).
-const CON_COMPONENTES: ClaseActivo[] = ['COMPUTO', 'IMPRESION', 'RED', 'ENERGIA'];
-
 type Formulario = Omit<TipoActivoCreate, 'TAC_Clase'> & { TAC_Clase: ClaseActivo | '' };
 
+const ICONO: Record<ReadinessLevel, typeof CheckCircleIcon> = { ok: CheckCircleIcon, warning: WarningIcon, error: ErrorIcon };
+const COLOR: Record<ReadinessLevel, 'success' | 'warning' | 'error'> = { ok: 'success', warning: 'warning', error: 'error' };
+
 /**
- * Alta y edición de un tipo de activo. La clase decide cómo se opera cada
- * equipo del tipo (se asigna o se instala en un área, lleva software o
- * componentes) y, si el tipo no tiene especificaciones, el servidor le pone
- * la plantilla de su clase.
+ * Todo lo que define un tipo de activo, en una sola pantalla y en el orden en que se piensa:
+ *  1. qué es (nombre, prefijo del código, clase y categoría contable);
+ *  2. los datos de la ficha del equipo (procesador, pantalla…), en orden, y cuáles son obligatorios;
+ *  3. las piezas internas con serie propia (memoria, disco, batería) y cuáles se exigen al registrarlo.
+ * Un dato va en un solo paso: lo que es pieza interna no se pide también como dato del equipo.
+ * Arriba, la lista de lo que falta para que sea apto para registrar activos.
  */
 export const AssetTypeDialog = ({ open, onClose, typeToEdit, tipos = [] }: Props) => {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const { register, handleSubmit, reset, control, watch, setValue } = useForm<Formulario>({ mode: 'onChange' });
-  // Alta: el prefijo se propone del nombre mientras nadie lo escriba a mano.
+  // El tipo que se edita: al crear uno nuevo, el diálogo sigue abierto sobre él para revisar lo que pide.
+  const [actual, setActual] = useState<TipoActivo | undefined>(typeToEdit);
+  const [huboCambios, setHuboCambios] = useState(false);
+  const [recienCreado, setRecienCreado] = useState(false);
   const [prefijoAMano, setPrefijoAMano] = useState(false);
-  const nombre = watch('TAC_Nombre');
-  useEffect(() => { if (open) setPrefijoAMano(!!typeToEdit); }, [open, typeToEdit]);
-  useEffect(() => {
-    if (!prefijoAMano && open && !typeToEdit) setValue('TAC_Prefijo', prefijoDesde(nombre ?? ''), { shouldValidate: !!nombre });
-  }, [nombre, prefijoAMano, open, typeToEdit, setValue]);
   const [loading, setLoading] = useState(false);
-  const [componentes, setComponentes] = useState<number[]>([]);
-  // Categoría contable: de ella sale la depreciación de los equipos del tipo.
   const [categorias, setCategorias] = useState<AccountingCategory[]>([]);
   const [categoria, setCategoria] = useState<number | ''>('');
-  const { enqueueSnackbar } = useSnackbar();
-  const clase = watch('TAC_Clase');
+  const [specs, setSpecs] = useState<TypeSpecRow[]>([]);
+  const [specsOriginal, setSpecsOriginal] = useState('[]');
+  const [componentes, setComponentes] = useState<ComponenteDeTipo[]>([]);
+  const [componentesOriginal, setComponentesOriginal] = useState('[]');
+  const [nombresSpecs, setNombresSpecs] = useState<string[]>([]);
+  const [nombrePorSpec, setNombrePorSpec] = useState<ReadonlyMap<number, string>>(new Map());
+
+  const nombre = watch('TAC_Nombre') ?? '';
+  const prefijo = watch('TAC_Prefijo') ?? '';
+  const clase = watch('TAC_Clase') ?? '';
+  const conComponentes = !!clase && CON_COMPONENTES.includes(clase);
+
+  const cargarDetalle = async (id: number) => {
+    apiCache.clear();
+    const [todas, comps] = await Promise.all([
+      catalogoConfigService.especificacionesPorTipo().catch((): Record<string, EspecificacionTipo[]> => ({})),
+      catalogService.getComponentesDetalle(id).catch(() => []),
+    ]);
+    const filas = (todas[String(id)] ?? []).map(({ TES_Tipo_Especificacion, obligatoria, valores }) => ({ TES_Tipo_Especificacion, obligatoria, valores }));
+    setSpecs(filas);
+    setSpecsOriginal(JSON.stringify(filas));
+    setNombresSpecs((todas[String(id)] ?? []).map((e) => e.nombre ?? '').filter(Boolean));
+    setComponentes(comps);
+    setComponentesOriginal(JSON.stringify(comps));
+  };
 
   useEffect(() => {
     if (!open) return;
+    setActual(typeToEdit);
+    setHuboCambios(false);
+    setRecienCreado(false);
+    setPrefijoAMano(!!typeToEdit);
     setCategoria(typeToEdit?.FAC_ASSET_CATEGORY ?? '');
+    reset({ TAC_Nombre: typeToEdit?.TAC_Nombre ?? '', TAC_Prefijo: typeToEdit?.TAC_Prefijo ?? '', TAC_Clase: typeToEdit?.TAC_Clase ?? '' });
+    setSpecs([]); setSpecsOriginal('[]'); setComponentes([]); setComponentesOriginal('[]'); setNombresSpecs([]);
     accountingService.categories().then(setCategorias).catch(() => setCategorias([]));
-  }, [open, typeToEdit]);
-
-  useEffect(() => {
-    if (!open) return;
-    reset({
-      TAC_Nombre: typeToEdit?.TAC_Nombre ?? '',
-      TAC_Prefijo: typeToEdit?.TAC_Prefijo ?? '',
-      TAC_Clase: typeToEdit?.TAC_Clase ?? '',
-    });
-    setComponentes([]);
-    if (typeToEdit) {
-      catalogService.getComponentesTipo(typeToEdit.TAC_Tipo_Activo).then(setComponentes).catch(() => setComponentes([]));
-    }
+    catalogService.getTiposEspecificacion()
+      .then((l) => setNombrePorSpec(new Map(l.map((e) => [e.TES_Tipo_Especificacion, e.TES_Nombre]))))
+      .catch(() => setNombrePorSpec(new Map()));
+    if (typeToEdit) void cargarDetalle(typeToEdit.TAC_Tipo_Activo);
   }, [open, typeToEdit, reset]);
 
-  // Tipos de componente creados desde este formulario (aún no están en la lista que llegó por props).
-  const [nuevosComponentes, setNuevosComponentes] = useState<TipoActivo[]>([]);
-  const crearComponente = async (nombre: string) => {
-    try {
-      const creado = await catalogService.createTipoActivo({ TAC_Nombre: nombre, TAC_Prefijo: prefijoDesde(nombre) || 'CMP', TAC_Clase: 'COMPONENTE' });
-      setNuevosComponentes((l) => [...l, creado]);
-      setComponentes((l) => [...l, creado.TAC_Tipo_Activo]);
-      enqueueSnackbar(t('asset_class.components_created', { name: nombre }), { variant: 'success' });
-    } catch (error: unknown) {
-      enqueueSnackbar(getApiErrorMessage(error, t('common.error_create')), { variant: 'error' });
+  // Alta: el prefijo se propone del nombre mientras nadie lo escriba a mano, sin repetir el de otro tipo («QEA» → «QEA2»).
+  // Al editar no se toca: se mira la prop typeToEdit, porque al abrir el estado todavía es el del render anterior.
+  useEffect(() => {
+    if (!prefijoAMano && open && !actual && !typeToEdit) {
+      const base = prefijoDesde(nombre);
+      setValue('TAC_Prefijo', base && prefijoLibre(base, tipos.map((x) => x.TAC_Prefijo ?? '')), { shouldValidate: !!nombre });
+    }
+  }, [nombre, prefijoAMano, open, actual, typeToEdit, setValue, tipos]);
+
+  const candidatos = useMemo(() => tipos.filter((x) => x.TAC_Clase === 'COMPONENTE'), [tipos]);
+  const revision = typeReadiness({
+    name: nombre, prefix: prefijo, assetClass: clase, classHasComponents: conComponentes, isSupply: clase === 'INSUMO',
+    hasCategory: categoria !== '', specs: specs.map((s) => ({ required: s.obligatoria })),
+    components: componentes.map((c) => ({ required: c.obligatorio })),
+  });
+  const apto = isReady(revision);
+
+  // Lo que ya es pieza interna (paso 3) se anota en la pieza, con su serie: no se pide otra vez como dato del equipo.
+  const nombreSpec = (id: number) => nombrePorSpec.get(id) ?? '';
+  const duplicadas = conComponentes
+    ? specsDuplicatedByComponents(specs.map((s) => s.TES_Tipo_Especificacion), nombrePorSpec, componentes.map((c) => c.nombre))
+    : [];
+  const quitarDuplicadas = (ids: number[]) => setSpecs((l) => l.filter((s) => !ids.includes(s.TES_Tipo_Especificacion)));
+  const cambiarComponentes = (filas: ComponenteDeTipo[]) => {
+    const nuevas = filas.filter((f) => !componentes.some((c) => c.tipo === f.tipo)).map((f) => f.nombre);
+    const pasan = specsDuplicatedByComponents(specs.map((s) => s.TES_Tipo_Especificacion), nombrePorSpec, nuevas);
+    setComponentes(filas);
+    if (pasan.length) {
+      quitarDuplicadas(pasan);
+      enqueueSnackbar(t('asset_type_setup.moved_to_component', { names: pasan.map(nombreSpec).join(', ') }), { variant: 'info' });
     }
   };
 
-  // Las especificaciones del tipo (RAM, disco, batería…) se ofrecen como componentes instalables: si aún no
-  // existe un tipo «Componente» con ese nombre, elegirla lo crea (id negativo = por crear).
-  const [especificaciones, setEspecificaciones] = useState<string[]>([]);
-  useEffect(() => {
-    if (!open || !typeToEdit) { setEspecificaciones([]); return; }
-    catalogoConfigService.especificacionesPorTipo()
-      .then((m) => setEspecificaciones((m[String(typeToEdit.TAC_Tipo_Activo)] ?? []).map((e) => e.nombre ?? '').filter(Boolean)))
-      .catch(() => setEspecificaciones([]));
-  }, [open, typeToEdit]);
-  const desdeEspecificaciones = useMemo((): TipoActivo[] => {
-    const existentes = new Set([...tipos, ...nuevosComponentes].filter((x) => x.TAC_Clase === 'COMPONENTE').map((x) => x.TAC_Nombre.toLowerCase()));
-    return especificaciones.filter((n) => !existentes.has(n.toLowerCase())).map((n, i) => ({ TAC_Tipo_Activo: -(i + 2), TAC_Nombre: n, TAC_Prefijo: null }));
-  }, [especificaciones, tipos, nuevosComponentes]);
-
-  const candidatos = useMemo(
-    () => tipos.filter((x) => x.TAC_Tipo_Activo !== typeToEdit?.TAC_Tipo_Activo && x.TAC_Clase === 'COMPONENTE'),
-    [tipos, typeToEdit],
-  );
+  const cerrar = () => onClose(huboCambios);
 
   const onSubmit = async (data: Formulario) => {
     setLoading(true);
     try {
       const payload: TipoActivoCreate = {
-        TAC_Nombre: data.TAC_Nombre,
+        TAC_Nombre: data.TAC_Nombre.trim(),
         TAC_Prefijo: data.TAC_Prefijo ? data.TAC_Prefijo.toUpperCase() : undefined,
         ...(data.TAC_Clase ? { TAC_Clase: data.TAC_Clase } : {}),
         FAC_ASSET_CATEGORY: categoria === '' ? null : categoria,
       };
-      const guardado = typeToEdit
-        ? await catalogService.updateTipoActivo(typeToEdit.TAC_Tipo_Activo, withRowVersion(payload, typeToEdit))
+      const guardado = actual
+        ? await catalogService.updateTipoActivo(actual.TAC_Tipo_Activo, withRowVersion(payload, actual))
         : await catalogService.createTipoActivo(payload);
-      if (CON_COMPONENTES.includes((guardado.TAC_Clase ?? data.TAC_Clase) as ClaseActivo)) {
-        await catalogService.setComponentesTipo(guardado.TAC_Tipo_Activo, componentes);
+      const id = guardado.TAC_Tipo_Activo;
+      // Alta sin características elegidas: el servidor le puso las habituales de su clase; se muestran para revisarlas.
+      if (!actual && specs.length === 0) {
+        setActual(guardado);
+        setHuboCambios(true);
+        setRecienCreado(true);
+        reset({ TAC_Nombre: guardado.TAC_Nombre, TAC_Prefijo: guardado.TAC_Prefijo ?? '', TAC_Clase: (guardado.TAC_Clase ?? '') as ClaseActivo | '' });
+        setPrefijoAMano(true);
+        if (componentes.length && CON_COMPONENTES.includes((guardado.TAC_Clase ?? '') as ClaseActivo)) {
+          await catalogService.setComponentesDetalle(id, componentes.map(({ tipo, obligatorio, cantidad }) => ({ tipo, obligatorio, cantidad })));
+        }
+        await cargarDetalle(id);
+        enqueueSnackbar(t('asset_type_setup.created_review', { name: guardado.TAC_Nombre }), { variant: 'success' });
+        return;
       }
-      enqueueSnackbar(t(typeToEdit ? 'common.success_update' : 'catalogs.types.success_create'), { variant: 'success' });
+      if (JSON.stringify(specs) !== specsOriginal || !actual) {
+        await catalogoConfigService.fijarEspecificaciones(id, specs);
+      }
+      if (CON_COMPONENTES.includes((guardado.TAC_Clase ?? data.TAC_Clase) as ClaseActivo) && JSON.stringify(componentes) !== componentesOriginal) {
+        await catalogService.setComponentesDetalle(id, componentes.map(({ tipo, obligatorio, cantidad }) => ({ tipo, obligatorio, cantidad })));
+      }
+      apiCache.clear();
+      enqueueSnackbar(t(actual ? 'common.success_update' : 'catalogs.types.success_create'), { variant: 'success' });
       onClose(true);
     } catch (error: unknown) {
-      enqueueSnackbar(getApiErrorMessage(error, t('common.error_create')), { variant: 'error' });
+      enqueueSnackbar(getApiErrorMessage(error, t('common.error_save')), { variant: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Dialog open={open} onClose={() => onClose()} maxWidth="sm" fullWidth>
-      <DialogTitle>{typeToEdit ? t('common.edit') : t('catalogs.types.new_title')}</DialogTitle>
+    <Dialog open={open} onClose={cerrar} maxWidth="md" fullWidth>
+      <DialogTitle>{actual ? t('asset_type_setup.title_edit', { name: actual.TAC_Nombre }) : t('asset_type_setup.title_new')}</DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)}>
-        <DialogContent>
-          <SectionCard title={t('catalogs.sections.general')}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField autoFocus fullWidth label={t('catalogs.types.field_name')}
-                {...register('TAC_Nombre', { required: true, minLength: 2 })}/>
-              <Box>
-                <TextField fullWidth label={t('catalogs.types.field_prefix')}
-                  inputProps={{ style: { textTransform: 'uppercase' }, maxLength: 5 }} placeholder="AAA"
-                  InputLabelProps={{ shrink: true }}
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            {recienCreado && <Alert severity="success">{t('asset_type_setup.created_help')}</Alert>}
+            {/* Lo que falta para registrar activos de este tipo, siempre a la vista. */}
+            <Alert severity={apto ? (revision.some((r) => r.level === 'warning') ? 'info' : 'success') : 'error'} icon={false}>
+              <Typography variant="subtitle2" gutterBottom>{apto ? t('asset_type_setup.ready') : t('asset_type_setup.not_ready')}</Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {revision.map((r) => {
+                  const Icono = ICONO[r.level];
+                  return <Chip key={r.key} size="small" variant="outlined" color={COLOR[r.level]} icon={<Icono />}
+                    label={t(`asset_type_setup.checks.${r.key}.${r.level}`, r.values ?? {})} />;
+                })}
+              </Stack>
+            </Alert>
+
+            <SectionCard title={t('asset_type_setup.step1')} subtitle={t('asset_type_setup.step1_help')}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' }, gap: 2 }}>
+                <TextField autoFocus fullWidth required label={t('catalogs.types.field_name')} placeholder={t('asset_type_setup.name_placeholder')}
+                  {...register('TAC_Nombre', { required: true, minLength: 2 })}/>
+                <TextField fullWidth required label={t('catalogs.types.field_prefix')} placeholder="LAP"
+                  slotProps={{ htmlInput: { style: { textTransform: 'uppercase' }, maxLength: 5 }, inputLabel: { shrink: true } }}
+                  helperText={t('asset_type_setup.prefix_help', { example: `${(prefijo || 'LAP').toUpperCase()}00001` })}
                   {...register('TAC_Prefijo', { required: true, minLength: 2, maxLength: 5, onChange: () => setPrefijoAMano(true) })}/>
-                <Typography variant="caption" color="text.secondary">{t('catalogs.types.prefix_help')}</Typography>
-              </Box>
-              <Controller name="TAC_Clase" control={control} render={({ field }) => (
-                <TextField select fullWidth label={t('asset_class.field')} value={field.value ?? ''}
-                  onChange={field.onChange}
-                  helperText={field.value ? t(`asset_class.help.${field.value}`) : t('asset_class.auto')}>
-                  <MenuItem value="">{t('asset_class.auto_option')}</MenuItem>
-                  {CLASES_ACTIVO.map((c) => <MenuItem key={c} value={c}>{t(`asset_class.names.${c}`)}</MenuItem>)}
+                <Controller name="TAC_Clase" control={control} render={({ field }) => (
+                  <TextField select fullWidth label={t('asset_class.field')} value={field.value ?? ''} onChange={field.onChange}
+                    helperText={field.value ? t(`asset_class.help.${field.value}`) : t('asset_class.auto')}>
+                    <MenuItem value="">{t('asset_class.auto_option')}</MenuItem>
+                    {CLASES_ACTIVO.map((c) => <MenuItem key={c} value={c}>{t(`asset_class.names.${c}`)}</MenuItem>)}
+                  </TextField>
+                )}/>
+                <TextField select fullWidth label={t('accounting.category')} value={categoria}
+                  onChange={(e) => setCategoria(e.target.value === '' ? '' : Number(e.target.value))}
+                  helperText={t('accounting.type_category_help')}>
+                  <MenuItem value="">{t('accounting.without_category')}</MenuItem>
+                  {categorias.filter((c) => c.active || c.id === categoria).map((c) => (
+                    <MenuItem key={c.id} value={c.id}>{`${c.country} · ${c.name}${c.method === 'NONE' ? '' : ` (${c.annual_rate} %)`}`}</MenuItem>
+                  ))}
                 </TextField>
-              )}/>
-              {clase === 'INSUMO' && <Alert severity="info">{t('asset_class.supply_notice')}</Alert>}
-              <TextField select fullWidth label={t('accounting.category')} value={categoria}
-                onChange={(e) => setCategoria(e.target.value === '' ? '' : Number(e.target.value))}
-                helperText={t('accounting.type_category_help')}>
-                <MenuItem value="">{t('accounting.without_category')}</MenuItem>
-                {categorias.filter((c) => c.active || c.id === categoria).map((c) => (
-                  <MenuItem key={c.id} value={c.id}>
-                    {`${c.country} · ${c.name}${c.method === 'NONE' ? '' : ` (${c.annual_rate} %)`}`}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Box>
-          </SectionCard>
-          {clase && CON_COMPONENTES.includes(clase) && (
-            <Box sx={{ mt: 2 }}><SectionCard title={t('asset_class.components_title')}>
-              <Autocomplete multiple options={[...candidatos, ...nuevosComponentes, ...desdeEspecificaciones]} value={[...candidatos, ...nuevosComponentes].filter((c) => componentes.includes(c.TAC_Tipo_Activo))}
-                getOptionLabel={(o) => (o.TAC_Tipo_Activo < 0 ? t('asset_class.components_create', { name: o.TAC_Nombre }) : o.TAC_Nombre)}
-                isOptionEqualToValue={(a, b) => a.TAC_Tipo_Activo === b.TAC_Tipo_Activo}
-                // Si lo escrito no existe, se ofrece crearlo como tipo de clase «Componente» sin salir del formulario.
-                filterOptions={(opciones, { inputValue }) => {
-                  const texto = inputValue.trim();
-                  const visibles = opciones.filter((o) => o.TAC_Nombre.toLowerCase().includes(texto.toLowerCase()));
-                  return texto.length >= 2 && !opciones.some((o) => o.TAC_Nombre.toLowerCase() === texto.toLowerCase())
-                    ? [...visibles, { TAC_Tipo_Activo: -1, TAC_Nombre: texto, TAC_Prefijo: null }] : visibles;
-                }}
-                onChange={(_, v) => {
-                  const crear = v.find((x) => x.TAC_Tipo_Activo < 0);
-                  if (crear) { void crearComponente(crear.TAC_Nombre); }
-                  setComponentes(v.filter((x) => x.TAC_Tipo_Activo > 0).map((x) => x.TAC_Tipo_Activo));
-                }}
-                renderTags={(v, getTagProps) => v.map((o, i) => <Chip {...getTagProps({ index: i })} key={o.TAC_Tipo_Activo} size="small" label={o.TAC_Nombre}/>)}
-                renderInput={(params) => <TextField {...params} label={t('asset_class.components_field')}
-                  helperText={t('asset_class.components_help')}/>}
-                noOptionsText={t('asset_class.components_none')}/>
-            </SectionCard></Box>
-          )}
+              </Box>
+              {clase === 'INSUMO' && <Alert severity="warning" sx={{ mt: 2 }}>{t('asset_class.supply_notice')}</Alert>}
+            </SectionCard>
+
+            {clase !== 'INSUMO' && (
+              <SectionCard title={t('asset_type_setup.step2')} subtitle={t('asset_type_setup.step2_help')}>
+                {!actual && specs.length === 0 && <Alert severity="info" sx={{ mb: 1.5 }}>{t('asset_type_setup.specs.template_note')}</Alert>}
+                {duplicadas.length > 0 && (
+                  <Alert severity="warning" sx={{ mb: 1.5 }} action={
+                    <Button color="inherit" size="small" onClick={() => quitarDuplicadas(duplicadas)}>{t('asset_type_setup.duplicated_fix')}</Button>}>
+                    {t('asset_type_setup.duplicated', { names: duplicadas.map(nombreSpec).join(', ') })}
+                  </Alert>
+                )}
+                <TypeSpecsEditor rows={specs} onChange={setSpecs} />
+              </SectionCard>
+            )}
+
+            {conComponentes && (
+              <SectionCard title={t('asset_type_setup.step3')} subtitle={t('asset_type_setup.step3_help')}>
+                <TypeComponentsEditor rows={componentes} onChange={cambiarComponentes} candidates={candidatos} suggestedNames={nombresSpecs}
+                  category={categoria === '' ? null : categoria} takenPrefixes={tipos.map((x) => x.TAC_Prefijo ?? '')} selfId={actual?.TAC_Tipo_Activo} />
+              </SectionCard>
+            )}
+          </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => onClose()} color="inherit">{t('common.cancel')}</Button>
-          <Button type="submit" variant="contained" disabled={loading}>
-            {loading ? <CircularProgress size={24}/> : t('common.save')}
+          <Button onClick={cerrar} color="inherit">{recienCreado ? t('common.close') : t('common.cancel')}</Button>
+          <Button type="submit" variant="contained" disabled={loading || !apto}>
+            {loading ? <CircularProgress size={24}/> : actual ? t('common.save') : t('asset_type_setup.create')}
           </Button>
         </DialogActions>
       </form>

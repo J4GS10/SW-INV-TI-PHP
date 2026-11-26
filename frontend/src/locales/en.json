@@ -756,7 +756,11 @@
             "message": "Device {{code}} (serial {{serial}}) is now in the inventory.",
             "assign": "Assign it to a person",
             "print_label": "Print QR label",
-            "another": "Register another one (same model)"
+            "another": "Register another one (same model)",
+            "components_title": "Internal components",
+            "components_help": "Register now what it has inside (memory, disk, battery…). Any required one you skip stays in your pending tasks.",
+            "components_later": "Anything missing stays in your pending tasks until registered.",
+            "finish_later": "Finish later"
         }
     },
     "catalogs": {
@@ -802,6 +806,7 @@
         "types": {
             "title": "Asset types",
             "new_btn": "New type",
+            "search_placeholder": "Search by name or prefix…",
             "new_title": "Create asset type",
             "field_name": "Name",
             "field_prefix": "Prefix",
@@ -1320,7 +1325,16 @@
             }
         },
         "logo_url_placeholder": "https://example.com/logo.png",
-        "logo_alt": "Company logo"
+        "logo_alt": "Company logo",
+        "public_url": {
+            "title": "System address",
+            "subtitle": "Label QR codes are built with this address: scanning them with a phone opens the device record.",
+            "label": "Public address (https)",
+            "help": "Use the network’s fixed name, for example https://lombardi.inventario.group: if the server IP changes, printed labels keep working. Empty: the server’s own address is used ({{server}}).",
+            "invalid": "Enter an https address with a name or an IP, without a path (for example https://lombardi.inventario.group).",
+            "example": "This is how a label QR looks: {{url}}",
+            "dns_note": "Before changing it, the network team must create the name in DNS pointing to the server’s fixed IP, and the server must answer that name. Labels printed afterwards will use the new address; those already printed keep the old one."
+        }
     },
     "attachments": {
         "uploaded": "File uploaded",
@@ -1462,6 +1476,7 @@
         "new_provider": "New supplier",
         "provider_name": "Name",
         "tax_id": "Tax ID (NIT/RFC)",
+        "tax_id_taken": "This tax ID is already registered for {{name}}",
         "contact": "Contact",
         "email": "Email",
         "phone": "Phone",
@@ -1870,6 +1885,7 @@
         "NEW_ASSET_CODE_ALREADY_EXISTS": "An asset with that internal code already exists.",
         "NEW_SERIAL_NUMBER_ALREADY_EXISTS": "An asset with that serial number already exists.",
         "ASSET_TYPE_ALREADY_EXISTS": "An asset type with that name already exists.",
+        "ASSET_TYPE_PREFIX_ALREADY_EXISTS": "Another asset type already uses that prefix: choose a different one (for example, add a number).",
         "ASSET_TYPE_HAS_NO_PREFIX_CONFIGURED_FOR_AUTO_GENERATION": "The asset type has no prefix configured. Enter the code manually or define a prefix.",
         "ASSET_ALREADY_ASSIGNED_USE_TRANSFER": "The asset is already assigned. Use a transfer to change the responsible person.",
         "ASSET_ALREADY_HAS_OPEN_MOVEMENT": "The asset already has an open movement.",
@@ -1963,6 +1979,7 @@
         "MAINTENANCE_TICKET_NOT_FOUND": "The maintenance ticket was not found.",
         "MAINTENANCE_TYPE_NOT_FOUND": "The maintenance type was not found.",
         "MODEL_NOT_FOUND": "The model was not found.",
+        "MODEL_NAME_REQUIRED": "Enter the model name.",
         "MOVEMENT_NOT_FOUND": "The movement does not exist.",
         "MOVEMENT_TYPE_NOT_FOUND": "The movement type was not found.",
         "NOTIFICATION_EVENT_NOT_FOUND": "The notification event was not found.",
@@ -2190,7 +2207,39 @@
         "PHOTO_NOT_FOUND": "This account has no profile photo.",
         "ACCOUNTING_CATEGORY_NOT_FOUND": "The accounting category does not exist or is inactive.",
         "ACCOUNTING_CATEGORY_CODE_EXISTS": "There is already a category with that code in that country.",
-        "ACCOUNTING_CATEGORY_RATE_REQUIRED": "Straight-line depreciation needs an annual rate above zero."
+        "ACCOUNTING_CATEGORY_RATE_REQUIRED": "Straight-line depreciation needs an annual rate above zero.",
+        "ACCOUNTING_CATEGORY_INVALID_RATE": "The depreciation rate must be between 0% and 100%.",
+        "ACCOUNTING_CATEGORY_INVALID_RESIDUAL": "The residual value is not valid: it must be zero or positive and lower than the cost.",
+        "CONNECTION_TYPE_ALREADY_EXISTS": "A connection type with that name already exists.",
+        "COUNTRY_ALREADY_EXISTS": "A country with that name already exists.",
+        "COUNTRY_ISO_ALREADY_EXISTS": "A country with that ISO code already exists.",
+        "LICENSE_TYPE_ALREADY_EXISTS": "A license type with that name already exists.",
+        "MAINTENANCE_TYPE_ALREADY_EXISTS": "A maintenance type with that name already exists.",
+        "MODEL_ALREADY_EXISTS": "A model with that name already exists for that brand.",
+        "OPERATIONAL_STATUS_ALREADY_EXISTS": "An operational status with that name already exists.",
+        "POSITION_ALREADY_EXISTS": "A position with that name already exists.",
+        "SOFTWARE_ALREADY_EXISTS": "That software is already registered (same name, version and vendor).",
+        "SPECIFICATION_TYPE_ALREADY_EXISTS": "A characteristic with that name already exists.",
+        "EMERGENCY_ONLY_FOR_SUPER_ADMIN": "Emergency access can only be used by the system administrator.",
+        "EMERGENCY_REASON_AND_OPERATOR_REQUIRED": "Enter the reason and who operates the emergency access.",
+        "GOODS_RECEIPT_INVALID_COST": "The cost must be a positive number.",
+        "GOODS_RECEIPT_INVALID_CURRENCY": "Choose a valid currency.",
+        "GOODS_RECEIPT_INVALID_DATE": "The receipt date is not valid or is in the future.",
+        "GOODS_RECEIPT_INVALID_QUANTITY": "The quantity must be a whole number greater than zero.",
+        "GOODS_RECEIPT_INVALID_WARRANTY": "The warranty must be a valid number of months.",
+        "GOODS_RECEIPT_LINE_NOT_A_LICENSE": "That receipt line is not a license.",
+        "GOODS_RECEIPT_LINE_NOT_FOUND": "That receipt line was not found; another user may have changed it.",
+        "GOODS_RECEIPT_LINE_REQUIRES_CLASSIFICATION": "Indicate what each line is (asset, license or consumable) before continuing.",
+        "GOODS_RECEIPT_LINE_REQUIRES_CONSUMABLE": "Choose the consumable the line belongs to.",
+        "GOODS_RECEIPT_LINE_REQUIRES_SOFTWARE": "Choose the software for the license.",
+        "INTERNAL_SERVER_ERROR": "An unexpected server error occurred. Try again; if it happens again, contact IT.",
+        "INVALID_JSON_BODY": "The request does not have a valid format.",
+        "INVALID_PARAMETER_VALUE": "Some data does not have a valid value. Check the form.",
+        "LICENSE_COMMERCIAL_MODEL_REQUIRED": "Choose the commercial model of the license (perpetual, subscription…).",
+        "LOGO_NOT_FOUND": "There is no saved logo.",
+        "OFFBOARDING_ACCOUNT_REQUIRES_IAM": "Deactivating the person’s account requires the identity administration role.",
+        "OPERATIONAL_STATE_NOT_FOUND": "The “In storage” status is missing from the configuration. Contact IT.",
+        "SSO_TENANT_NOT_ALLOWED": "That account belongs to an organization that does not have access."
     },
     "catalog": {
         "states": {
@@ -2339,6 +2388,107 @@
             "until": "Until {{date}}"
         }
     },
+    "asset_type_setup": {
+        "title_new": "New asset type",
+        "title_edit": "Set up “{{name}}”",
+        "create": "Create type",
+        "created_review": "“{{name}}” created. Review what it asks for and save.",
+        "created_help": "The type now exists. Below are the usual characteristics of its class: remove, add or mark as required the ones that apply, define its internal components and save.",
+        "ready": "Ready to register assets",
+        "not_ready": "Assets of this type cannot be registered yet",
+        "checks": {
+            "name": {
+                "ok": "Name",
+                "error": "Name is missing"
+            },
+            "prefix": {
+                "ok": "Automatic code",
+                "error": "Code prefix is missing"
+            },
+            "class": {
+                "ok": "Class set",
+                "warning": "Class: taken from the name",
+                "error": "It is a supply: goes to consumables"
+            },
+            "category": {
+                "ok": "Depreciates by its category",
+                "warning": "No accounting category: does not depreciate"
+            },
+            "specs": {
+                "ok": "{{count}} characteristics ({{required}} required)",
+                "warning": "Asks for no characteristics"
+            },
+            "components": {
+                "ok": "{{count}} components ({{required}} required)",
+                "warning": "No internal components defined"
+            }
+        },
+        "short": {
+            "name": "name",
+            "prefix": "prefix",
+            "class": "class",
+            "category": "accounting category",
+            "specs": "characteristics",
+            "components": "components"
+        },
+        "step1": "1. What is it?",
+        "step1_help": "Name, code and how it is used. The class decides whether it is assigned to a person or installed in an area, and whether it has software or components.",
+        "name_placeholder": "Laptop, Monitor, Printer…",
+        "prefix_help": "Each device gets an automatic code, for example {{example}}.",
+        "step2": "2. Device record details",
+        "step2_help": "What is entered about the whole device when it is registered: processor, screen size, operating system… Required ones must be filled in to save; with a list of values, you pick instead of typing.",
+        "step3": "3. Internal parts with a serial number",
+        "step3_help": "Parts registered separately because they get replaced or moved to another device (memory, disk, battery). Each part has its own code and details (capacity, type), so it is not repeated in step 2. Required ones are requested when each device is registered; if left for later, the device is marked as pending.",
+        "specs": {
+            "empty": "It does not ask for any characteristic yet.",
+            "template_note": "If you add none, the type gets the usual ones of its class when created (a laptop: processor, memory and disk) and you can review them.",
+            "unit": "In {{unit}}",
+            "required": "Required",
+            "values_placeholder": "Allowed values (optional): DDR4, DDR5…",
+            "values_of": "Allowed values of {{name}}",
+            "remove": "Remove",
+            "remove_of": "Remove {{name}}",
+            "add": "Add a characteristic",
+            "add_help": "Pick an existing one or type a new one (for example “RAM memory”).",
+            "create_option": "Create the characteristic “{{name}}”",
+            "new_title": "New characteristic: {{name}}",
+            "name": "Name",
+            "data_type": "What is typed",
+            "data_type_help": {
+                "TEXT": "Free text or from a list (DDR4, SSD…).",
+                "NUMBER": "A number, with its unit (16 GB).",
+                "BOOLEAN": "Yes or no (fingerprint reader?)."
+            },
+            "unit_field": "Unit",
+            "create": "Create and add",
+            "created": "Characteristic “{{name}}” created and added."
+        },
+        "components": {
+            "empty": "No internal components defined yet.",
+            "required": "Required when registering",
+            "required_short": "required, min. {{count}}",
+            "quantity": "Minimum",
+            "remove": "Remove",
+            "remove_of": "Remove {{name}}",
+            "add": "Add a component",
+            "add_help": "Pick a component type or type a new one (for example “Battery”): it is created with its code."
+        },
+        "col_specs": "Characteristics",
+        "col_components": "Components",
+        "col_status": "Status",
+        "count_specs_one": "{{count}} ({{required}} req.)",
+        "count_specs_other": "{{count}} ({{required}} req.)",
+        "count_components_one": "{{count}} ({{required}} req.)",
+        "count_components_other": "{{count}} ({{required}} req.)",
+        "no_components_class": "Not applicable",
+        "status_ready": "Ready",
+        "status_review_one": "Review {{count}} item",
+        "status_review_other": "Review {{count}} items",
+        "status_blocked": "Cannot register",
+        "duplicated": "{{names}} is already an internal part (step 3): it is recorded on the part, with its serial. It is redundant here and would be asked twice.",
+        "duplicated_fix": "Remove from here",
+        "moved_to_component": "{{names}} became an internal part: removed from the device details so it is not asked twice."
+    },
     "suggestions": {
         "hint": "Suggested: {{reason}}",
         "hint_value": "Suggested: {{value}} ({{reason}})",
@@ -2358,7 +2508,16 @@
             "movement_free": "the asset is available",
             "hostname_current": "the asset's current hostname",
             "type_model_assets": "type this model is usually registered with",
-            "type_model_catalog": "type defined in the model catalog"
+            "type_model_catalog": "type defined in the model catalog",
+            "email_name": "from the name and the {{domain}} domain",
+            "department_position": "usual department for this job title",
+            "unit_category": "usual unit in the category",
+            "minimum_category": "usual minimum in the category",
+            "sede_category": "usual warehouse for the category",
+            "currency_asset": "currency of the asset",
+            "maintenance_failure": "a failure is being reported",
+            "supplier_last_receipt": "last receipt from this supplier",
+            "destination_reason": "based on the reason"
         },
         "info": {
             "manager": "Manager: {{name}}",
@@ -2652,7 +2811,29 @@
         "damage_hint": "You indicated it arrived damaged: we suggest opening a maintenance ticket.",
         "next": "You can download the release form for the person to sign.",
         "open_ticket": "Open maintenance ticket",
-        "download_release": "Download release form"
+        "download_release": "Download release form",
+        "software": {
+            "title": "Software installed on the device",
+            "help": "The licenses you check are released: they go back to the license inventory, with their seat and key, to be used on another device. The ones you leave unchecked stay installed on the device and go with it to its next user.",
+            "since": "installed on {{date}}",
+            "all": "Check all",
+            "none": "Release none",
+            "summary_one": "{{count}} of {{total}} licenses will be released.",
+            "summary_other": "{{count}} of {{total}} licenses will be released.",
+            "summary_zero": "None will be released: the software stays with the device.",
+            "loading": "Checking the software installed on the device…",
+            "load_error": "The installed software could not be checked. Retry before returning, to decide which licenses are released.",
+            "batch_question_one": "{{count}} license is installed on these devices. What should we do with it?",
+            "batch_question_other": "{{count}} licenses are installed on these devices. What should we do with them?",
+            "batch_release": "Release them: they go back to the license inventory for other devices",
+            "batch_keep": "Keep them installed: they go with each device to its next user",
+            "done_released_one": "{{count}} license was released: it is now available for another device.",
+            "done_released_other": "{{count}} licenses were released: they are now available for other devices.",
+            "done_kept_one": "{{count}} license is still installed on the device.",
+            "done_kept_other": "{{count}} licenses are still installed on the device.",
+            "empty": "Software checked: this device has no licenses installed, there is nothing to release.",
+            "empty_batch": "Software checked: these devices have no licenses installed, there is nothing to release."
+        }
     },
     "decommission": {
         "lost_title": "Report loss or theft of {{code}}",
@@ -2713,7 +2894,24 @@
         "remember_defaults": "Remember these values in the model for the next identical part",
         "create_and_install": "Register and install",
         "created_installed": "Component registered and installed in {{code}}",
-        "serial_short": "S/N {{serial}}"
+        "serial_short": "S/N {{serial}}",
+        "serial_enter": "Enter registers and installs",
+        "count_one": "{{count}} installed component",
+        "count_other": "{{count}} installed components",
+        "create_and_another": "Register and add another one like it",
+        "next_ready": "Ready for the next piece: type its serial",
+        "history_all": "See the full history ({{count}})",
+        "history_less": "Show only recent",
+        "quick_reasons": {
+            "failure": "Failure",
+            "upgrade": "Upgrade",
+            "replacement": "Replacement",
+            "transfer": "Moved to another device"
+        },
+        "pending_title": "Required components missing",
+        "pending_help": "This device type requires registering these internal components. While they are missing, the device shows in your pending tasks.",
+        "pending_item_one": "{{name}}: {{count}} missing",
+        "pending_item_other": "{{name}}: {{count}} missing"
     },
     "attention": {
         "all_clear": "No urgent tasks.",
@@ -2754,6 +2952,11 @@
                 "title_one": "{{count}} asset to complete",
                 "title_other": "{{count}} assets to complete",
                 "hint": "The serial number or specifications are missing."
+            },
+            "COMPONENTES_POR_REGISTRAR": {
+                "title_one": "{{count}} device with components to register",
+                "title_other": "{{count}} devices with components to register",
+                "hint": "Its type requires internal components (memory, disk, battery…) that are not registered yet."
             },
             "INGRESO_POR_CONFIRMAR": {
                 "title_one": "{{count}} receipt to confirm",
@@ -3172,7 +3375,7 @@
         "catalogs": {
             "marcas": "Brands",
             "tipos-conexion": "Connection types",
-            "tipos-especificacion": "Specification types",
+            "tipos-especificacion": "Characteristics library",
             "unidades-medida": "Units of measure",
             "motivos-movimiento": "Movement reasons",
             "motivos-baja": "Disposal reasons",
@@ -3195,9 +3398,9 @@
             "ubicaciones": "Locations"
         },
         "hints": {
-            "tipos-activo": "The kinds of equipment in the inventory: Laptop, Monitor, Printer. Each one has its code prefix.",
+            "tipos-activo": "Start here. Each type (Laptop, Monitor, Printer) is set up on a single screen: its code, what is recorded for each device and which internal components it has, and which ones are required when registering it. The Status column says whether it is ready to register assets.",
             "especificaciones-tipo": "Which data each asset type asks for and which values it accepts. Example: Laptop asks for “RAM” and “RAM type”, and the latter only accepts DDR4, DDR5… What each model ships with is filled in under Models.",
-            "tipos-especificacion": "Each row is a single piece of data about an asset: “RAM” is the amount (number, in GB) and “RAM type” is the technology. DDR4 or DDR5 do not go here: they are allowed values of “RAM type”, set under Specifications by asset type.",
+            "tipos-especificacion": "The characteristics that types can ask for (RAM, Disk, Processor), with their data type and unit. They are usually created from the asset type; here you fix names or merge duplicates. Values such as DDR4 or DDR5 do not go here: they are chosen in the type, as an allowed list.",
             "unidades-medida": "What a numeric value is measured in: GB, inches, VA.",
             "tipos-conexion": "How a model connects: USB, HDMI, Bluetooth, Wi-Fi. Optional, chosen when creating the model, mostly useful for peripherals.",
             "modelos": "A specific product, such as Dell Latitude 5440. It does not repeat Specifications by type: the type says which data is asked for; the model keeps its factory values (16 GB, DDR5) and each asset keeps what it really has, for example after a memory upgrade.",
@@ -3270,12 +3473,12 @@
         "quantity": "Quantity",
         "kit_add_item": "Add equipment",
         "extras": {
-            "pide_detalle": "Requires written detail",
-            "MMO_Pide_Detalle": "Requires written detail",
-            "MBA_Pide_Detalle": "Requires a note",
-            "DBA_Pide_Detalle": "Requires a note",
-            "TFA_Pide_Detalle": "Requires a description",
-            "AMA_Pide_Detalle": "Requires written detail",
+            "pide_detalle": "When chosen, requires a written detail",
+            "MMO_Pide_Detalle": "When chosen, requires a written detail",
+            "MBA_Pide_Detalle": "When chosen, requires a written detail",
+            "DBA_Pide_Detalle": "When chosen, requires a written detail",
+            "TFA_Pide_Detalle": "When chosen, requires a written detail",
+            "AMA_Pide_Detalle": "When chosen, requires a written detail",
             "UME_Simbolo": "Symbol (GB, m, kg…)",
             "UME_Unidad": "Unit",
             "TES_Data_Type": "Data type",
@@ -3310,7 +3513,47 @@
             "INV_ADJUNTO__ADJ_Categoria": "Attachments"
         },
         "kit_license": "License",
-        "kit_add_license": "Add license"
+        "kit_add_license": "Add license",
+        "requested": {
+            "column": "What it asks for",
+            "nothing": "Asks for nothing",
+            "configure": "Configure",
+            "view": "View",
+            "title": "What “{{name}}” asks for when registering a license",
+            "help": "Turn on the data that must be typed when registering a license with this method. Optionally, rename how it appears on the form.",
+            "label": "Name on the form (optional)",
+            "label_help": "Empty: shown as “{{name}}”.",
+            "preview": "This is how the form will look",
+            "preview_none": "This method does not ask for any data.",
+            "usuario": {
+                "name": "User",
+                "help": "The account used to activate: user name or email."
+            },
+            "secreto": {
+                "name": "Password",
+                "help": "The password or secret of that account. Stored encrypted."
+            },
+            "serial": {
+                "name": "Serial number",
+                "help": "The serial given by the vendor."
+            },
+            "clave": {
+                "name": "Product key",
+                "help": "The product key (XXXXX-XXXXX-…). Stored encrypted and shown masked."
+            },
+            "servidor": {
+                "name": "License server",
+                "help": "The address of the server that hands out licenses (floating or network licenses)."
+            },
+            "archivo": {
+                "name": "License file",
+                "help": "A file that activates the software (.lic, .key…)."
+            },
+            "dispositivo": {
+                "name": "Device",
+                "help": "The physical key (USB dongle) that activates the software."
+            }
+        }
     },
     "catalog_items": {
         "motivos-movimiento": {
@@ -3961,5 +4204,28 @@
             "department": "No department",
             "site": "No site"
         }
+    },
+    "file_preview": {
+        "view": "View",
+        "view_of": "View {{name}}",
+        "loading": "Loading the file…",
+        "error": "The file could not be opened.",
+        "retry": "Retry",
+        "download": "Download",
+        "open_new_tab": "Open in a new tab",
+        "previous": "Previous file",
+        "next": "Next file",
+        "zoom_in": "Zoom in",
+        "zoom_out": "Zoom out",
+        "zoom_fit": "Fit to window",
+        "fit": "Fit",
+        "rotate": "Rotate",
+        "counter": "{{current}} of {{total}}",
+        "unavailable_title": "Preview not available",
+        "unavailable_body": "{{ext}} files cannot be shown in the browser. Download it to open it with its program.",
+        "this_type": "These",
+        "pdf_unavailable_title": "This browser does not show PDFs here",
+        "pdf_unavailable_body": "Open it in a new tab or download it to view it.",
+        "csv_truncated": "Showing the first {{count}} rows."
     }
 }

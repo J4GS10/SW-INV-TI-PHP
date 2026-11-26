@@ -139,6 +139,9 @@ export const goodsReceiptService = {
   list: async (pedido: PedidoPagina & { status?: GoodsReceiptStatus; q?: string }) =>
     (await client.get<Pagina<GoodsReceipt>>(BASE, { params: pedido })).data,
   get: async (id: number) => (await client.get<GoodsReceipt>(`${BASE}/${id}`)).data,
+  /** Moneda y sede del último ingreso de ese proveedor (null si no tiene). */
+  supplierContext: async (supplierId: number) =>
+    (await client.get<{ currency: string | null; site_id: number | null }>(`${BASE}/form-context/suppliers/${supplierId}`)).data,
   formContext: async () => (await client.get<{ site_id: number | null; received_date: string; supplier_id: number | null; currency: string }>(`${BASE}/form-context`)).data,
   // La llave evita un ingreso duplicado por doble clic o reintento de red.
   register: async (data: NewGoodsReceipt, idempotencyKey: string) =>

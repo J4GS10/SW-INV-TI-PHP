@@ -31,6 +31,8 @@ use Symfony\Component\Routing\Attribute\Route;
 final readonly class GobiernoController
 {
     private const string COLOR = '^#([0-9a-fA-F]{3}){1,2}$';
+    /** https://nombre.o.ip[:puerto], sin ruta ni barra final (la barra va escapada: el patrón usa «/» de delimitador). */
+    private const string URL_PUBLICA = '^https:\/\/[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?(:[0-9]{1,5})?$';
     private const int LOGO_MAX_BYTES = 2097152;
     public function __construct(
         private ConfiguracionGlobal $configuracion,
@@ -94,6 +96,8 @@ final readonly class GobiernoController
             'SYS_Idioma_Defecto' => $e->texto('SYS_Idioma_Defecto', max: 2, opcional: true),
             'SYS_Codigo_Formulario' => $e->texto('SYS_Codigo_Formulario', max: 50, opcional: true),
             'SYS_Ciudad' => $e->texto('SYS_Ciudad', max: 60, opcional: true),
+            // Dirección por la que se entra (QR de las etiquetas); un null explícito vuelve a la del servidor.
+            'SYS_URL_Publica' => null === ($url = $e->patron('SYS_URL_Publica', self::URL_PUBLICA, 255)) ? null : strtolower($url),
             // Porcentaje del tamaño base del logo (menú y acceso). Si viene es obligatorio: la columna no admite vacío.
             'SYS_Logo_Tamano' => $e->presente('SYS_Logo_Tamano')
                 ? $e->campo(Campo::entero('SYS_Logo_Tamano', requerido: true, minimo: 50, maximo: 250), true)[1] : null,

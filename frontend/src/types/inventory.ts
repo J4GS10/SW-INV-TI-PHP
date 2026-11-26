@@ -86,7 +86,12 @@ export interface ActivoCreate {
   ACT_Costo?: number;
   ACT_Moneda?: string;
 
-  MOD_Modelo: number;
+  /** Obligatorio salvo que venga `nuevo_modelo`. */
+  MOD_Modelo?: number;
+  /** Modelo que aún no existe: el servidor lo crea en la misma operación (o reutiliza el de igual nombre en esa marca). */
+  nuevo_modelo?: { MOD_Nombre: string; MAR_Marca: number };
+  /** Lo escrito queda como valor de fábrica del modelo donde aún no tenga uno. */
+  recordar_valores_fabrica?: boolean;
   TAC_Tipo_Activo: number;
   EOP_Estado_Operativo: number;
   SED_Sede?: number | null;

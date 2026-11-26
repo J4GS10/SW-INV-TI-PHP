@@ -132,12 +132,24 @@ final readonly class CatalogoTecnicoStore
         ));
     }
 
-    /** @param list<int> $componentes */
+    /**
+     * @return list<array{tipo: int, nombre: string, obligatorio: bool, cantidad: int}> lo que admite el tipo, con si es obligatorio y cuántos como mínimo
+     */
+    public function componentesDetalle(int $tipo): array
+    {
+        return array_map(static fn (array $f): array => ['tipo' => (int) $f['TAC_Componente'], 'nombre' => (string) $f['TAC_Nombre'],
+            'obligatorio' => 1 === (int) $f['TCP_Obligatorio'], 'cantidad' => (int) $f['TCP_Cantidad']], $this->conexion->fetchAllAssociative(
+                'SELECT c."TAC_Componente", t."TAC_Nombre", c."TCP_Obligatorio", c."TCP_Cantidad" FROM "INV_TIPO_COMPONENTE" c '
+                .'JOIN "INV_TIPO_ACTIVO" t ON t."TAC_Tipo_Activo" = c."TAC_Componente" WHERE c."TAC_Padre" = :p ORDER BY t."TAC_Nombre"', ['p' => $tipo]));
+    }
+
+    /** @param list<array{tipo: int, obligatorio: bool, cantidad: int}> $componentes */
     public function reemplazarComponentes(int $tipo, array $componentes): void
     {
         $this->conexion->executeStatement('DELETE FROM "INV_TIPO_COMPONENTE" WHERE "TAC_Padre" = :p', ['p' => $tipo]);
-        foreach ($componentes as $componente) {
-            $this->conexion->executeStatement('INSERT INTO "INV_TIPO_COMPONENTE" ("TAC_Padre", "TAC_Componente") VALUES (:p, :c)', ['p' => $tipo, 'c' => $componente]);
+        foreach ($componentes as $c) {
+            $this->conexion->executeStatement('INSERT INTO "INV_TIPO_COMPONENTE" ("TAC_Padre", "TAC_Componente", "TCP_Obligatorio", "TCP_Cantidad") VALUES (:p, :c, :o, :n)',
+                ['p' => $tipo, 'c' => $c['tipo'], 'o' => $c['obligatorio'] ? 1 : 0, 'n' => $c['cantidad']]);
         }
     }
 

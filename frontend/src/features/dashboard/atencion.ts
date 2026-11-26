@@ -12,6 +12,7 @@ export const DESTINO: Record<string, { ruta: string; activos?: boolean }> = {
   STOCK_BAJO: { ruta: '/consumibles' },
   INGRESO_POR_CONFIRMAR: { ruta: '/ingresos?estado=REGISTERED' },
   ACTIVO_POR_COMPLETAR: { ruta: '/ingresos/por-completar' },
+  COMPONENTES_POR_REGISTRAR: { ruta: '/activos', activos: true },
   TICKET_ANTIGUO: { ruta: '/mantenimiento' },
   GARANTIA_POR_VENCER: { ruta: '/compras/garantias', activos: true },
   LICENCIA_POR_VENCER: { ruta: '/software' },

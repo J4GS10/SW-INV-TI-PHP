@@ -44,6 +44,45 @@ final readonly class Instalaciones
         $filas = $this->conexion->fetchAllAssociative(
             'SELECT "INS_Instalacion", "LIC_Licencia", "ACT_Activo", "PER_Persona", "LCL_Licencia_Clave", "INS_Consume_Cupo" '
             .'FROM "INV_INSTALACION" WHERE ('.implode(' OR ', $condiciones).') AND "INS_Estado" = 1 ORDER BY "INS_Instalacion" FOR UPDATE', $p);
+
+        return $this->liberar($filas, $motivo);
+    }
+
+    /**
+     * Libera las instalaciones activas de un equipo que se eligieron (al devolverlo, quien opera decide cuáles).
+     * Devuelve null si alguna ya no está activa en ese equipo: otro usuario la retiró o no es de él.
+     *
+     * @param list<int> $ids INS_Instalacion
+     *
+     * @return list<array{licencia: int, activo: ?string, persona: ?string, clave: ?int}>|null
+     */
+    public function liberarDeActivo(string $activo, array $ids, ?string $motivo): ?array
+    {
+        $ids = array_values(array_unique($ids));
+        if ([] === $ids) {
+            return [];
+        }
+        $p = ['a' => $activo];
+        $nombres = [];
+        foreach ($ids as $i => $id) {
+            $nombres[] = ":i{$i}";
+            $p["i{$i}"] = $id;
+        }
+        $filas = $this->conexion->fetchAllAssociative(
+            'SELECT "INS_Instalacion", "LIC_Licencia", "ACT_Activo", "PER_Persona", "LCL_Licencia_Clave", "INS_Consume_Cupo" '
+            .'FROM "INV_INSTALACION" WHERE "ACT_Activo" = :a AND "INS_Instalacion" IN ('.implode(', ', $nombres).') AND "INS_Estado" = 1 '
+            .'ORDER BY "INS_Instalacion" FOR UPDATE', $p);
+
+        return \count($filas) === \count($ids) ? $this->liberar($filas, $motivo) : null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $filas bloqueadas con FOR UPDATE
+     *
+     * @return list<array{licencia: int, activo: ?string, persona: ?string, clave: ?int}>
+     */
+    private function liberar(array $filas, ?string $motivo): array
+    {
         if ([] === $filas) {
             return [];
         }

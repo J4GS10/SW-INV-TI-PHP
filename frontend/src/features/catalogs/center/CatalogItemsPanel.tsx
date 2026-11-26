@@ -21,6 +21,9 @@ import { usePermissions } from '../../../hooks/usePermissions';
 import { catalogItemLabel } from '../../../utils/catalogLabels';
 import { mergeAtomicValues } from '../../../utils/atomicValues';
 import { MergeDialog } from './MergeDialog';
+import { ExtrasDialog } from './ExtrasDialog';
+import { camposPedidos, columnasPedidas } from './camposPedidos';
+import TuneIcon from '@mui/icons-material/Tune';
 import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 import { withRowVersion } from '../../../api/rowVersion';
 
@@ -84,8 +87,13 @@ export const CatalogItemsPanel = ({ def }: Props) => {
   const [fusion, setFusion] = useState<CatalogoItem | null>(null);
   const [usoEspec, setUsoEspec] = useState<Map<number, { tipos: number; valores: string[] }>>(new Map());
   const clave = def.clave;
-  // Con varios campos propios la fila es ancha: descripción y fusionar se apilan para que todo se vea sin desplazar.
-  const ancha = def.extras.length > 1;
+  // Los datos que un registro pide (usuario, contraseña, serial…) se configuran en un diálogo propio, no en la fila.
+  const pedidas = useMemo(() => columnasPedidas(def), [def]);
+  const campos = useMemo(() => camposPedidos(def), [def]);
+  const visibles_extras = useMemo(() => def.extras.filter((e) => !pedidas.has(e.columna)), [def, pedidas]);
+  const [configurando, setConfigurando] = useState<CatalogoItem | null>(null);
+  // Con varios campos propios, o con la columna «Qué pide», la fila es ancha: descripción y fusionar se apilan para que todo quepa sin desplazar.
+  const ancha = visibles_extras.length > 1 || campos.length > 0;
   const porAgregar = useMemo(() => mergeAtomicValues([nuevo]), [nuevo]);
 
   const cargar = useCallback(async () => {
@@ -169,7 +177,7 @@ export const CatalogItemsPanel = ({ def }: Props) => {
 
   /** Extras of a row, in reading order. Unit and range only mean something for a number. */
   const extrasDe = (item: CatalogoItem): CatalogoExtraDef[] => {
-    if (clave !== SPEC_TYPES) return def.extras;
+    if (clave !== SPEC_TYPES) return visibles_extras;
     const esNumero = item.extras.TES_Data_Type === 'NUMBER';
     return SPEC_EXTRAS.flatMap((columna) => def.extras.filter((e) => e.columna === columna))
       .filter((e) => esNumero || e.columna === 'TES_Data_Type');
@@ -261,7 +269,8 @@ export const CatalogItemsPanel = ({ def }: Props) => {
     { key: 'drag', label: '', width: 32 },
     { key: 'name', label: t('catalog_center.name') },
     ...(def.tiene_descripcion && !ancha ? [{ key: 'desc', label: t('catalog_center.description') }] : []),
-    ...(def.extras.length ? [{ key: 'extras', label: t('catalog_center.options') }] : []),
+    ...(campos.length ? [{ key: 'requested', label: t('catalog_center.requested.column') }] : []),
+    ...(visibles_extras.length ? [{ key: 'extras', label: t('catalog_center.options') }] : []),
     { key: 'uso', label: t('catalog_center.in_use'), align: 'right' as const },
     { key: 'activo', label: t('catalog_center.active'), align: 'center' as const },
     ...(ancha ? [] : [{ key: 'actions', label: '', align: 'right' as const }]),
@@ -325,9 +334,25 @@ export const CatalogItemsPanel = ({ def }: Props) => {
               )}
             </TableCell>
             {def.tiene_descripcion && !ancha && <TableCell sx={{ minWidth: 110 }}>{descripcion(item)}</TableCell>}
-            {def.extras.length > 0 && (
-              <TableCell sx={{ minWidth: def.extras.length > 1 ? 400 : 170 }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: def.extras.length > 1 ? 'repeat(2, minmax(180px, 1fr))' : '1fr', gap: 1.5, py: 0.75, alignItems: 'end' }}>
+            {campos.length > 0 && (
+              <TableCell sx={{ minWidth: 220 }}>
+                {/* Qué pide este registro, en palabras («Usuario · Contraseña»), y el botón para cambiarlo. */}
+                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 0.5 }}>
+                  {campos.filter((c) => item.extras[c.pide] === true).map((c) => (
+                    <Chip key={c.clave} size="small" label={(c.etiqueta && (item.extras[c.etiqueta] as string)) || t(`catalog_center.requested.${c.clave}.name`, { defaultValue: c.clave })} />
+                  ))}
+                  {!campos.some((c) => item.extras[c.pide] === true) && (
+                    <Typography variant="caption" color="text.secondary">{t('catalog_center.requested.nothing')}</Typography>
+                  )}
+                </Stack>
+                <Button size="small" startIcon={<TuneIcon />} onClick={() => setConfigurando(item)}>
+                  {canAdminInventory ? t('catalog_center.requested.configure') : t('catalog_center.requested.view')}
+                </Button>
+              </TableCell>
+            )}
+            {visibles_extras.length > 0 && (
+              <TableCell sx={{ minWidth: visibles_extras.length > 1 ? 400 : 170 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: visibles_extras.length > 1 ? 'repeat(2, minmax(180px, 1fr))' : '1fr', gap: 1.5, py: 0.75, alignItems: 'end' }}>
                   {extrasDe(item).map((e) => <Box key={e.columna}>{extra(item, e)}</Box>)}
                 </Box>
               </TableCell>
@@ -348,6 +373,8 @@ export const CatalogItemsPanel = ({ def }: Props) => {
         {t('catalog_center.drag_hint')} {hayDuplicables && t('catalog_center.merge_hint')}
       </Typography>
 
+      <ExtrasDialog def={def} item={configurando} disabled={!canAdminInventory} onClose={() => setConfigurando(null)}
+        onSave={async (extras) => { if (configurando) await guardar(configurando, { extras }); }} />
       <MergeDialog
         open={!!fusion} clave={clave} origen={fusion} items={destinosDeFusion(fusion)}
         onClose={(hecho) => { setFusion(null); if (hecho) void cargar(); }}

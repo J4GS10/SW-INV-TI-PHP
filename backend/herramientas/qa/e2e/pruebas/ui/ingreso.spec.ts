@@ -6,6 +6,9 @@ import { test, expect } from '@playwright/test';
 import { iniciarSesionUi, sesionApi, sufijo } from '../soporte';
 import { tipoYModelo } from '../datos';
 
+/** PNG válido de 1×1 píxel: el servidor revisa el contenido del archivo, no solo su extensión. */
+const PNG_1X1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+
 test('Compras registra, TI confirma y el técnico completa', async ({ browser }) => {
   const jefe = await sesionApi('qa_jefe_ti');
   const nombreProveedor = `Proveedor E2E ${sufijo()}`;
@@ -32,6 +35,10 @@ test('Compras registra, TI confirma y el técnico completa', async ({ browser })
   await expect(compras.getByText('Número con hasta 2 decimales')).toBeVisible();
   await compras.getByRole('textbox', { name: 'Costo unitario' }).fill('1250.00');
   await compras.getByRole('textbox', { name: 'Cantidad' }).fill('1');
+  // La foto de la factura: el técnico verá que existe, pero no podrá abrirla (muestra precios).
+  const archivo = `factura-${sufijo()}.png`;
+  await compras.locator('input[type=file]').setInputFiles({ name: archivo, mimeType: 'image/png', buffer: PNG_1X1 });
+  await expect(compras.getByText(archivo)).toBeVisible();
   await expect(guardar).toBeEnabled();
   await guardar.click();
   await expect(compras).toHaveURL(/\/ingresos\/\d+$/);
@@ -53,6 +60,11 @@ test('Compras registra, TI confirma y el técnico completa', async ({ browser })
   await tecnico.goto(url);
   await expect(tecnico.getByText(producto)).toBeVisible();
   await expect(tecnico.getByText('1250.00')).toHaveCount(0);
+  // Lo que registró Compras se lee entero; el archivo se lista sin poder abrirlo.
+  await expect(tecnico.getByText(nombreProveedor).first()).toBeVisible();
+  await expect(tecnico.getByText(archivo)).toBeVisible();
+  await expect(tecnico.getByRole('button', { name: `Descargar ${archivo}` })).toHaveCount(0);
+  await expect(tecnico.getByText('Solo Compras, Administración de TI y Auditoría abren los archivos', { exact: false })).toBeVisible();
   await tecnico.getByLabel('Clasificar como').click();
   await tecnico.getByRole('option', { name: 'Activo' }).click();
   await tecnico.getByLabel('Tipo de activo').fill(cat.nombre);
@@ -74,6 +86,7 @@ test('Compras registra, TI confirma y el técnico completa', async ({ browser })
   // --- Compras recibe el acta ---
   await compras.goto(url);
   await expect(compras.getByRole('button', { name: 'Acta de recibido' })).toBeVisible();
+  await expect(compras.getByRole('button', { name: `Descargar ${archivo}` })).toBeVisible();
   const descarga = compras.waitForEvent('download');
   await compras.getByRole('button', { name: 'Acta de recibido' }).click();
   await expect(compras.getByText('En bodega, por completar').or(compras.getByText('Completo')).first()).toBeVisible();

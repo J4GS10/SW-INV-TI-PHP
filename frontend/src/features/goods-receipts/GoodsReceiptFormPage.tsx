@@ -60,6 +60,23 @@ export const GoodsReceiptFormPage = () => {
     }).catch(() => undefined);
   }, []);
 
+  // Al elegir proveedor: moneda y sede de su último ingreso, salvo que el usuario ya las haya cambiado.
+  const touched = useRef({ site: false, currency: false });
+  const [fromSupplier, setFromSupplier] = useState(false);
+  const applySupplierContext = async (supplier: number) => {
+    const context = await goodsReceiptService.supplierContext(supplier).catch(() => null);
+    let applied = false;
+    if (context?.currency && CURRENCIES.includes(context.currency) && !touched.current.currency) {
+      setCurrency(context.currency);
+      applied = true;
+    }
+    if (context?.site_id && !touched.current.site && sedes.some((s) => s.SED_Sede === context.site_id)) {
+      setSite(context.site_id);
+      applied = true;
+    }
+    setFromSupplier(applied);
+  };
+
   const createSupplier = async () => {
     try {
       const created = await procurementService.createProveedor({ PRV_Nombre: supplierText.trim() });
@@ -122,7 +139,7 @@ export const GoodsReceiptFormPage = () => {
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
             <Autocomplete sx={{ flex: 2 }} options={suppliers} value={suppliers.find((s) => s.PRV_Proveedor === supplierId) ?? null}
               getOptionLabel={(s) => s.PRV_Nombre} isOptionEqualToValue={(a, b) => a.PRV_Proveedor === b.PRV_Proveedor}
-              onChange={(_, s) => { setSupplierId(s?.PRV_Proveedor ?? null); setDocumentTaken(false); }}
+              onChange={(_, s) => { setSupplierId(s?.PRV_Proveedor ?? null); setDocumentTaken(false); if (s) void applySupplierContext(s.PRV_Proveedor); }}
               onInputChange={(_, text) => setSupplierText(text)}
               noOptionsText={supplierText.trim().length >= 2
                 ? <Button size="small" onMouseDown={(e) => e.preventDefault()} onClick={() => { void createSupplier(); }}>{t('goods_receipt.create_supplier', { name: supplierText.trim() })}</Button>
@@ -135,8 +152,9 @@ export const GoodsReceiptFormPage = () => {
               error={!!dateError} helperText={message(dateError)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: receiptRules.today() } }}/>
           </Stack>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mt: 2 }}>
-            <Box sx={{ flex: 1 }}><SedeField value={site} onChange={setSite} sedes={sedes ?? []} loading={loadingSedes}/></Box>
-            <TextField sx={{ flex: 1 }} select label={t('goods_receipt.currency')} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            <Box sx={{ flex: 1 }}><SedeField value={site} onChange={(value) => { touched.current.site = true; setSite(value); }} sedes={sedes ?? []} loading={loadingSedes}/></Box>
+            <TextField sx={{ flex: 1 }} select label={t('goods_receipt.currency')} value={currency} onChange={(e) => { touched.current.currency = true; setCurrency(e.target.value); }}
+              helperText={fromSupplier ? t('suggestions.hint', { reason: t('suggestions.reasons.supplier_last_receipt') }) : undefined}>
               {CURRENCIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
             </TextField>
             <Button sx={{ flex: 1 }} component="label" variant="outlined" startIcon={<UploadFileIcon />}>

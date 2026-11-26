@@ -54,6 +54,8 @@ final readonly class ComponentesDeActivo
                 'ACT_Codigo_Interno' => $c['ACT_Codigo_Interno'], 'ACT_Serie_Fabricante' => $c['ACT_Serie_Fabricante'],
                 'TAC_Tipo_Activo' => (int) $c['TAC_Tipo_Activo'], 'MOD_Modelo' => (int) $c['MOD_Modelo']] + $describir($c), $this->componentesDe($equipo)),
             'historial' => $this->kardex->historialDeComponentes($equipo),
+            // Lo que el tipo del equipo pide y aún no está instalado: se avisa hasta que se registre.
+            'pendientes' => $this->datos->componentesPendientes($equipo),
         ];
     }
 

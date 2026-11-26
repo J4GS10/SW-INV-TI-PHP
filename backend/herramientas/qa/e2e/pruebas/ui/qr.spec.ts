@@ -157,13 +157,18 @@ test('escáner: lector USB (código + Enter), código ajeno a la sede y modo lot
   await expect(page.getByText('2 equipos en la lista')).toBeVisible();
   // Los avisos de «agregado» tapan la barra del lote en Firefox: se espera a que se cierren antes del clic.
   await expect(page.locator('#notistack-snackbar')).toHaveCount(0, { timeout: 15_000 });
-  const descarga = page.waitForEvent('download', { timeout: 30_000 });
+  // Las etiquetas se abren en el visor (sin descargarse solas); el PDF se baja con su botón Descargar.
   await page.getByRole('button', { name: 'Etiquetas' }).click();
+  const visor = page.getByRole('dialog', { name: /\.pdf$/ });
+  await expect(visor).toBeVisible({ timeout: 30_000 });
+  const descarga = page.waitForEvent('download', { timeout: 30_000 });
+  await visor.getByRole('button', { name: 'Descargar' }).first().click();
   const pdf = await (await descarga).createReadStream();
   const trozos: Buffer[] = [];
   for await (const t of pdf) trozos.push(t as Buffer);
   const leidos = await leerQr((await pdfAPng(Buffer.concat(trozos), 200))[0]);
-  expect(leidos.sort()).toEqual([a1.ACT_Codigo_Interno, a2.ACT_Codigo_Interno].sort());
+  // Cada QR es la dirección de la ficha: la cámara de un teléfono la abre; el escáner toma de ella el código.
+  expect(leidos.sort()).toEqual([a1.ACT_Codigo_Interno, a2.ACT_Codigo_Interno].map((c) => `${URL_QA}/activos/${encodeURIComponent(c)}`).sort());
 });
 
 test('toma física desde la interfaz: lecturas por teclado y por cámara; resultados en Oracle y FALTANTE al cerrar', async ({ page, browserName }) => {

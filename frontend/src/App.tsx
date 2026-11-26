@@ -22,6 +22,7 @@ import { useAuth } from './context/auth-context';
 import { ConfigProvider } from './context/ConfigContext';
 import { useConfig } from './context/config-context';
 import { ConfirmProvider } from './components/ConfirmDialog';
+import { FilePreviewProvider } from './components/file-preview/FilePreviewDialog';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Sidebar } from './components/Sidebar';
 import { ProtectedRoute } from './router/ProtectedRoute';
@@ -124,6 +125,8 @@ const DashboardLayout = () => {
     const { t } = useTranslation();
     const { config } = useConfig();
     const { isAuthenticated, isLoading, restriction } = useAuth();
+    // Sin sesión se guarda lo pedido (p. ej. la ficha que abrió el QR) para volver ahí al entrar.
+    const pedido = useLocation();
     useEffect(() => { if (isAuthenticated) prefetchPages(); }, [isAuthenticated]);
     const theme = useTheme();
     const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
@@ -145,7 +148,7 @@ const DashboardLayout = () => {
     if (isLoading)
         return <PageFallback />;
     if (!isAuthenticated)
-        return <Navigate to="/login" replace/>;
+        return <Navigate to="/login" replace state={{ from: `${pedido.pathname}${pedido.search}${pedido.hash}` }}/>;
     // Paso de seguridad pendiente: pantalla completa en lugar del sistema.
     if (restriction)
         return <SecurityGate restriction={restriction}/>;
@@ -243,8 +246,10 @@ const ThemedApp = () => {
       <CssBaseline />
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={idioma === 'en' ? 'en' : idioma === 'it' ? 'it' : 'es'}
         localeText={(idioma === 'en' ? pickersEn : idioma === 'it' ? pickersIt : pickersEs).components.MuiLocalizationProvider.defaultProps.localeText}>
-      <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+      {/* Arriba al centro: abajo a la derecha tapaba los botones Guardar/Cancelar de los diálogos. */}
+      <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <ConfirmProvider>
+        <FilePreviewProvider>
         <AuthProvider>
           <PreferenciasProvider>
           <BrowserRouter>
@@ -346,6 +351,7 @@ const ThemedApp = () => {
           </BrowserRouter>
           </PreferenciasProvider>
         </AuthProvider>
+        </FilePreviewProvider>
         </ConfirmProvider>
       </SnackbarProvider>
     </LocalizationProvider>

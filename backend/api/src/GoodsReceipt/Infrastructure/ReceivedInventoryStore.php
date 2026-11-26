@@ -100,6 +100,12 @@ final readonly class ReceivedInventoryStore
         return $this->connection->fetchAssociative('SELECT GRC_PRV_SUPPLIER, GRC_CURRENCY FROM PUR_GOODS_RECEIPT WHERE GRC_USU_CREATED_BY = :u ORDER BY GRC_GOODS_RECEIPT DESC FETCH FIRST 1 ROWS ONLY', ['u' => $user]);
     }
 
+    /** @return array<string, mixed>|false GRC_CURRENCY and GRC_SED_SITE of the last receipt from that supplier (VPD limits it to the user's sites) */
+    public function lastReceiptFrom(int $supplier): array|false
+    {
+        return $this->connection->fetchAssociative("SELECT GRC_CURRENCY, GRC_SED_SITE FROM PUR_GOODS_RECEIPT WHERE GRC_PRV_SUPPLIER = :s AND GRC_STATUS <> 'CANCELLED' ORDER BY GRC_GOODS_RECEIPT DESC FETCH FIRST 1 ROWS ONLY", ['s' => $supplier]);
+    }
+
     public function supplierIsActive(int $supplier): bool
     {
         return false !== $this->connection->fetchOne('SELECT 1 FROM "INV_PROVEEDOR" WHERE "PRV_Proveedor" = :p AND "PRV_Activo" = 1', ['p' => $supplier]);

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { Alert, DialogTitle, DialogContent, DialogActions, Button, TextField, CircularProgress, Box, Autocomplete, Typography, MenuItem, Stack } from '@mui/material';
-import { downloadFile } from '../../api/downloadCsv';
 import { hoyLocal } from '../../utils/dates';
 import { ContextCaption, SectionCard, SuggestionHint } from '../../components/ui';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +14,7 @@ import { getApiErrorMessage } from '../../api/errors';
 // --- SERVICIOS ---
 // Mantenemos la estructura de producción: movementService es la autoridad
 import { movementService } from './movementService';
+import { normalizeLanguage } from '../../types/language';
 import { assetService } from '../assets/assetService';
 // Agregamos userService si fuera estrictamente necesario para tipos, 
 // pero usaremos el endpoint de movementService que ya funcionaba en prod.
@@ -30,6 +30,7 @@ import client from '../../api/axios';
 import { motivoAplica, pideDetalle } from '../../hooks/useCatalogo';
 import { Dialog } from '../../components/ui/Dialog';
 import { DateField } from '../../components/ui/DateField';
+import { useFilePreview } from '../../components/file-preview/file-preview-context';
 interface Props {
     open: boolean;
     onClose: (refresh?: boolean) => void;
@@ -70,6 +71,7 @@ export const AssignmentDialog = ({ open, onClose, activoInicial }: Props) => {
     // Fusionamos hooks: Production (control) + Implementation (watch/setValue)
     const { control, handleSubmit, reset, watch, setValue } = useForm<AssignmentFormData>({ mode: 'onChange' });
     const { enqueueSnackbar } = useSnackbar();
+    const { showBlob } = useFilePreview();
     // --- ESTADOS (Catalogos) ---
     const [activos, setActivos] = useState<Activo[]>([]);
     const [busquedaActivo, setBusquedaActivo] = useState('');
@@ -280,9 +282,7 @@ export const AssignmentDialog = ({ open, onClose, activoInicial }: Props) => {
     const descargarActa = async () => {
         if (!resultado) return;
         try {
-            await downloadFile(`/trazabilidad/acta/${resultado.mov.MOV_Movimiento}`, 'acta.pdf', {
-                formato: 'pdf', tipo: 'entrega', lang: i18n.language.split('-')[0],
-            });
+            showBlob(await movementService.downloadActa(resultado.mov.MOV_Movimiento, 'pdf', 'entrega', undefined, normalizeLanguage(i18n.resolvedLanguage ?? i18n.language)), 'acta.pdf');
         } catch (err) {
             enqueueSnackbar(getApiErrorMessage(err, t('common.error_generic')), { variant: 'error' });
         }
