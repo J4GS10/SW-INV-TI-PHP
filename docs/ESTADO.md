@@ -166,6 +166,10 @@ Fases 2 y 3, desplegadas el 2026-11-26 a las 21:50. Sin commit al cerrar esta no
 - 2026-11-26 21:59, ventana corrida por el usuario (respaldo `inventario_20261126_215925.dmp`, huella idéntica): `escaner.spec` 5/5 en verde y `qr.spec` 26 de 31.
   - Las 5 fallas eran de la prueba del lote: esperaba los QR con la dirección de pruebas, pero en producción ya hay una dirección pública configurada (`https://inventario.lombardi.group`) y los QR la usan, como corresponde. La prueba ahora comprueba `https://…/activos/<código>` con cualquier dirección.
   - Atención: esa dirección no coincide con el nombre que dio el usuario (`lombardi.inventario.group`, el que atiende el servidor), y ninguno de los dos existe todavía en el DNS. Las etiquetas que se impriman ahora no abren en el teléfono. Mientras no exista el DNS, conviene dejar vacía la Dirección del sistema.
+- 2026-11-26 22:20: el usuario fijó como formal `inventario.lombardi.group`, el que ya tenía guardado en Configuración.
+  - En `deploy/.env`, `DOMAIN` y `BACKEND_CORS_ORIGINS` cambiaron `lombardi.inventario.group` por `inventario.lombardi.group`, y se subió con `desplegar.sh subir`. El servidor ya responde con ese nombre: `curl --resolve` dio 200 en `/health` y en `/activos/…`, con el certificado de Caddy para ese nombre.
+  - `FRONTEND_BASE_URL` sigue en la IP hasta que exista el DNS.
+  - Los pasos para crear y validar el nombre están en MANUAL_OPERACION.md, «Nombre formal».
 
 ## Lo que queda pendiente
 

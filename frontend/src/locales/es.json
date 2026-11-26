@@ -1334,8 +1334,8 @@
             "title": "Dirección del sistema",
             "subtitle": "Con esta dirección se arman los QR de las etiquetas: al escanearlos con el teléfono se abre la ficha del equipo.",
             "label": "Dirección pública (https)",
-            "help": "Use el nombre fijo de la red, por ejemplo https://lombardi.inventario.group: si la IP del servidor cambia, las etiquetas impresas siguen sirviendo. Vacío: se usa la del servidor ({{server}}).",
-            "invalid": "Escriba una dirección https con un nombre o una IP, sin ruta (por ejemplo https://lombardi.inventario.group).",
+            "help": "Use el nombre fijo de la red, por ejemplo https://inventario.lombardi.group: si la IP del servidor cambia, las etiquetas impresas siguen sirviendo. Vacío: se usa la del servidor ({{server}}).",
+            "invalid": "Escriba una dirección https con un nombre o una IP, sin ruta (por ejemplo https://inventario.lombardi.group).",
             "example": "Así queda el QR de una etiqueta: {{url}}",
             "dns_note": "Antes de cambiarla, el área de redes debe crear el nombre en el DNS apuntando a la IP fija del servidor, y el servidor debe atender ese nombre. Las etiquetas que se impriman después usarán la dirección nueva; las ya impresas conservan la anterior."
         }

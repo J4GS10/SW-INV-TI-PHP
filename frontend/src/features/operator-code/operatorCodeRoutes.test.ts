@@ -10,7 +10,7 @@ describe('operatorActionFor', () => {
     expect(operatorActionFor('post', '/trazabilidad/entrega-lote')).toBe('handover_batch');
     expect(operatorActionFor('post', '/trazabilidad/devolucion-lote?lang=es')).toBe('return_batch');
     expect(operatorActionFor('post', '/mantenimiento/')).toBe('maintenance');
-    expect(operatorActionFor('post', 'https://lombardi.inventario.group/api/v1/trazabilidad/devolucion')).toBe('return');
+    expect(operatorActionFor('post', 'https://inventario.lombardi.group/api/v1/trazabilidad/devolucion')).toBe('return');
   });
 
   it('no pide código para lecturas ni para otras escrituras', () => {

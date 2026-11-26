@@ -79,3 +79,21 @@ El worker revisa cada 5 minutos respaldos, réplica, disco, correos y tomas. Un 
 - Dirección: `https://<IP del equipo>`. El navegador avisa del certificado mientras el equipo no tenga instalada la raíz de la CA privada de Caddy.
 - Si la IP cambia (por ejemplo, de cable a wifi), actualice `DOMAIN`, `BACKEND_CORS_ORIGINS`, `FRONTEND_BASE_URL` y `TLS_DEFAULT_SNI` en `deploy/.env`, y ejecute `bash herramientas/desplegar.sh subir`. `DOMAIN` y `BACKEND_CORS_ORIGINS` admiten varias direcciones.
 - El sistema funciona mientras este equipo y Docker estén encendidos.
+
+### Nombre formal: `inventario.lombardi.group`
+
+El nombre formal es `https://inventario.lombardi.group`. Con él se arman los QR de las etiquetas (*Configuración → Dirección del sistema*). El servidor ya lo atiende con su certificado (está en `DOMAIN` y `BACKEND_CORS_ORIGINS`); falta que la red lo conozca.
+
+1. **IP fija del servidor.** Reserve la IP del equipo en el DHCP, ligada a su MAC (Wi-Fi o cable, la tarjeta con la que va a quedar), para que no cambie.
+   - Servidor de Windows: consola *DHCP* → el ámbito → *Reservas* → *Nueva reserva*.
+   - Router: *DHCP* → *Reserva de dirección* o *IP estática*.
+2. **Registro DNS.** Cree un registro A con el nombre `inventario` en la zona `lombardi.group`, que apunte a esa IP.
+   - DNS de Windows Server (Active Directory): *Administrador de DNS* → *Zonas de búsqueda directa* → `lombardi.group` (si no existe, *Zona nueva*, principal e integrada en AD) → *Host nuevo (A o AAAA)*. Nombre: `inventario`, dirección: la IP reservada. Sin marcar «Crear registro PTR» si no hay zona inversa.
+   - Router con DNS local: *DNS local*, *DNS estático* o *Host local* → `inventario.lombardi.group` → la IP.
+   - Si `lombardi.group` es un dominio público de la empresa, el registro A también puede ir en su proveedor de DNS, aun con la IP privada: dentro de la oficina abre y desde afuera no lleva a nada.
+3. **Validarlo** desde un equipo de la red:
+   - `nslookup inventario.lombardi.group` (o, en PowerShell, `Resolve-DnsName inventario.lombardi.group`) debe responder la IP del servidor.
+   - En el navegador, `https://inventario.lombardi.group/health` debe responder `ok`.
+   - En el teléfono, conectado al mismo Wi-Fi, abrir `https://inventario.lombardi.group`; escanear el QR de una etiqueta nueva debe abrir la ficha.
+   - El aviso de certificado desaparece al instalar la raíz de la CA privada en cada equipo ([puesta en marcha](PUESTA_EN_MARCHA.md#6-certificado-con-la-ca-privada)).
+4. **Cuando valide:** en `deploy/.env` ponga `FRONTEND_BASE_URL=https://inventario.lombardi.group` y `TLS_DEFAULT_SNI=inventario.lombardi.group` (los enlaces de los correos y el regreso del inicio con Microsoft o Google) y ejecute `bash herramientas/desplegar.sh subir`. Reimprima las etiquetas una vez. Desde ahí, si la IP cambia, solo se actualiza el registro DNS.

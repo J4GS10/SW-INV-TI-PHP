@@ -30,7 +30,7 @@ final readonly class ConfiguracionGlobal
     }
 
     /**
-     * The address people reach the system by (https://lombardi.inventario.group): the one its administrator set or,
+     * The address people reach the system by (https://inventario.lombardi.group): the one its administrator set or,
      * if none, the server's own (FRONTEND_BASE_URL). Label QR codes are built from it.
      */
     public function urlPublica(): string

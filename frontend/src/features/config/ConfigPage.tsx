@@ -431,7 +431,7 @@ export const ConfigPage = () => {
                     {/* Dirección del sistema: con ella se arman los QR de las etiquetas. */}
                     <UiSectionCard icon={<LanguageIcon />} title={t('config.public_url.title')} subtitle={t('config.public_url.subtitle')}>
                         <Stack spacing={2}>
-                            <TextField fullWidth label={t('config.public_url.label')} placeholder="https://lombardi.inventario.group"
+                            <TextField fullWidth label={t('config.public_url.label')} placeholder="https://inventario.lombardi.group"
                                 {...register('SYS_URL_Publica', {
                                     validate: (v) => !(v ?? '').trim() || /^https:\/\/[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?\/*$/i.test((v ?? '').trim()) || t('config.public_url.invalid'),
                                 })}

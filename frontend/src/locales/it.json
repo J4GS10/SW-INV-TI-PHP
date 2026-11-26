@@ -1334,8 +1334,8 @@
             "title": "Indirizzo del sistema",
             "subtitle": "Con questo indirizzo si creano i QR delle etichette: scansionandoli con il telefono si apre la scheda del dispositivo.",
             "label": "Indirizzo pubblico (https)",
-            "help": "Usi il nome fisso della rete, per esempio https://lombardi.inventario.group: se l’IP del server cambia, le etichette stampate continuano a funzionare. Vuoto: si usa quello del server ({{server}}).",
-            "invalid": "Scriva un indirizzo https con un nome o un IP, senza percorso (per esempio https://lombardi.inventario.group).",
+            "help": "Usi il nome fisso della rete, per esempio https://inventario.lombardi.group: se l’IP del server cambia, le etichette stampate continuano a funzionare. Vuoto: si usa quello del server ({{server}}).",
+            "invalid": "Scriva un indirizzo https con un nome o un IP, senza percorso (per esempio https://inventario.lombardi.group).",
             "example": "Così appare il QR di un’etichetta: {{url}}",
             "dns_note": "Prima di cambiarlo, il team di rete deve creare il nome nel DNS puntando all’IP fisso del server, e il server deve rispondere a quel nome. Le etichette stampate dopo useranno il nuovo indirizzo; quelle già stampate mantengono il precedente."
         }

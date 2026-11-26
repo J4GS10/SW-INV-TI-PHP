@@ -1334,8 +1334,8 @@
             "title": "System address",
             "subtitle": "Label QR codes are built with this address: scanning them with a phone opens the device record.",
             "label": "Public address (https)",
-            "help": "Use the network’s fixed name, for example https://lombardi.inventario.group: if the server IP changes, printed labels keep working. Empty: the server’s own address is used ({{server}}).",
-            "invalid": "Enter an https address with a name or an IP, without a path (for example https://lombardi.inventario.group).",
+            "help": "Use the network’s fixed name, for example https://inventario.lombardi.group: if the server IP changes, printed labels keep working. Empty: the server’s own address is used ({{server}}).",
+            "invalid": "Enter an https address with a name or an IP, without a path (for example https://inventario.lombardi.group).",
             "example": "This is how a label QR looks: {{url}}",
             "dns_note": "Before changing it, the network team must create the name in DNS pointing to the server’s fixed IP, and the server must answer that name. Labels printed afterwards will use the new address; those already printed keep the old one."
         }
