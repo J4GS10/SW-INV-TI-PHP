@@ -163,6 +163,9 @@ Fases 2 y 3, desplegadas el 2026-11-26 a las 21:50. Sin commit al cerrar esta no
   - Ve la ficha completa (información, software, componentes e historial), sin costos.
   - Puede asignar, devolver, transferir y reportar una falla; la falla abre el diálogo de mantenimiento en la misma pantalla. Lo demás queda oculto.
 - Pruebas: tsc, eslint, vitest 83/83 (incluido el interceptor), PHPStan y unitarias en verde. La prueba de navegador `ui/escaner.spec.ts` (cuentas `qa_escaner` y `qa_tecnico_codigo`) quedó escrita, pero el clasificador del modo automático bloqueó la ventana e2e: la corre el usuario con `!`.
+- 2026-11-26 21:59, ventana corrida por el usuario (respaldo `inventario_20261126_215925.dmp`, huella idéntica): `escaner.spec` 5/5 en verde y `qr.spec` 26 de 31.
+  - Las 5 fallas eran de la prueba del lote: esperaba los QR con la dirección de pruebas, pero en producción ya hay una dirección pública configurada (`https://inventario.lombardi.group`) y los QR la usan, como corresponde. La prueba ahora comprueba `https://…/activos/<código>` con cualquier dirección.
+  - Atención: esa dirección no coincide con el nombre que dio el usuario (`lombardi.inventario.group`, el que atiende el servidor), y ninguno de los dos existe todavía en el DNS. Las etiquetas que se impriman ahora no abren en el teléfono. Mientras no exista el DNS, conviene dejar vacía la Dirección del sistema.
 
 ## Lo que queda pendiente
 

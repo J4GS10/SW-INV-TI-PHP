@@ -168,7 +168,9 @@ test('escáner: lector USB (código + Enter), código ajeno a la sede y modo lot
   for await (const t of pdf) trozos.push(t as Buffer);
   const leidos = await leerQr((await pdfAPng(Buffer.concat(trozos), 200))[0]);
   // Cada QR es la dirección de la ficha: la cámara de un teléfono la abre; el escáner toma de ella el código.
-  expect(leidos.sort()).toEqual([a1.ACT_Codigo_Interno, a2.ACT_Codigo_Interno].map((c) => `${URL_QA}/activos/${encodeURIComponent(c)}`).sort());
+  // La dirección es la que fijó el administrador del sistema (Configuración) o, si no hay, la del servidor.
+  const rutas = leidos.map((l) => { const u = new URL(l); expect(u.protocol).toBe('https:'); return decodeURIComponent(u.pathname); });
+  expect(rutas.sort()).toEqual([a1.ACT_Codigo_Interno, a2.ACT_Codigo_Interno].map((c) => `/activos/${c}`).sort());
 });
 
 test('toma física desde la interfaz: lecturas por teclado y por cámara; resultados en Oracle y FALTANTE al cerrar', async ({ page, browserName }) => {
