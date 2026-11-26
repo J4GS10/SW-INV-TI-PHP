@@ -1120,7 +1120,8 @@
             "TECNICO": "Técnico",
             "AUDITOR": "Auditor",
             "CONSULTA": "Solo consulta",
-            "COMPRAS": "Compras y Contabilidad"
+            "COMPRAS": "Compras y Contabilidad",
+            "ESCANER": "Escáner (teléfono o tableta)"
         },
         "messages": {
             "created_success": "Usuario creado correctamente",
@@ -2239,7 +2240,13 @@
         "LOGO_NOT_FOUND": "No hay un logo guardado.",
         "OFFBOARDING_ACCOUNT_REQUIRES_IAM": "Para desactivar la cuenta de la persona se necesita el rol de administración de identidades.",
         "OPERATIONAL_STATE_NOT_FOUND": "Falta el estado «En bodega» en la configuración. Avise a TI.",
-        "SSO_TENANT_NOT_ALLOWED": "Esa cuenta pertenece a una organización que no tiene acceso."
+        "SSO_TENANT_NOT_ALLOWED": "Esa cuenta pertenece a una organización que no tiene acceso.",
+        "OPERATOR_CODE_REQUIRED": "Para guardar este cambio, escriba su usuario y su código de operador.",
+        "OPERATOR_CODE_INVALID": "El usuario o el código de operador no son correctos.",
+        "OPERATOR_CODE_LOCKED": "El código de operador está bloqueado por varios intentos fallidos. Espere 15 minutos o pida al administrador que lo restablezca.",
+        "OPERATOR_CODE_FORMAT": "El código de operador son 6 dígitos.",
+        "OPERATOR_CODE_TOO_WEAK": "Ese código es muy fácil de adivinar (repetido o en secuencia). Elija otro.",
+        "OPERATOR_CODE_NOT_FOR_ROLE": "Su rol no usa código de operador."
     },
     "catalog": {
         "states": {

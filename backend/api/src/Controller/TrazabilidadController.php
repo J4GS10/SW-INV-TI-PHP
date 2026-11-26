@@ -15,6 +15,7 @@ use App\Http\Limite;
 use App\Inventario\Movimientos;
 use App\Inventario\OperacionesLote;
 use App\Seguridad\Autenticado;
+use App\Seguridad\ConCodigoOperador;
 use App\Seguridad\UsuarioActual;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -105,6 +106,7 @@ final readonly class TrazabilidadController
     /** Asigna (o presta) un activo. Admite `Idempotency-Key`. */
     #[Route('/movimientos', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
+    #[ConCodigoOperador]
     #[Limite('60/minute')]
     public function asignar(Request $request): JsonResponse
     {
@@ -124,6 +126,7 @@ final readonly class TrazabilidadController
 
     #[Route('/devolucion', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
+    #[ConCodigoOperador]
     #[Limite('60/minute')]
     public function devolver(Request $request): JsonResponse
     {
@@ -142,6 +145,7 @@ final readonly class TrazabilidadController
 
     #[Route('/transferencia', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
+    #[ConCodigoOperador]
     #[Limite('30/minute')]
     public function transferir(Request $request): JsonResponse
     {
@@ -224,6 +228,7 @@ final readonly class TrazabilidadController
 
     #[Route('/movimientos/revertir', methods: ['POST'], priority: 10)]
     #[Autenticado(roles: Roles::OPERATIVO)]
+    #[ConCodigoOperador]
     public function revertir(Request $request): JsonResponse
     {
         $e = Peticion::json($request);
@@ -237,6 +242,7 @@ final readonly class TrazabilidadController
 
     #[Route('/entrega-lote', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
+    #[ConCodigoOperador]
     #[Limite('20/minute')]
     public function entregaLote(Request $request): JsonResponse
     {
@@ -254,6 +260,7 @@ final readonly class TrazabilidadController
 
     #[Route('/devolucion-lote', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
+    #[ConCodigoOperador]
     #[Limite('20/minute')]
     public function devolucionLote(Request $request): JsonResponse
     {

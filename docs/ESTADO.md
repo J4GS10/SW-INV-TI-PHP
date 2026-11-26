@@ -115,6 +115,35 @@ Corte del 2026-11-25. Lo que sigue abierto a largo plazo está en [pendientes](P
   - PHPStan, 121 unitarias, tsc, eslint y vitest 75/75 en verde. `GobiernoTest::testDireccionPublicaParaLosQr` escrita, pendiente de ventana.
   - Ojo: con el Wi-Fi como red *Pública*, el firewall no deja entrar al teléfono (ver PENDIENTES.md), tampoco por el QR.
 
+## En curso: rol «Escáner» y código de operador (acordado el 2026-11-26)
+
+Decisiones del usuario:
+- Dispositivo: los dos usos. Una tableta o teléfono compartido de bodega con la cuenta «Escáner», y el teléfono propio de cada técnico con su cuenta. En ambos casos, antes de guardar un cambio se pide el código de operador.
+- El rol «Escáner» (ESCANER) ve una sola pantalla, pensada para el teléfono:
+  - Qué ve del equipo escaneado: datos, estado, componentes y sus detalles, software instalado, quién lo tiene asignado y el historial de todo eso.
+  - Qué puede hacer: asignar o entregar, devolver o liberar (con la pregunta del software), transferir y reportar una falla (ticket de mantenimiento).
+  - No ve costos, reportes, catálogos ni configuración, y respeta el alcance por sede.
+- Código de operador: lo tienen solo ADMIN_TI y TECNICO.
+  - Son 6 dígitos que cada uno define en su perfil. Se guardan con hash, nadie los ve y el administrador solo puede restablecerlos.
+  - No se aceptan códigos obvios y se bloquea tras 5 intentos fallidos.
+  - Solo vale dentro de una sesión abierta y si el rol del dueño permite la acción.
+- Registro: el kardex y la auditoría guardan quién autorizó (el dueño del código) y la cuenta desde la que se hizo.
+
+Fase 1, base de datos y backend: desplegada el 2026-11-26 a las 21:05 (migración `Version20261128000000`). Sin commit.
+- Rol `ESCANER` en `Roles` y en `CK_USUARIO_ROL_VALIDO`. Se suma a NEGOCIO, CON_ALCANCE, LECTURA_PERSONAS, LECTURA_SOFTWARE y SIN_COSTOS; no está en OPERATIVO, así que no escribe nada por sí mismo. La VPD lo trata como cualquier rol con alcance por sede.
+- Código de operador:
+  - Se guarda en `INV_USUARIO.USU_Codigo_Operador_Hash` (Argon2id), junto con `USU_Codigo_Operador_En`, `USU_Codigo_Intentos` y `USU_Codigo_Bloqueado_Hasta`.
+  - La regla está en `Dominio/CodigoOperador`: 6 dígitos, sin repetidos, secuencias ni códigos obvios. Solo pueden tenerlo ADMIN_TI y TECNICO.
+  - El servicio es `Seguridad/CodigosOperador`. Un usuario inexistente o un código incorrecto dan la misma respuesta, y 5 fallos bloquean el código 15 minutos; cada fallo queda auditado como OPERATOR_CODE_FAILED.
+- Rutas con `#[ConCodigoOperador]`: `POST /trazabilidad/movimientos`, `/devolucion`, `/transferencia`, `/movimientos/revertir`, `/entrega-lote`, `/devolucion-lote` y `POST /mantenimiento`.
+  - Si llegan las cabeceras `X-Operator-User` y `X-Operator-Code`, o si la cuenta es ESCANER, `AutenticacionListener` verifica el código. Luego la petición corre como el dueño del código (`Autenticador::actuarComo`: sus roles, sus sedes y el contexto VPD) y `Seguridad/Delegacion` guarda la cuenta de origen.
+  - ESCANER sin código recibe 403 `OPERATOR_CODE_REQUIRED`. Las demás cuentas operan igual que antes cuando no envían código.
+- Registro: el kardex guarda `USU_Usuario` del dueño del código y `KDX_Detalle.cuenta`; la auditoría guarda el dueño y `desde_cuenta`.
+- Rutas nuevas: `PUT /me/operator-code` (`{code, current_password}`, solo OPERATIVO), el estado del código en `GET /me` (`operator_code`) y `POST /org/usuarios/{id}/operator-code/reset` (solo SUPER_ADMIN).
+- Frontend: ESCANER se puede elegir al crear una cuenta, con su nombre traducido, y hay textos para los seis errores `OPERATOR_CODE_*`.
+- Pruebas: PHPStan sin errores, 133 unitarias (incluida `CodigoOperadorTest`), tsc, eslint y vitest 75/75. La prueba de integración `Integracion/CodigoOperadorTest` está escrita y espera ventana de producción.
+- Siguiente: fase 2, el código en el perfil y el restablecimiento en Usuarios.
+
 ## Lo que queda pendiente
 
 1. **Ingreso a bodega:** hecho, validado y subido. Queda una prueba de navegador que entre como técnico y compruebe que ve la lista de archivos sin poder abrirlos.

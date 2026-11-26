@@ -11,6 +11,7 @@ use App\Autenticacion\CierreDeSesion;
 use App\Autenticacion\Domain\DesafioSegundoFactor;
 use App\Autenticacion\Domain\SesionAbierta;
 use App\Dominio\Ident;
+use App\Dominio\Roles;
 use App\Http\ClienteHttp;
 use App\Http\CookiesSesion;
 use App\Validacion\ErrorValidacion;
@@ -19,6 +20,7 @@ use App\ProfilePhoto\Domain\ProfilePhoto;
 use App\ProfilePhoto\Infrastructure\ProfilePhotoRepository;
 use App\Repositorio\SesionRepositorio;
 use App\Seguridad\Autenticado;
+use App\Seguridad\CodigosOperador;
 use App\Seguridad\UsuarioActual;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -41,6 +43,7 @@ final readonly class LoginController
         private CookiesSesion $cookies,
         private SesionRepositorio $sesiones,
         private ProfilePhotoRepository $fotos,
+        private CodigosOperador $codigosOperador,
     ) {
     }
 
@@ -202,7 +205,27 @@ final readonly class LoginController
             'person_id' => Ident::aTexto($u->personaId),
             'scope' => ['global' => $u->esGlobal(), 'sedes' => $u->sedes],
             'foto_url' => ProfilePhoto::url('/api/v1/me/foto', $this->fotos->updatedAt($u->id)),
+            // Código de operador (TI y técnicos): si lo puede tener, si ya lo definió y si está bloqueado.
+            'operator_code' => $this->codigosOperador->estado($u),
         ]);
+    }
+
+    /**
+     * Define o cambia el código de operador propio (6 dígitos, no obvios). Con cuenta de contraseña se pide la
+     * actual: un token robado no basta para fijar un código y operar en nombre de otro.
+     */
+    #[Route('/me/operator-code', methods: ['PUT'])]
+    #[Autenticado(roles: Roles::OPERATIVO)]
+    #[Limite('5/minute')]
+    public function definirCodigoOperador(Request $request, UsuarioActual $actual): Response
+    {
+        $entrada = Peticion::json($request);
+        $codigo = $entrada->texto('code', min: 1, max: 12);
+        $contrasena = $entrada->texto('current_password', max: 128, opcional: true);
+        $entrada->validar();
+        $this->codigosOperador->definir($actual->usuario(), (string) $codigo, $contrasena, ClienteHttp::ip($request));
+
+        return new Response(null, 204);
     }
 
     /** Sesiones activas de la cuenta (la actual marcada con `actual`). */

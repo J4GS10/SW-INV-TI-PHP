@@ -7,6 +7,7 @@ namespace App\Repositorio;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Realtime\UpdatePublisher;
+use App\Seguridad\Delegacion;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\ParameterType;
@@ -14,7 +15,7 @@ use Doctrine\DBAL\ParameterType;
 /** Bitácora de auditoría y revocación de tokens. */
 final readonly class GobiernoRepositorio
 {
-    public function __construct(private Connection $conexion, private UpdatePublisher $tiempoReal)
+    public function __construct(private Connection $conexion, private UpdatePublisher $tiempoReal, private Delegacion $delegacion)
     {
     }
 
@@ -35,6 +36,11 @@ final readonly class GobiernoRepositorio
         ?int $sedeId = null,
     ): string {
         $id = Ident::nuevo();
+        // Autorizado con código de operador: queda a nombre del operador y con la cuenta desde la que se hizo.
+        $cuenta = $this->delegacion->cuenta();
+        if (null !== $cuenta) {
+            $snapshot = [...($snapshot ?? []), 'desde_cuenta' => $cuenta['username']];
+        }
         $this->conexion->executeStatement(
             'INSERT INTO "INV_AUDITORIA_SISTEMA" ("AUD_Auditoria", "AUD_Fecha_Hora", "AUD_Accion", '
             .'"AUD_Entidad_Afectada", "AUD_Snapshot_JSON", "AUD_IP_Origen", "AUD_User_Agent", "AUD_Sede", "USU_Usuario") '

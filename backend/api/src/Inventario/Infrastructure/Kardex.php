@@ -7,6 +7,7 @@ namespace App\Inventario\Infrastructure;
 use App\Dominio\Ident;
 use App\Dominio\Reloj;
 use App\Seguridad\Alcance;
+use App\Seguridad\Delegacion;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 
@@ -38,7 +39,7 @@ final readonly class Kardex
         .'k."KDX_Documento_Ref", k."KDX_Motivo", k."KDX_Detalle", k."USU_Usuario", k."SED_Sede", k."KDX_Migrado", '
         .'k."KDX_Secuencia", k."KDX_Hash"';
 
-    public function __construct(private Connection $conexion, private Alcance $alcance)
+    public function __construct(private Connection $conexion, private Alcance $alcance, private Delegacion $delegacion)
     {
     }
 
@@ -116,6 +117,11 @@ final readonly class Kardex
         $activoId ??= null === $activo ? null : (string) $activo['ACT_Activo'];
         $sedeEvento = $sede ?: ($destino['sede'] ?? null) ?: ($origen['sede'] ?? null)
             ?: (null === $activo || null === ($activo['SED_Sede'] ?? null) ? null : (int) $activo['SED_Sede']);
+        // Autorizado con código de operador: el evento queda a nombre del operador y dice desde qué cuenta se hizo.
+        $cuenta = $this->delegacion->cuenta();
+        if (null !== $cuenta) {
+            $detalle = [...($detalle ?? []), 'cuenta' => $cuenta['username']];
+        }
         $detalle = null === $detalle ? null : self::json($detalle);
         $motivo = null === $motivo || '' === $motivo ? null : mb_substr($motivo, 0, 500);
         $referencia = (null === $referencia || '' === $referencia ? null : $referencia) ?? self::referenciaActivo($activo);

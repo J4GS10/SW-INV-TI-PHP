@@ -1120,7 +1120,8 @@
             "TECNICO": "Tecnico",
             "AUDITOR": "Revisore",
             "CONSULTA": "Sola lettura",
-            "COMPRAS": "Acquisti e Contabilità"
+            "COMPRAS": "Acquisti e Contabilità",
+            "ESCANER": "Scanner (telefono o tablet)"
         },
         "messages": {
             "created_success": "Utente creato correttamente",
@@ -2239,7 +2240,13 @@
         "LOGO_NOT_FOUND": "Non è stato salvato alcun logo.",
         "OFFBOARDING_ACCOUNT_REQUIRES_IAM": "Per disattivare l'account della persona serve il ruolo di amministrazione delle identità.",
         "OPERATIONAL_STATE_NOT_FOUND": "Manca lo stato «In magazzino» nella configurazione. Avvisi l'IT.",
-        "SSO_TENANT_NOT_ALLOWED": "Quell'account appartiene a un'organizzazione senza accesso."
+        "SSO_TENANT_NOT_ALLOWED": "Quell'account appartiene a un'organizzazione senza accesso.",
+        "OPERATOR_CODE_REQUIRED": "Per salvare questa modifica, scriva il suo utente e il suo codice operatore.",
+        "OPERATOR_CODE_INVALID": "L'utente o il codice operatore non sono corretti.",
+        "OPERATOR_CODE_LOCKED": "Il codice operatore è bloccato per diversi tentativi falliti. Attenda 15 minuti o chieda all'amministratore di reimpostarlo.",
+        "OPERATOR_CODE_FORMAT": "Il codice operatore è di 6 cifre.",
+        "OPERATOR_CODE_TOO_WEAK": "Questo codice è troppo facile da indovinare (ripetuto o in sequenza). Ne scelga un altro.",
+        "OPERATOR_CODE_NOT_FOR_ROLE": "Il suo ruolo non usa il codice operatore."
     },
     "catalog": {
         "states": {

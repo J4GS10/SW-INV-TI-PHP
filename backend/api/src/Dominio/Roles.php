@@ -13,6 +13,7 @@ namespace App\Dominio;
  * - TECNICO / CONSULTA  operación y consulta del inventario.
  * - AUDITOR          solo lectura del inventario y la bitácora.
  * - COMPRAS          compras y contabilidad: proveedores, ingresos a bodega, valores y cierre; sin inventario operativo.
+ * - ESCANER          teléfono o tableta de escaneo: ve el equipo (sin costos); sus cambios los autoriza un técnico con su código.
  */
 final class Roles
 {
@@ -23,9 +24,14 @@ final class Roles
     public const string AUDITOR = 'AUDITOR';
     public const string CONSULTA = 'CONSULTA';
     public const string COMPRAS = 'COMPRAS';
+    /**
+     * La cuenta de un teléfono o tableta de escaneo: ve el equipo escaneado (sin costos) y no cambia nada por sí
+     * misma; cada cambio lo autoriza un técnico con su código de operador y queda a su nombre.
+     */
+    public const string ESCANER = 'ESCANER';
 
     public const array TODOS = [self::SUPER_ADMIN, self::ADMIN_SEGURIDAD, self::ADMIN_TI, self::TECNICO,
-        self::AUDITOR, self::CONSULTA, self::COMPRAS];
+        self::AUDITOR, self::CONSULTA, self::COMPRAS, self::ESCANER];
 
     public const array IAM = [self::SUPER_ADMIN, self::ADMIN_SEGURIDAD];
     public const array LECTORES_AUDITORIA = [self::SUPER_ADMIN, self::ADMIN_SEGURIDAD, self::AUDITOR];
@@ -33,13 +39,14 @@ final class Roles
     public const array SIEMPRE_GLOBALES = [self::SUPER_ADMIN, self::ADMIN_SEGURIDAD];
     /** Administran el sistema: la base les oculta los datos de negocio aunque tengan alcance global. */
     public const array SIN_DATOS_DE_NEGOCIO = [self::SUPER_ADMIN, self::ADMIN_SEGURIDAD];
-    public const array CON_ALCANCE = [self::ADMIN_TI, self::TECNICO, self::AUDITOR, self::CONSULTA, self::COMPRAS];
-    public const array NEGOCIO = [self::ADMIN_TI, self::TECNICO, self::AUDITOR, self::CONSULTA];
+    public const array CON_ALCANCE = [self::ADMIN_TI, self::TECNICO, self::AUDITOR, self::CONSULTA, self::COMPRAS, self::ESCANER];
+    public const array NEGOCIO = [self::ADMIN_TI, self::TECNICO, self::AUDITOR, self::CONSULTA, self::ESCANER];
     public const array APP = [...self::NEGOCIO, self::COMPRAS];
     public const array LECTURA_INVENTARIO = self::NEGOCIO;
     public const array LECTURA_EXISTENCIAS = self::NEGOCIO;
-    public const array LECTURA_PERSONAS = [self::ADMIN_TI, self::TECNICO, self::AUDITOR];
-    public const array LECTURA_SOFTWARE = [self::ADMIN_TI, self::TECNICO, self::AUDITOR];
+    /** El escáner ve quién tiene el equipo y a quién entregarlo, y qué software lleva instalado. */
+    public const array LECTURA_PERSONAS = [self::ADMIN_TI, self::TECNICO, self::AUDITOR, self::ESCANER];
+    public const array LECTURA_SOFTWARE = [self::ADMIN_TI, self::TECNICO, self::AUDITOR, self::ESCANER];
     public const array ESCRITURA_COMPRAS = [self::ADMIN_TI, self::COMPRAS];
     public const array LECTURA_COMPRAS = [...self::ESCRITURA_COMPRAS, self::AUDITOR];
     /** Qué archivos trae un ingreso (nombre, tipo, fecha): también el técnico que lo confirma. Abrirlos sigue en LECTURA_COMPRAS (la factura muestra precios). */
@@ -50,7 +57,7 @@ final class Roles
     public const array EXPORTACION = [self::ADMIN_TI, self::AUDITOR];
     public const array EXPORTACION_COMPRAS = self::EXPORTACION_FINANZAS;
     /** No reciben costos ni montos. */
-    public const array SIN_COSTOS = [self::TECNICO, self::CONSULTA];
+    public const array SIN_COSTOS = [self::TECNICO, self::CONSULTA, self::ESCANER];
     /** Valor contable (depreciación, valor en libros): quienes ven costos y llevan las finanzas. */
     public const array VALORACION = self::EXPORTACION_FINANZAS;
     /** Valor de un equipo concreto o de la estación de una persona: además del costo, datos de inventario y de personas. */

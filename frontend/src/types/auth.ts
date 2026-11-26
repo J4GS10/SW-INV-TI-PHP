@@ -1,5 +1,5 @@
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN_SEGURIDAD' | 'ADMIN_TI' | 'TECNICO' | 'AUDITOR' | 'CONSULTA'
-  | 'COMPRAS';
+  | 'COMPRAS' | 'ESCANER';
 
 /**
  * Paso de seguridad pendiente. Mientras exista, el backend responde 403 con este

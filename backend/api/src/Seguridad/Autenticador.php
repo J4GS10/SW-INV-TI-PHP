@@ -95,6 +95,16 @@ final readonly class Autenticador
         return $usuario;
     }
 
+    /**
+     * The rest of the request runs as `$operador` (who authorized it with their code): their role and sites in
+     * the application and in Oracle's VPD context, and their name in the kardex and the audit trail.
+     */
+    public function actuarComo(Usuario $operador): void
+    {
+        $this->actual->establecer($operador, $this->actual->payload());
+        $this->rls->fijarUsuario($operador->id);
+    }
+
     private function sesionCerrada(string $sid): bool
     {
         $clave = "auth:sid:{$sid}";

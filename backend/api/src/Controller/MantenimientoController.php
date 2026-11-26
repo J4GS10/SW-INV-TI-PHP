@@ -13,6 +13,7 @@ use App\Http\ClienteHttp;
 use App\Validacion\Entrada;
 use App\Inventario\Mantenimientos;
 use App\Seguridad\Autenticado;
+use App\Seguridad\ConCodigoOperador;
 use App\Seguridad\UsuarioActual;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -100,6 +101,7 @@ final readonly class MantenimientoController
     #[Route('/', methods: ['POST'])]
     #[Route('', methods: ['POST'])]
     #[Autenticado(roles: Roles::OPERATIVO)]
+    #[ConCodigoOperador]
     public function abrir(Request $request): JsonResponse
     {
         $e = Peticion::json($request);

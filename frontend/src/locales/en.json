@@ -1120,7 +1120,8 @@
             "TECNICO": "Technician",
             "AUDITOR": "Auditor",
             "CONSULTA": "Read-only",
-            "COMPRAS": "Purchasing and Accounting"
+            "COMPRAS": "Purchasing and Accounting",
+            "ESCANER": "Scanner (phone or tablet)"
         },
         "messages": {
             "created_success": "User created successfully",
@@ -2239,7 +2240,13 @@
         "LOGO_NOT_FOUND": "There is no saved logo.",
         "OFFBOARDING_ACCOUNT_REQUIRES_IAM": "Deactivating the person’s account requires the identity administration role.",
         "OPERATIONAL_STATE_NOT_FOUND": "The “In storage” status is missing from the configuration. Contact IT.",
-        "SSO_TENANT_NOT_ALLOWED": "That account belongs to an organization that does not have access."
+        "SSO_TENANT_NOT_ALLOWED": "That account belongs to an organization that does not have access.",
+        "OPERATOR_CODE_REQUIRED": "To save this change, enter your user and your operator code.",
+        "OPERATOR_CODE_INVALID": "The user or the operator code is not correct.",
+        "OPERATOR_CODE_LOCKED": "The operator code is locked after several failed attempts. Wait 15 minutes or ask the administrator to reset it.",
+        "OPERATOR_CODE_FORMAT": "The operator code is 6 digits.",
+        "OPERATOR_CODE_TOO_WEAK": "That code is too easy to guess (repeated or in sequence). Choose another one.",
+        "OPERATOR_CODE_NOT_FOR_ROLE": "Your role does not use an operator code."
     },
     "catalog": {
         "states": {

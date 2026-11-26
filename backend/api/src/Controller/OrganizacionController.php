@@ -18,6 +18,7 @@ use App\Organizacion\Entidades as E;
 use App\Organizacion\Identidades;
 use App\Organizacion\Infrastructure\Sugerencias;
 use App\Seguridad\Autenticado;
+use App\Seguridad\CodigosOperador;
 use App\Seguridad\UsuarioActual;
 use App\Organizacion\Infrastructure\OrganizacionStore;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -342,6 +343,16 @@ final readonly class OrganizacionController
         $this->identidades->restablecer2fa(Peticion::uuidDeRuta($r), $this->actual->usuario(), $this->auditor($r));
 
         return new JsonResponse(['status' => 'success', 'message' => '2FA_RESET']);
+    }
+
+    /** Borra el código de operador de la cuenta (olvidado o expuesto); su dueño define uno nuevo en su perfil. */
+    #[Route('/usuarios/{id}/operator-code/reset', methods: ['POST'])]
+    #[Autenticado(roles: [Roles::SUPER_ADMIN])]
+    public function restablecerCodigoOperador(Request $r, CodigosOperador $codigos): JsonResponse
+    {
+        $codigos->restablecer($this->actual->usuario(), Peticion::uuidDeRuta($r), ClienteHttp::ip($r));
+
+        return new JsonResponse(['status' => 'success', 'message' => 'OPERATOR_CODE_RESET']);
     }
 
     #[Route('/usuarios/{id}/unlock', methods: ['POST'])]

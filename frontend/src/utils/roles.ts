@@ -3,7 +3,7 @@ import type { UserRole } from '../types/auth';
 
 /** Orden de presentación de los roles (de mayor a menor privilegio). */
 export const ALL_ROLES: readonly UserRole[] = ['SUPER_ADMIN', 'ADMIN_SEGURIDAD', 'ADMIN_TI', 'TECNICO', 'AUDITOR', 'CONSULTA',
-  'COMPRAS'];
+  'COMPRAS', 'ESCANER'];
 
 /** Roles que administran identidades y accesos. */
 export const IAM_ROLES: UserRole[] = ['SUPER_ADMIN', 'ADMIN_SEGURIDAD'];
@@ -48,7 +48,7 @@ export const ACCOUNTING_DETAIL_ROLES: UserRole[] = ['ADMIN_TI', 'AUDITOR'];
 export const ACCOUNTING_CONFIG_ROLES: UserRole[] = PURCHASE_WRITE_ROLES;
 
 /** No ven costos ni montos (el servidor tampoco se los envía). Espejo de HIDE_COST_ROLES. */
-export const HIDE_COST_ROLES: UserRole[] = ['TECNICO', 'CONSULTA'];
+export const HIDE_COST_ROLES: UserRole[] = ['TECNICO', 'CONSULTA', 'ESCANER'];
 
 /** Operación diaria (altas, asignaciones, mantenimiento). Espejo de `require_operativo`. */
 export const OPERATOR_ROLES: UserRole[] = ['ADMIN_TI', 'TECNICO'];
