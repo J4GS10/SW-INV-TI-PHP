@@ -144,6 +144,26 @@ Fase 1, base de datos y backend: desplegada el 2026-11-26 a las 21:05 (migració
 - Pruebas: PHPStan sin errores, 133 unitarias (incluida `CodigoOperadorTest`), tsc, eslint y vitest 75/75. La prueba de integración `Integracion/CodigoOperadorTest` está escrita y espera ventana de producción.
 - Siguiente: fase 2, el código en el perfil y el restablecimiento en Usuarios.
 
+Ventana del 2026-11-26 a las 21:20 (huella idéntica):
+- `CodigoOperadorTest`, `GobiernoTest`, `RoleResponsibilitiesTest` y `TrazabilidadTest` en verde, salvo un intento fallido del código que daba 500 (ORA-00932: `CASE` con un TIMESTAMP enlazado).
+- Se separó en dos UPDATE y, al vencer el bloqueo, el contador vuelve a cero. Repetida, 15/15 en verde.
+- Commit `2f4af53`, sin push.
+
+Fases 2 y 3, desplegadas el 2026-11-26 a las 21:50. Sin commit al cerrar esta nota.
+- Perfil: «Código de operador» en Seguridad de la cuenta (`features/auth/security/OperatorCodeSection.tsx`). Solo TI y técnicos lo ven. Muestra su estado (definido, sin definir o bloqueado hasta) y el formulario (código, repetirlo y la contraseña actual). La regla del lado del cliente está en `utils/operatorCode.ts`, con pruebas.
+- Usuarios: la acción «Restablecer código de operador» (solo SUPER_ADMIN, y solo si la cuenta lo definió). La cuenta trae `codigo_operador_configurado`.
+- Interceptor `features/operator-code/OperatorCodeProvider.tsx`:
+  - Pide el código antes de enviar las 7 rutas con código (`operatorCodeRoutes.ts`, con pruebas) cuando la cuenta es ESCANER, o cuando una pantalla de escaneo está abierta (`useScannerMode`; también a TI y técnicos).
+  - Si la petición ya trae `X-Operator-Code` (reintento o refresco del token), no pide de nuevo.
+  - Cancelar devuelve `OPERATOR_CODE_CANCELLED`, sin reintento ni cierre de sesión.
+  - En la cuenta compartida recuerda el último usuario, nunca el código.
+- Escáner (ESCANER):
+  - Entra directo a `/scanner`; el menú solo muestra el escáner y `/activos` lo devuelve ahí.
+  - El QR (`/activos/<código>`) lo lleva a `/scanner?codigo=…` con el equipo abierto.
+  - Ve la ficha completa (información, software, componentes e historial), sin costos.
+  - Puede asignar, devolver, transferir y reportar una falla; la falla abre el diálogo de mantenimiento en la misma pantalla. Lo demás queda oculto.
+- Pruebas: tsc, eslint, vitest 83/83 (incluido el interceptor), PHPStan y unitarias en verde. La prueba de navegador `ui/escaner.spec.ts` (cuentas `qa_escaner` y `qa_tecnico_codigo`) quedó escrita, pero el clasificador del modo automático bloqueó la ventana e2e: la corre el usuario con `!`.
+
 ## Lo que queda pendiente
 
 1. **Ingreso a bodega:** hecho, validado y subido. Queda una prueba de navegador que entre como técnico y compruebe que ve la lista de archivos sin poder abrirlos.

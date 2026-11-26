@@ -135,6 +135,8 @@ final readonly class Identidades
             'bloqueo_admin_hasta' => $bloqueoAdmin ? $fecha($u['USU_Bloqueo_Admin_Hasta']) : null,
             'USU_Intentos_Fallidos' => (int) $u['USU_Intentos_Fallidos'],
             'USU_Password_Cambiada_En' => $fecha($u['USU_Password_Cambiada_En']),
+            // Solo si lo definió (TI y técnicos); el código nunca sale del servidor, ni su hash.
+            'codigo_operador_configurado' => null !== ($u['USU_Codigo_Operador_Hash'] ?? null),
             'mfa_requerido' => $this->mfaRequerido($rol, $sso),
             // Excepción temporal del MFA (solo si sigue vigente).
             'mfa_exento_hasta' => $exento ? $fecha($u['USU_MFA_Exento_Hasta']) : null,

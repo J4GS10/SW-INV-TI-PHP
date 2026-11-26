@@ -17,6 +17,9 @@ export const INVENTORY_ROLES: UserRole[] = ['ADMIN_TI', 'TECNICO', 'AUDITOR', 'C
 /** Cualquier rol de la aplicación salvo el de identidades. Espejo de APP_ROLES. */
 export const APP_ROLES: UserRole[] = [...INVENTORY_ROLES, 'COMPRAS'];
 
+/** La pantalla del escáner: los roles del inventario y la cuenta de escáner (teléfono o tableta). */
+export const SCANNER_ROLES: UserRole[] = [...INVENTORY_ROLES, 'ESCANER'];
+
 /** Activos, consumibles y tablero. Espejo de STOCK_READ_ROLES. */
 export const STOCK_ROLES: UserRole[] = INVENTORY_ROLES;
 
@@ -91,12 +94,16 @@ export function grantableRoles(requester: UserRole | undefined): UserRole[] {
 export function permissionsFor(role: UserRole | undefined) {
   return {
     canOperate: !!role && OPERATOR_ROLES.includes(role),
+    /** Cuenta de escáner: una sola pantalla; sus cambios los autoriza un técnico con su código. */
+    isScanner: role === 'ESCANER',
+    /** Asignar, devolver, transferir y reportar una falla: TI y técnicos, o el escáner con el código de uno de ellos. */
+    canOperateWithCode: !!role && (OPERATOR_ROLES.includes(role) || role === 'ESCANER'),
     canAdminInventory: !!role && INVENTORY_ADMIN_ROLES.includes(role),
     canExport: !!role && ['ADMIN_TI', 'AUDITOR'].includes(role),
     canExportFinance: !!role && FINANCE_EXPORT_ROLES.includes(role),
     canExportPurchases: !!role && (FINANCE_EXPORT_ROLES.includes(role) || role === 'COMPRAS'),
-    canSeeInventory: !!role && INVENTORY_ROLES.includes(role),
-    canSeePeople: !!role && INVENTORY_READER_ROLES.includes(role),
+    canSeeInventory: !!role && (INVENTORY_ROLES.includes(role) || role === 'ESCANER'),
+    canSeePeople: !!role && (INVENTORY_READER_ROLES.includes(role) || role === 'ESCANER'),
     canSeeCosts: !!role && !HIDE_COST_ROLES.includes(role),
     canSeeSoftware: !!role && SOFTWARE_PAGE_ROLES.includes(role),
     canPurchase: !!role && PURCHASE_WRITE_ROLES.includes(role),

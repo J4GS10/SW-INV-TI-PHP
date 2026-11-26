@@ -74,6 +74,8 @@ interface Props {
     onChanged?: () => void;
     /** Ficha como página (/activos/:codigo) en vez de diálogo (vista rápida). */
     asPage?: boolean;
+    /** Reportar una falla sin salir de la pantalla (el escáner abre su propio diálogo). */
+    onRepair?: () => void;
 }
 interface SoftwareItem {
     SOF_Software: number;
@@ -151,7 +153,7 @@ const statusChipColor = (name?: string): ChipProps['color'] => {
         return 'error';
     return 'default';
 };
-export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS, modelos: modelosProp = SIN_DATOS, tipos: tiposProp = SIN_DATOS, estados: estadosProp = SIN_DATOS, onClose, onChanged, asPage, }: Props) => {
+export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS, modelos: modelosProp = SIN_DATOS, tipos: tiposProp = SIN_DATOS, estados: estadosProp = SIN_DATOS, onClose, onChanged, asPage, onRepair, }: Props) => {
     const { t, i18n } = useTranslation();
     const motivoBaja = useCatalogLabel('motivos-baja');
     // Al equipo solo se asignan licencias por equipo, concurrentes o por sitio.
@@ -163,7 +165,7 @@ export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS,
     const navigate = useNavigate();
     // Contabilidad ve el activo y su valor, sin custodios ni historial; Consulta,
     // el inventario sin costos ni software. Lo que el rol no ve no se pide.
-    const { canOperate, canAdminInventory, canSeeCosts, canSeeInventory, canSeePeople, canReadControl, canSeeAssetValue } = usePermissions();
+    const { canOperate, canOperateWithCode, canAdminInventory, canSeeCosts, canSeeInventory, canSeePeople, canReadControl, canSeeAssetValue } = usePermissions();
     const [kardex, setKardex] = useState<KardexEvento[]>([]);
     // Baja solicitada y pendiente de aprobación: el equipo queda congelado.
     const [bajaPendiente, setBajaPendiente] = useState(false);
@@ -642,7 +644,7 @@ export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS,
     </>);
     const porCompletar = !!asset.pending_completion;
     const accionesYPestanas = (<>
-      {(canOperate || deBaja) && (<Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ px: 3, pb: 1.5 }}>
+      {(canOperateWithCode || deBaja) && (<Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ px: 3, pb: 1.5 }}>
           {bajaPendiente && (<Chip color="warning" label={t('assets.detail.decommission_pending')}/>)}
           {deBaja && !bajaPendiente && (<Chip color="error" label={t('assets.detail.decommissioned_info', {
                 reason: motivoBaja(asset.ACT_Baja_Motivo),
@@ -657,16 +659,16 @@ export const AssetDetailDialog = ({ open, asset, marcas: marcasProp = SIN_DATOS,
           {canOperate && porCompletar && (<Button size="small" variant="contained" startIcon={<EditIcon />} onClick={() => { onClose(); navigate('/ingresos/por-completar'); }}>
               {t('assets.actions.complete')}
             </Button>)}
-          {canOperate && !porCompletar && !compartido && reglas.uso !== 'INSUMO' && !deBaja && !esComponente && !custodia && estadoSlug !== 'en reparacion' && (<Button size="small" variant="contained" startIcon={<AssignmentIndIcon />} onClick={() => setDialogo('asignar')}>
+          {canOperateWithCode && !porCompletar && !compartido && reglas.uso !== 'INSUMO' && !deBaja && !esComponente && !custodia && estadoSlug !== 'en reparacion' && (<Button size="small" variant="contained" startIcon={<AssignmentIndIcon />} onClick={() => setDialogo('asignar')}>
               {t('assets.actions.assign')}
             </Button>)}
-          {canOperate && custodia && (<Button size="small" variant="contained" startIcon={<UndoIcon />} onClick={() => setDialogo('devolver')}>
+          {canOperateWithCode && custodia && (<Button size="small" variant="contained" startIcon={<UndoIcon />} onClick={() => setDialogo('devolver')}>
               {t('assets.actions.return')}
             </Button>)}
-          {canOperate && custodia && (<Button size="small" startIcon={<AssignmentIndIcon />} onClick={() => setDialogo('asignar')}>
+          {canOperateWithCode && custodia && (<Button size="small" startIcon={<AssignmentIndIcon />} onClick={() => setDialogo('asignar')}>
               {t('assets.actions.transfer')}
             </Button>)}
-          {canOperate && !porCompletar && !deBaja && estadoSlug !== 'en reparacion' && (<Button size="small" startIcon={<BuildIcon />} onClick={() => { onClose(); navigate(`/mantenimiento?nuevo=${asset.ACT_Activo}`); }}>
+          {canOperateWithCode && !porCompletar && !deBaja && estadoSlug !== 'en reparacion' && (<Button size="small" startIcon={<BuildIcon />} onClick={() => { if (onRepair) { onRepair(); return; } onClose(); navigate(`/mantenimiento?nuevo=${asset.ACT_Activo}`); }}>
               {t('assets.actions.maintenance')}
             </Button>)}
           {canSeeInventory && <Button size="small" startIcon={<PictureAsPdfIcon />} onClick={() => inventarioService.hojaDeVida(asset.ACT_Activo, normalizeLanguage(i18n.language)).catch((err) => enqueueSnackbar(getApiErrorMessage(err, t('common.error_generic')), { variant: 'error' }))}>

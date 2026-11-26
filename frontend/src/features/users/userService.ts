@@ -54,6 +54,11 @@ export const userService = {
     return response.data.temporary_password;
   },
 
+  /** Borra el código de operador (olvidado o expuesto); su dueño define uno nuevo en su perfil. */
+  resetOperatorCode: async (id: string): Promise<void> => {
+    await client.post(`/org/usuarios/${id}/operator-code/reset`);
+  },
+
   reset2fa: async (id: string): Promise<void> => {
     await client.post(`/org/usuarios/${id}/2fa/reset`);
   },

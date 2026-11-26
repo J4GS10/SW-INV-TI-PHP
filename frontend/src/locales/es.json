@@ -1216,7 +1216,10 @@
             "deactivate_confirm": "¿Desactivar la cuenta de {{name}}? No podrá iniciar sesión hasta que se reactive.",
             "deactivate_done": "Cuenta de {{name}} desactivada.",
             "activate": "Activar",
-            "activate_done": "Cuenta de {{name}} activada."
+            "activate_done": "Cuenta de {{name}} activada.",
+            "reset_operator_code": "Restablecer código de operador",
+            "reset_operator_code_confirm": "¿Borrar el código de operador de {{name}}? No podrá autorizar cambios en el escáner hasta definir uno nuevo en su perfil.",
+            "reset_operator_code_done": "Código de operador de {{name}} borrado."
         },
         "temp_password": {
             "title": "Contraseña temporal",
@@ -1831,7 +1834,8 @@
             "count_other": "{{count}} equipos en la lista",
             "clear": "Vaciar",
             "empty": "Escanee o escriba códigos para armar la lista."
-        }
+        },
+        "subtitle_scanner": "Escanee el QR de un equipo para ver quién lo tiene, su software y su historial. Cada cambio pide su código de operador."
     },
     "api_errors": {
         "VALIDATION_ERROR": "La solicitud no cumple las validaciones del sistema. Revise los datos ingresados.",
@@ -2246,7 +2250,8 @@
         "OPERATOR_CODE_LOCKED": "El código de operador está bloqueado por varios intentos fallidos. Espere 15 minutos o pida al administrador que lo restablezca.",
         "OPERATOR_CODE_FORMAT": "El código de operador son 6 dígitos.",
         "OPERATOR_CODE_TOO_WEAK": "Ese código es muy fácil de adivinar (repetido o en secuencia). Elija otro.",
-        "OPERATOR_CODE_NOT_FOR_ROLE": "Su rol no usa código de operador."
+        "OPERATOR_CODE_NOT_FOR_ROLE": "Su rol no usa código de operador.",
+        "OPERATOR_CODE_CANCELLED": "No se guardó: falta el código de operador."
     },
     "catalog": {
         "states": {
@@ -2393,6 +2398,23 @@
             "forget_all_confirm": "En todos los equipos se volverá a pedir el código de verificación. ¿Continuar?",
             "forgotten": "El código se volverá a pedir en ese equipo.",
             "until": "Hasta el {{date}}"
+        },
+        "operator_code": {
+            "title": "Código de operador",
+            "caption": "Los 6 dígitos que escribe en el escáner para autorizar un cambio: queda a su nombre aunque el teléfono sea de bodega.",
+            "set": "Definido",
+            "not_set": "Sin definir",
+            "locked_until": "Bloqueado hasta las {{time}}",
+            "define": "Definir",
+            "change": "Cambiar",
+            "new": "Código nuevo",
+            "repeat": "Repita el código",
+            "rules": "6 dígitos, sin repetir ni en secuencia (no 111111 ni 123456).",
+            "mismatch": "Los dos códigos no coinciden.",
+            "current_password": "Contraseña actual",
+            "current_password_help": "Para confirmar que es usted. Si entra con Microsoft o Google, déjela vacía.",
+            "save": "Guardar código",
+            "saved": "Código de operador guardado. Úselo en el escáner para autorizar cambios."
         }
     },
     "asset_type_setup": {
@@ -4234,5 +4256,21 @@
         "pdf_unavailable_title": "Este navegador no muestra PDF aquí",
         "pdf_unavailable_body": "Ábralo en una pestaña nueva o descárguelo para verlo.",
         "csv_truncated": "Se muestran las primeras {{count}} filas."
+    },
+    "operator_code": {
+        "title": "Autorice el cambio",
+        "user": "Su usuario",
+        "code": "Código de operador (6 dígitos)",
+        "authorize": "Autorizar",
+        "note": "El cambio queda registrado a su nombre, con este dispositivo.",
+        "actions": {
+            "assign": "Asignar el equipo",
+            "return": "Devolver el equipo a bodega",
+            "transfer": "Transferir el equipo a otra persona",
+            "undo": "Deshacer la entrega",
+            "handover_batch": "Entregar los equipos",
+            "return_batch": "Devolver los equipos a bodega",
+            "maintenance": "Reportar la falla del equipo"
+        }
     }
 }

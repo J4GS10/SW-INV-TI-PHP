@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '../../components/ui';
 import { useSnackbar } from 'notistack';
@@ -27,9 +27,15 @@ import { useQrCamera } from '../../hooks/useQrCamera';
 import { BotonFotoQr } from '../../components/BotonFotoQr';
 import { codigoDeQr } from '../../utils/lectorQr';
 import { useFilePreview } from '../../components/file-preview/file-preview-context';
+import { useScannerMode } from '../operator-code/operator-code-context';
+import { MaintenanceDialog } from '../maintenance/MaintenanceDialog';
 export const ScannerPage = () => {
     const { t, i18n } = useTranslation();
-    const { canOperate } = usePermissions();
+    const { canOperate, canOperateWithCode, isScanner } = usePermissions();
+    // En el escáner, todo cambio pide el código de operador de quien lo hace (también a TI y técnicos).
+    useScannerMode();
+    const [falla, setFalla] = useState(false);
+    const [params, setParams] = useSearchParams();
     const { abrirEntrega, abrirDevolucion, agregarReciente } = useWorkspace();
     // Modo lote: cada lectura se suma a una lista para operar todo junto.
     const [modoLote, setModoLote] = useState(() => {
@@ -87,6 +93,13 @@ export const ScannerPage = () => {
             setLoading(false);
         }
     }, [enqueueSnackbar, t, agregarReciente]);
+    // El QR abierto con la cámara del teléfono llega como /scanner?codigo=...: se busca al entrar.
+    const codigoInicial = params.get('codigo');
+    useEffect(() => {
+        if (!codigoInicial) return;
+        void resolveCode(codigoInicial);
+        setParams((p) => { p.delete('codigo'); return p; }, { replace: true });
+    }, [codigoInicial, resolveCode, setParams]);
     const { videoRef, estado: cameraState, iniciar: startCamera, detener: stopCamera, camaras, cambiarCamara, leerFoto } = useQrCamera(resolveCode);
     // Una foto es una lectura deliberada: se busca aunque repita el último código.
     const leerFotoDeNuevo = useCallback((archivo: Blob) => {
@@ -115,7 +128,7 @@ export const ScannerPage = () => {
     return (<Box>
       <PageHeader
         title={t('scanner.title')}
-        subtitle={t('scanner.subtitle')}
+        subtitle={isScanner ? t('scanner.subtitle_scanner') : t('scanner.subtitle')}
         actions={
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             {cameraState === 'active' ? (<Button startIcon={<StopCircleIcon />} variant="outlined" color="inherit" onClick={stopCamera}>
@@ -186,7 +199,7 @@ export const ScannerPage = () => {
                       onDelete={() => setLote((l) => l.filter((x) => x.ACT_Activo !== a.ACT_Activo))}/>)}
                   </Stack>
                 )}
-                {canOperate && lote.length > 0 && (<Stack spacing={1}>
+                {canOperateWithCode && lote.length > 0 && (<Stack spacing={1}>
                     <Button variant="contained" startIcon={<AssignmentIndIcon />} onClick={() => abrirEntrega({ activos: lote, onDone: limpiarLote })}>
                       {t('bulk.handover', { count: lote.length })}
                     </Button>
@@ -210,10 +223,10 @@ export const ScannerPage = () => {
                   {canOperate && asset.pending_completion && (<Button variant="contained" onClick={() => navigate('/ingresos/por-completar')}>
                     {t('assets.actions.complete')}
                   </Button>)}
-                  {canOperate && !asset.pending_completion && (<Button startIcon={<SwapHorizIcon />} variant="outlined" onClick={() => abrirEntrega({ activos: [asset] })}>
+                  {canOperateWithCode && !asset.pending_completion && (<Button startIcon={<SwapHorizIcon />} variant="outlined" onClick={() => abrirEntrega({ activos: [asset] })}>
                     {t('scanner.assign')}
                   </Button>)}
-                  {canOperate && !asset.pending_completion && (<Button startIcon={<BuildIcon />} variant="outlined" onClick={() => navigate(`/mantenimiento?nuevo=${asset.ACT_Activo}`)}>
+                  {canOperateWithCode && !asset.pending_completion && (<Button startIcon={<BuildIcon />} variant="outlined" onClick={() => setFalla(true)}>
                     {t('scanner.repair')}
                   </Button>)}
                 </Stack>
@@ -222,6 +235,7 @@ export const ScannerPage = () => {
         </Paper>
       </Stack>
 
-      <AssetDetailDialog open={detailOpen} asset={asset} onClose={() => setDetailOpen(false)}/>
+      <AssetDetailDialog open={detailOpen} asset={asset} onClose={() => setDetailOpen(false)} onRepair={() => { setDetailOpen(false); setFalla(true); }}/>
+      <MaintenanceDialog open={falla} activoInicialId={asset?.ACT_Activo ?? null} onClose={() => setFalla(false)}/>
     </Box>);
 };

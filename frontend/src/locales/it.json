@@ -1216,7 +1216,10 @@
             "deactivate_confirm": "Disattivare l'account di {{name}}? Non potrà accedere finché non verrà riattivato.",
             "deactivate_done": "Account di {{name}} disattivato.",
             "activate": "Attiva",
-            "activate_done": "Account di {{name}} attivato."
+            "activate_done": "Account di {{name}} attivato.",
+            "reset_operator_code": "Reimposta codice operatore",
+            "reset_operator_code_confirm": "Eliminare il codice operatore di {{name}}? Non potrà autorizzare modifiche nello scanner finché non ne imposterà uno nuovo nel suo profilo.",
+            "reset_operator_code_done": "Codice operatore di {{name}} eliminato."
         },
         "temp_password": {
             "title": "Password temporanea",
@@ -1831,7 +1834,8 @@
             "count_other": "{{count}} dispositivi nell'elenco",
             "clear": "Svuota",
             "empty": "Scansioni o digiti i codici per comporre l'elenco."
-        }
+        },
+        "subtitle_scanner": "Scansioni il QR di un dispositivo per vedere chi lo ha, il suo software e la sua cronologia. Ogni modifica chiede il suo codice operatore."
     },
     "api_errors": {
         "VALIDATION_ERROR": "La richiesta non ha superato le convalide del sistema. Controlli i dati inseriti.",
@@ -2246,7 +2250,8 @@
         "OPERATOR_CODE_LOCKED": "Il codice operatore è bloccato per diversi tentativi falliti. Attenda 15 minuti o chieda all'amministratore di reimpostarlo.",
         "OPERATOR_CODE_FORMAT": "Il codice operatore è di 6 cifre.",
         "OPERATOR_CODE_TOO_WEAK": "Questo codice è troppo facile da indovinare (ripetuto o in sequenza). Ne scelga un altro.",
-        "OPERATOR_CODE_NOT_FOR_ROLE": "Il suo ruolo non usa il codice operatore."
+        "OPERATOR_CODE_NOT_FOR_ROLE": "Il suo ruolo non usa il codice operatore.",
+        "OPERATOR_CODE_CANCELLED": "Non salvato: manca il codice operatore."
     },
     "catalog": {
         "states": {
@@ -2393,6 +2398,23 @@
             "forget_all_confirm": "Tutti i dispositivi chiederanno di nuovo il codice di verifica. Continuare?",
             "forgotten": "Quel dispositivo chiederà di nuovo il codice.",
             "until": "Fino al {{date}}"
+        },
+        "operator_code": {
+            "title": "Codice operatore",
+            "caption": "Le 6 cifre che scrive nello scanner per autorizzare una modifica: resta a suo nome anche su un telefono condiviso.",
+            "set": "Impostato",
+            "not_set": "Non impostato",
+            "locked_until": "Bloccato fino alle {{time}}",
+            "define": "Imposta",
+            "change": "Cambia",
+            "new": "Nuovo codice",
+            "repeat": "Ripeta il codice",
+            "rules": "6 cifre, non ripetute né in sequenza (non 111111 né 123456).",
+            "mismatch": "I due codici non coincidono.",
+            "current_password": "Password attuale",
+            "current_password_help": "Per confermare che è lei. Se accede con Microsoft o Google, la lasci vuota.",
+            "save": "Salva codice",
+            "saved": "Codice operatore salvato. Lo usi nello scanner per autorizzare le modifiche."
         }
     },
     "asset_type_setup": {
@@ -4234,5 +4256,21 @@
         "pdf_unavailable_title": "Questo browser non mostra i PDF qui",
         "pdf_unavailable_body": "Lo apra in una nuova scheda o lo scarichi per vederlo.",
         "csv_truncated": "Sono mostrate le prime {{count}} righe."
+    },
+    "operator_code": {
+        "title": "Autorizzi la modifica",
+        "user": "Il suo utente",
+        "code": "Codice operatore (6 cifre)",
+        "authorize": "Autorizza",
+        "note": "La modifica resta registrata a suo nome, con questo dispositivo.",
+        "actions": {
+            "assign": "Assegnare il dispositivo",
+            "return": "Restituire il dispositivo al magazzino",
+            "transfer": "Trasferire il dispositivo a un'altra persona",
+            "undo": "Annullare la consegna",
+            "handover_batch": "Consegnare i dispositivi",
+            "return_batch": "Restituire i dispositivi al magazzino",
+            "maintenance": "Segnalare il guasto del dispositivo"
+        }
     }
 }

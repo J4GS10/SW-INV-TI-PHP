@@ -21,6 +21,7 @@ import { MfaEnrollment } from './security/MfaEnrollment';
 import { PasswordField } from './security/PasswordField';
 import { RecoveryCodesPanel } from './security/RecoveryCodesPanel';
 import { SessionsList } from './security/SessionsList';
+import { OperatorCodeSection } from './security/OperatorCodeSection';
 import { scopeService } from '../../api/scopeService';
 import type { SesionActiva } from '../../types/users';
 import { Dialog } from '../../components/ui/Dialog';
@@ -262,6 +263,7 @@ export const AccountSecurityDialog = ({ open, onClose, onChangePassword }: Props
           </Button>
         )}
       />
+      <OperatorCodeSection />
       <Row
         icon={<DevicesOtherIcon />}
         primary={t('security.account.sessions')}

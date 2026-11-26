@@ -1216,7 +1216,10 @@
             "deactivate_confirm": "Deactivate {{name}}'s account? They will not be able to sign in until it is reactivated.",
             "deactivate_done": "{{name}}'s account was deactivated.",
             "activate": "Activate",
-            "activate_done": "{{name}}'s account was activated."
+            "activate_done": "{{name}}'s account was activated.",
+            "reset_operator_code": "Reset operator code",
+            "reset_operator_code_confirm": "Delete the operator code of {{name}}? They will not be able to authorize changes on the scanner until they set a new one in their profile.",
+            "reset_operator_code_done": "Operator code of {{name}} deleted."
         },
         "temp_password": {
             "title": "Temporary password",
@@ -1831,7 +1834,8 @@
             "count_other": "{{count}} items on the list",
             "clear": "Clear",
             "empty": "Scan or type codes to build the list."
-        }
+        },
+        "subtitle_scanner": "Scan a device QR to see who has it, its software and its history. Every change asks for your operator code."
     },
     "api_errors": {
         "VALIDATION_ERROR": "The request did not pass the system validations. Check the data you entered.",
@@ -2246,7 +2250,8 @@
         "OPERATOR_CODE_LOCKED": "The operator code is locked after several failed attempts. Wait 15 minutes or ask the administrator to reset it.",
         "OPERATOR_CODE_FORMAT": "The operator code is 6 digits.",
         "OPERATOR_CODE_TOO_WEAK": "That code is too easy to guess (repeated or in sequence). Choose another one.",
-        "OPERATOR_CODE_NOT_FOR_ROLE": "Your role does not use an operator code."
+        "OPERATOR_CODE_NOT_FOR_ROLE": "Your role does not use an operator code.",
+        "OPERATOR_CODE_CANCELLED": "Not saved: the operator code is missing."
     },
     "catalog": {
         "states": {
@@ -2393,6 +2398,23 @@
             "forget_all_confirm": "Every device will ask for the verification code again. Continue?",
             "forgotten": "That device will ask for the code again.",
             "until": "Until {{date}}"
+        },
+        "operator_code": {
+            "title": "Operator code",
+            "caption": "The 6 digits you type on the scanner to authorize a change: it is recorded under your name even on a shared phone.",
+            "set": "Set",
+            "not_set": "Not set",
+            "locked_until": "Locked until {{time}}",
+            "define": "Set up",
+            "change": "Change",
+            "new": "New code",
+            "repeat": "Repeat the code",
+            "rules": "6 digits, not repeated or in sequence (not 111111 or 123456).",
+            "mismatch": "The two codes do not match.",
+            "current_password": "Current password",
+            "current_password_help": "To confirm it is you. If you sign in with Microsoft or Google, leave it empty.",
+            "save": "Save code",
+            "saved": "Operator code saved. Use it on the scanner to authorize changes."
         }
     },
     "asset_type_setup": {
@@ -4234,5 +4256,21 @@
         "pdf_unavailable_title": "This browser does not show PDFs here",
         "pdf_unavailable_body": "Open it in a new tab or download it to view it.",
         "csv_truncated": "Showing the first {{count}} rows."
+    },
+    "operator_code": {
+        "title": "Authorize the change",
+        "user": "Your user",
+        "code": "Operator code (6 digits)",
+        "authorize": "Authorize",
+        "note": "The change is recorded under your name, with this device.",
+        "actions": {
+            "assign": "Assign the device",
+            "return": "Return the device to storage",
+            "transfer": "Transfer the device to another person",
+            "undo": "Undo the handover",
+            "handover_batch": "Hand over the devices",
+            "return_batch": "Return the devices to storage",
+            "maintenance": "Report the device failure"
+        }
     }
 }

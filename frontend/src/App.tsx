@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useParams } from 'react-router-dom';
 import { ThemeProvider, CssBaseline, Box, Toolbar, CircularProgress, IconButton, AppBar, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { SnackbarProvider } from 'notistack';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -23,6 +23,7 @@ import { ConfigProvider } from './context/ConfigContext';
 import { useConfig } from './context/config-context';
 import { ConfirmProvider } from './components/ConfirmDialog';
 import { FilePreviewProvider } from './components/file-preview/FilePreviewDialog';
+import { OperatorCodeProvider } from './features/operator-code/OperatorCodeProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Sidebar } from './components/Sidebar';
 import { ProtectedRoute } from './router/ProtectedRoute';
@@ -33,7 +34,7 @@ import { TaskHomePage } from './features/dashboard/TaskHomePage';
 import { useWorkspace } from './context/workspace-context';
 import {
     ADMIN_READER_ROLES, AUDIT_READER_ROLES, IAM_ROLES, INVENTORY_ADMIN_ROLES, INVENTORY_ROLES, PURCHASE_READ_ROLES,
-    SOFTWARE_PAGE_ROLES, STOCK_ROLES, FINANCE_EXPORT_ROLES, WARRANTY_ROLES, DIRECTORY_ROLES, GOODS_RECEIPT_ROLES, OPERATOR_ROLES, PURCHASE_WRITE_ROLES,
+    SCANNER_ROLES, SOFTWARE_PAGE_ROLES, STOCK_ROLES, FINANCE_EXPORT_ROLES, WARRANTY_ROLES, DIRECTORY_ROLES, GOODS_RECEIPT_ROLES, OPERATOR_ROLES, PURCHASE_WRITE_ROLES,
 } from './utils/roles';
 // Páginas: cada una en su fragmento. Con la sesión abierta se descargan todas en segundo plano,
 // así abrir cualquier pantalla no espera la red.
@@ -212,12 +213,23 @@ const LayoutShell = ({ isDesktop, collapsed, onToggleCollapse, mobileOpen, setMo
       </Box>
     </Box>);
 };
+// El QR de una etiqueta abre /activos/<código>: la cuenta de escáner lo ve en su pantalla, con el equipo buscado.
+const AssetLinkGate = () => {
+    const { user } = useAuth();
+    const { codigo } = useParams<{ codigo?: string }>();
+    if (user?.role === 'ESCANER')
+        return <Navigate to={`/scanner?codigo=${encodeURIComponent(codigo ?? '')}`} replace/>;
+    return <ProtectedRoute allowedRoles={STOCK_ROLES}/>;
+};
 // El tablero es de inventario: el administrador de seguridad entra a Usuarios y accesos.
 const HomeRoute = () => {
     const { user } = useAuth();
     // Administran el sistema: no ven datos de negocio.
     if (user?.role === 'ADMIN_SEGURIDAD' || user?.role === 'SUPER_ADMIN')
         return <Navigate to="/usuarios" replace/>;
+    // La cuenta de escáner trabaja en una sola pantalla.
+    if (user?.role === 'ESCANER')
+        return <Navigate to="/scanner" replace/>;
     return <Navigate to="/inicio" replace/>;
 };
 // Wrapper que consume el ConfigContext y monta el ThemeProvider con los colores
@@ -252,6 +264,7 @@ const ThemedApp = () => {
         <FilePreviewProvider>
         <AuthProvider>
           <PreferenciasProvider>
+          <OperatorCodeProvider>
           <BrowserRouter>
             <Suspense fallback={<PageFallback />}>
               <Routes>
@@ -263,17 +276,23 @@ const ThemedApp = () => {
                   <Route path="/" element={<HomeRoute />}/>
                   <Route path="/inicio" element={<TaskHomePage />}/>
 
+                  <Route path="/activos/:codigo" element={<AssetLinkGate />}>
+                    <Route index element={<AssetsPage />}/>
+                  </Route>
+                  {/* El escáner: inventario y la cuenta de escáner (sus cambios piden el código de un técnico). */}
+                  <Route element={<ProtectedRoute allowedRoles={SCANNER_ROLES}/>}>
+                    <Route path="/scanner" element={<ScannerPage />}/>
+                  </Route>
+
                   {/* Activos y consumibles: solo los roles del inventario. */}
                   <Route element={<ProtectedRoute allowedRoles={STOCK_ROLES}/>}>
                     <Route path="/panel" element={<DashboardPage />}/>
                     <Route path="/activos" element={<AssetsPage />}/>
-                    <Route path="/activos/:codigo" element={<AssetsPage />}/>
                     <Route path="/consumibles" element={<ConsumablesPage />}/>
                   </Route>
 
                   {/* Operación del inventario: operadores, auditor y Consulta (las acciones se ocultan por rol). */}
                   <Route element={<ProtectedRoute allowedRoles={INVENTORY_ROLES}/>}>
-                    <Route path="/scanner" element={<ScannerPage />}/>
                     <Route path="/operaciones/guia" element={<Navigate to="/operaciones/movimientos" replace/>}/>
                     <Route path="/operaciones/flujo" element={<Navigate to="/operaciones/movimientos" replace/>}/>
                     <Route path="/operaciones/movimientos" element={<MovementsPage />}/>
@@ -349,6 +368,7 @@ const ThemedApp = () => {
               </Routes>
             </Suspense>
           </BrowserRouter>
+          </OperatorCodeProvider>
           </PreferenciasProvider>
         </AuthProvider>
         </FilePreviewProvider>

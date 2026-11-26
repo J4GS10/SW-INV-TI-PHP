@@ -10,6 +10,7 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import DevicesOtherIcon from '@mui/icons-material/DevicesOther';
 import EditIcon from '@mui/icons-material/Edit';
 import GppBadIcon from '@mui/icons-material/GppBad';
+import DialpadIcon from '@mui/icons-material/Dialpad';
 import GppMaybeIcon from '@mui/icons-material/GppMaybe';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
@@ -419,6 +420,16 @@ export const UsersPage = () => {
             })}>
               <ListItemIcon><GppBadIcon fontSize="small" /></ListItemIcon>
               <ListItemText>{t('users.actions.reset_mfa')}</ListItemText>
+            </MenuItem>
+          ),
+          currentUser?.role === 'SUPER_ADMIN' && menuRow.codigo_operador_configurado && (
+            <MenuItem key="reset-operator-code" dense onClick={() => void runAction(menuRow, () => userService.resetOperatorCode(menuRow.USU_Usuario), 'users.actions.reset_operator_code_done', {
+              message: t('users.actions.reset_operator_code_confirm', { name: menuName }),
+              confirmText: t('users.actions.reset_operator_code'),
+              destructive: true,
+            })}>
+              <ListItemIcon><DialpadIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('users.actions.reset_operator_code')}</ListItemText>
             </MenuItem>
           ),
           currentUser?.role === 'SUPER_ADMIN' && !menuRow.USU_2FA_Habilitado && menuRow.mfa_requerido && (menuRow.mfa_exento_hasta ? (

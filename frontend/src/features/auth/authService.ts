@@ -31,6 +31,14 @@ export interface SsoProvider {
   label: string;
 }
 
+/** Estado del código de operador de la cuenta (GET /me). */
+export interface OperatorCodeStatus {
+  puede_tener: boolean;
+  configurado: boolean;
+  definido_en: string | null;
+  bloqueado_hasta: string | null;
+}
+
 export const authService = {
   async getSsoProviders(): Promise<SsoProvider[]> {
     const r = await client.get<{ enabled: boolean; providers: SsoProvider[] }>('/login/sso/providers');
@@ -134,6 +142,11 @@ export const authService = {
   async me() {
     const response = await client.get('/me');
     return response.data;
+  },
+
+  /** Define o cambia el código de operador propio (6 dígitos); con cuenta de contraseña, pide la actual. */
+  async setOperatorCode(code: string, currentPassword: string): Promise<void> {
+    await client.put('/me/operator-code', { code, current_password: currentPassword || null });
   },
 
   async changeMyPassword(currentPassword: string, newPassword: string): Promise<void> {

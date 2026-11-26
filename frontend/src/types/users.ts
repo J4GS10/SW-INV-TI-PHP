@@ -44,6 +44,8 @@ export interface UsuarioSistema {
   USU_SSO_Provider?: 'microsoft' | 'google' | null;
   USU_2FA_Habilitado?: boolean;
   USU_2FA_Metodo?: 'TOTP' | 'EMAIL' | null;
+  /** Definió su código de operador (TI y técnicos). */
+  codigo_operador_configurado?: boolean;
   USU_Ultimo_Login: string | null;
   /** Contraseña temporal asignada por un administrador: debe cambiarla al iniciar sesión. */
   USU_Debe_Cambiar_Password?: boolean;

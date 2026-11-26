@@ -31,7 +31,7 @@ import type { SvgIconComponent } from '@mui/icons-material';
 import { UserRole } from '../types/auth';
 import {
   ADMIN_READER_ROLES, AUDIT_READER_ROLES, IAM_ROLES, INVENTORY_ADMIN_ROLES, INVENTORY_ROLES, PURCHASE_READ_ROLES,
-  SOFTWARE_PAGE_ROLES, STOCK_ROLES, FINANCE_EXPORT_ROLES, WARRANTY_ROLES, DIRECTORY_ROLES, GOODS_RECEIPT_ROLES, ACCOUNTING_ROLES,
+  SCANNER_ROLES, SOFTWARE_PAGE_ROLES, STOCK_ROLES, FINANCE_EXPORT_ROLES, WARRANTY_ROLES, DIRECTORY_ROLES, GOODS_RECEIPT_ROLES, ACCOUNTING_ROLES,
 } from '../utils/roles';
 
 export interface NavItem {
@@ -50,7 +50,7 @@ export const NAVIGATION_ITEMS: NavItem[] = [
   { title: 'menu.my_tasks', path: '/inicio', icon: PlaylistAddCheckIcon, allowedRoles: [...STOCK_ROLES, 'COMPRAS'], group: 'DAILY' },
   { title: 'menu.pending_units', path: '/ingresos/por-completar', icon: EditNoteIcon, allowedRoles: ['ADMIN_TI', 'TECNICO'], group: 'DAILY' },
   { title: 'menu.assets', path: '/activos', icon: ComputerIcon, allowedRoles: STOCK_ROLES, group: 'DAILY' },
-  { title: 'menu.scanner', path: '/scanner', icon: QrCodeScannerIcon, allowedRoles: INVENTORY_ROLES, group: 'DAILY' },
+  { title: 'menu.scanner', path: '/scanner', icon: QrCodeScannerIcon, allowedRoles: SCANNER_ROLES, group: 'DAILY' },
   { title: 'menu.movements', path: '/operaciones/movimientos', icon: SwapHorizIcon, allowedRoles: INVENTORY_ROLES, group: 'DAILY' },
   { title: 'menu.onboarding', path: '/operaciones/alta-empleado', icon: PersonAddIcon, allowedRoles: INVENTORY_ADMIN_ROLES, group: 'DAILY' },
   { title: 'menu.maintenance', path: '/mantenimiento', icon: BuildIcon, allowedRoles: INVENTORY_ROLES, group: 'DAILY' },
